@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0a0b0d;
+  --color-surface: #131518;
+  --color-surface-2: #1b1e22;
+  --color-border: #23272c;
+  --color-text: #f2f3f5;
+  --color-muted: #8a9099;
+  --color-accent: #00e28a;
+  --color-loss: #ff5a4e;
+  --color-warn: #ffb547;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}
+
+/* Numbers (prices, sizes, balances) line up column to column. */
+.tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
