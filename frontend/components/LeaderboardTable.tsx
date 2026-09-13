@@ -13,6 +13,17 @@ import type { FixtureAgent } from "@/lib/fixtures";
 export function LeaderboardTable({ agents }: { agents: FixtureAgent[] }) {
   const ranked = [...agents].sort((a, b) => b.pnlPct - a.pnlPct);
 
+  if (ranked.length === 0) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-6 text-center">
+        <p className="text-sm text-muted">
+          No agents registered yet. Once AgentRegistry has an entry, it
+          ranks here — nothing is seeded by hand.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div>
       <p className="mb-3 text-xs text-muted">
