@@ -103,12 +103,31 @@ contract AppendOnlyTest is Test {
         }
     }
 
-    /// @dev A bare call with no calldata must find nothing — proves there is no fallback or
-    ///      receive that could be grown into a mutation path later. Unlike a selector probe this
-    ///      has exactly one reason to fail, so the assertion is sound.
-    function test_NoFallbackExists() public {
+    /// @dev A fallback is the one mutation path the allowlist above cannot see: it has no
+    ///      selector, so it never appears in `methodIdentifiers`. It is also the one a bare call
+    ///      cannot rule out — a fallback that starts `require(msg.sender == runner)`, or that
+    ///      decodes specific calldata, reverts on an empty call from anyone else while still
+    ///      exposing a full write path. So assert on the ABI, where `fallback` and `receive` are
+    ///      declared as their own entry types.
+    function test_AbiDeclaresNoFallbackOrReceive() public view {
+        string[] memory entryTypes = _abiEntryTypes();
+        assertGt(entryTypes.length, 0, "ABI walk returned nothing - is the artifact path right?");
+
+        for (uint256 i = 0; i < entryTypes.length; i++) {
+            assertFalse(
+                _eq(entryTypes[i], "fallback"),
+                "FORBIDDEN: TrackRecord declares a fallback - it carries no selector, so a gated one hides a write path"
+            );
+            assertFalse(_eq(entryTypes[i], "receive"), "FORBIDDEN: TrackRecord declares a receive function");
+        }
+    }
+
+    /// @dev Behavioral corroboration only. This proves a bare call finds nothing to dispatch to;
+    ///      it does NOT prove a fallback is absent, because a gated fallback would revert here
+    ///      too. test_AbiDeclaresNoFallbackOrReceive is the load-bearing check.
+    function test_BareCallFindsNothing() public {
         (bool ok,) = address(trackRecord).call("");
-        assertFalse(ok, "TrackRecord accepts bare calls - a fallback could hide a mutation path");
+        assertFalse(ok, "TrackRecord accepts bare calls");
     }
 
     /// @dev The runner is the only writer and is immutable by design; rotating it would weaken
@@ -166,6 +185,34 @@ contract AppendOnlyTest is Test {
         ITrackRecord.Fill memory persisted = trackRecord.getFill(fillId);
         assertEq(keccak256(abi.encode(persisted)), keccak256(abi.encode(before)), "recorded Fill was mutated");
         assertEq(trackRecord.fillCount(), countBefore, "fillCount moved");
+    }
+
+    /// @dev Every entry type in the artifact's ABI array, in order. Walks by index until one is
+    ///      missing, so `fallback` and `receive` — which carry no selector and are absent from
+    ///      methodIdentifiers — are still visible.
+    function _abiEntryTypes() internal view returns (string[] memory entryTypes) {
+        string memory json = vm.readFile(ARTIFACT);
+        string[] memory buffer = new string[](256);
+        uint256 count;
+
+        for (uint256 i = 0; i < 256; i++) {
+            try vm.parseJsonString(json, string.concat("$.abi[", vm.toString(i), "].type")) returns (
+                string memory entryType
+            ) {
+                buffer[count++] = entryType;
+            } catch {
+                break;
+            }
+        }
+
+        entryTypes = new string[](count);
+        for (uint256 i = 0; i < count; i++) {
+            entryTypes[i] = buffer[i];
+        }
+    }
+
+    function _eq(string memory a, string memory b) internal pure returns (bool) {
+        return keccak256(bytes(a)) == keccak256(bytes(b));
     }
 
     function _contains(string[] memory haystack, string memory needle) internal pure returns (bool) {
