@@ -2,6 +2,9 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
+import { AgentTapeTable } from "@/components/AgentTapeTable";
+import { DepositModal } from "@/components/DepositModal";
+import { FollowModal } from "@/components/FollowModal";
 import { TrustBadge } from "@/components/TrustBadge";
 import { FillFeed } from "@/components/FillFeed";
 import { KillButton } from "@/components/KillButton";
@@ -11,7 +14,9 @@ import {
 } from "@/components/PolicyRejectBanner";
 import { useFillEvents } from "@/hooks/useFillEvents";
 import { usePolicyError } from "@/hooks/usePolicyError";
-import { fixtureAgents, fixtureWallet } from "@/lib/fixtures";
+import { useAgent } from "@/hooks/useAgents";
+import { useDeposit } from "@/hooks/useDeposit";
+import { useFollow } from "@/hooks/useFollow";
 
 // Day 3–4 (David, PRD §5.2): tape table, deposit, follow. This file also
 // carries the consequences-flow pieces (Patrick, PRD §5.3) below the
@@ -22,14 +27,32 @@ export default function AgentDetailPage({
   params,
 }: PageProps<"/agents/[id]">) {
   const { id } = use(params);
-  const agent = fixtureAgents.find((a) => String(a.id) === id);
+  const agentId = Number(id);
+  const { agent, fills: tapeFills } = useAgent(agentId);
   const { fills } = useFillEvents(agent?.id);
   const { decode, simulate } = usePolicyError();
+  const { walletBalance, vaultBalance, deposit } = useDeposit();
+  const { allocatedByAgent, freeBalance, follow, addFreeBalance } =
+    useFollow(vaultBalance);
 
   const [rejectReason, setRejectReason] = useState<PolicyRejectReason | null>(null);
   const [killed, setKilled] = useState(false);
+  const [depositOpen, setDepositOpen] = useState(false);
+  const [followOpen, setFollowOpen] = useState(false);
 
-  const allocated = agent ? (fixtureWallet.allocated[agent.id] ?? 0) : 0;
+  const allocated = agent ? (allocatedByAgent[agent.id] ?? 0) : 0;
+
+  if (!Number.isInteger(agentId) || agentId <= 0) {
+    return (
+      <main className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-8">
+        <h1 className="text-3xl font-semibold tracking-tight">Agent not found</h1>
+        <p className="mt-2 text-muted">This route does not map to an agent id.</p>
+        <Link href="/agents" className="mt-8 inline-block text-accent">
+          Back to agents
+        </Link>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-8">
@@ -40,13 +63,71 @@ export default function AgentDetailPage({
         {agent ? `${agent.strategy} · ${agent.fills} fills` : "Not found in fixtures."}
       </p>
 
+      {!agent && (
+        <div className="mt-8 rounded-2xl border border-border bg-surface p-6 text-sm text-muted">
+          Agent #{agentId} is not in the current fixture set. Once
+          AgentRegistry is wired, this page will resolve from chain reads.
+        </div>
+      )}
+
       {agent && (
         <>
           <div className="mt-4">
             <TrustBadge fillCount={agent.fills} verifiedThroughBlock={1284392} />
           </div>
 
-          {/* --- Deposit / follow panel lands here (David, PRD §5.2) --- */}
+          <section className="mt-8 rounded-2xl border border-border bg-surface p-5">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div>
+                <p className="text-sm text-muted">Wallet</p>
+                <p className="tabular mt-1 text-xl font-semibold">
+                  {walletBalance.toFixed(2)} USDG
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted">Vault free</p>
+                <p className="tabular mt-1 text-xl font-semibold">
+                  {freeBalance.toFixed(2)} USDG
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted">Allocated here</p>
+                <p className="tabular mt-1 text-xl font-semibold">
+                  {allocated.toFixed(2)} USDG
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => setDepositOpen(true)}
+                className="h-11 rounded-xl bg-accent px-5 font-semibold text-bg transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-accent/70"
+              >
+                Deposit
+              </button>
+              <button
+                type="button"
+                onClick={() => setFollowOpen(true)}
+                disabled={allocated > 0}
+                className="h-11 rounded-xl border border-border px-5 font-semibold text-text transition hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-45 focus:outline-none focus:ring-2 focus:ring-accent/70"
+              >
+                {allocated > 0 ? "Following" : "Follow with cap"}
+              </button>
+            </div>
+          </section>
+
+          <section className="mt-8">
+            <div className="mb-4 flex items-end justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold">Verified tape</h2>
+                <p className="mt-1 text-sm text-muted">
+                  Every row carries its own explorer link.
+                </p>
+              </div>
+            </div>
+            <AgentTapeTable fills={tapeFills} />
+          </section>
 
           <div className="my-10 border-t border-border" />
 
@@ -107,6 +188,27 @@ export default function AgentDetailPage({
               </div>
             )}
           </section>
+
+          <DepositModal
+            open={depositOpen}
+            onClose={() => setDepositOpen(false)}
+            walletBalance={walletBalance}
+            vaultBalance={vaultBalance}
+            onDeposit={async (amount) => {
+              const result = await deposit(amount);
+              addFreeBalance(amount);
+              return result;
+            }}
+          />
+          <FollowModal
+            open={followOpen}
+            onClose={() => setFollowOpen(false)}
+            agentId={agent.id}
+            agentName={agent.name}
+            freeBalance={freeBalance}
+            alreadyFollowing={allocated > 0}
+            onFollow={follow}
+          />
         </>
       )}
 
