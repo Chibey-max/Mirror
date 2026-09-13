@@ -174,6 +174,120 @@ contract ScaffoldTest is Test {
         );
     }
 
+    /// @dev EVENT SNAPSHOT — topic0 pins the canonical signature, but `indexed` is not part of
+    ///      that signature. Dropping `indexed` from a parameter leaves topic0 identical while
+    ///      moving the value out of the topics and into the data blob, so every indexer filtering
+    ///      on it silently stops matching. Parameter names are absent from topic0 too.
+    ///
+    ///      So snapshot the full declaration out of the artifact: ordered types, the indexed flag,
+    ///      parameter names, and whether the event is anonymous.
+    function test_FrozenEventParameterSnapshot() public view {
+        string memory registry = "out/AgentRegistry.sol/AgentRegistry.json";
+        string memory record = "out/TrackRecord.sol/TrackRecord.json";
+        string memory policyArtifact = "out/PolicyModule.sol/PolicyModule.json";
+
+        assertEq(
+            _abiSignature(registry, "event", "AgentRegistered"),
+            "AgentRegistered(uint256 indexed agentId, address indexed owner, string name, bytes32 strategyHash) non-anonymous",
+            "AgentRegistered declaration moved"
+        );
+        assertEq(
+            _abiSignature(registry, "event", "AgentDeactivated"),
+            "AgentDeactivated(uint256 indexed agentId) non-anonymous",
+            "AgentDeactivated declaration moved"
+        );
+        assertEq(
+            _abiSignature(record, "event", "FillRecorded"),
+            "FillRecorded(uint256 indexed fillId, uint256 indexed agentId, address indexed token, bool isBuy, uint256 size, uint256 price, uint64 timestamp, bytes32 oracleRoundId) non-anonymous",
+            "FillRecorded declaration moved"
+        );
+        assertEq(
+            _abiSignature(policyArtifact, "event", "PolicySet"),
+            "PolicySet(address indexed user, uint256 indexed agentId, uint256 maxNotionalPerDay, uint256 maxSlippageBps) non-anonymous",
+            "PolicySet declaration moved"
+        );
+        assertEq(
+            _abiSignature(policyArtifact, "event", "PolicyKilled"),
+            "PolicyKilled(address indexed user, uint256 indexed agentId) non-anonymous",
+            "PolicyKilled declaration moved"
+        );
+    }
+
+    /// @dev ERROR SNAPSHOT — a selector covers argument types in order but not their names, so
+    ///      swapping CapExceeded(uint256 attempted, uint256 cap) to (uint256 cap, uint256
+    ///      attempted) leaves the selector identical and reverses the meaning. PolicyRejectBanner
+    ///      renders those two numbers as "would move ${attempted}, cap is ${cap}", so that swap
+    ///      ships a banner stating the reverse of what happened.
+    function test_FrozenErrorParameterSnapshot() public view {
+        string memory registry = "out/AgentRegistry.sol/AgentRegistry.json";
+        string memory record = "out/TrackRecord.sol/TrackRecord.json";
+        string memory policyArtifact = "out/PolicyModule.sol/PolicyModule.json";
+
+        assertEq(_abiSignature(registry, "error", "NotAgentOwner"), "NotAgentOwner()", "NotAgentOwner moved");
+        assertEq(_abiSignature(registry, "error", "EmptyName"), "EmptyName()", "EmptyName moved");
+        assertEq(_abiSignature(record, "error", "NotRunner"), "NotRunner()", "NotRunner moved");
+        assertEq(
+            _abiSignature(policyArtifact, "error", "CapExceeded"),
+            "CapExceeded(uint256 attempted, uint256 cap)",
+            "CapExceeded moved - PolicyRejectBanner renders these two in this order"
+        );
+        assertEq(
+            _abiSignature(policyArtifact, "error", "TokenNotAllowed"),
+            "TokenNotAllowed(address token)",
+            "TokenNotAllowed moved"
+        );
+        assertEq(_abiSignature(policyArtifact, "error", "PolicyInactive"), "PolicyInactive()", "PolicyInactive moved");
+        assertEq(_abiSignature(policyArtifact, "error", "OnlyVault"), "OnlyVault()", "OnlyVault moved");
+    }
+
+    /// @dev Rebuilds an event or error declaration from a compiled artifact as
+    ///      `Name(type[ indexed] name, ...)`, with ` anonymous` / ` non-anonymous` appended for
+    ///      events. Walks inputs by index until one is missing, so an added or removed parameter
+    ///      changes the result.
+    function _abiSignature(string memory artifact, string memory entryType, string memory entryName)
+        internal
+        view
+        returns (string memory out)
+    {
+        string memory json = vm.readFile(artifact);
+        string memory base = string.concat("$.abi[?(@.name=='", entryName, "' && @.type=='", entryType, "')]");
+
+        // Without this guard a missing entry yields "Name()", which a no-argument error would
+        // match exactly — a rename would pass silently.
+        try vm.parseJsonString(json, string.concat(base, ".type")) returns (string memory foundType) {
+            require(
+                keccak256(bytes(foundType)) == keccak256(bytes(entryType)),
+                string.concat("ABI entry type mismatch for ", entryName)
+            );
+        } catch {
+            revert(string.concat("ABI entry not found: ", entryType, " ", entryName));
+        }
+
+        out = string.concat(entryName, "(");
+
+        for (uint256 i = 0; i < 64; i++) {
+            string memory at = string.concat(base, ".inputs[", vm.toString(i), "]");
+            try vm.parseJsonString(json, string.concat(at, ".type")) returns (string memory paramType) {
+                string memory paramName = vm.parseJsonString(json, string.concat(at, ".name"));
+
+                string memory indexedFlag = "";
+                try vm.parseJsonBool(json, string.concat(at, ".indexed")) returns (bool isIndexed) {
+                    indexedFlag = isIndexed ? " indexed" : "";
+                } catch {}
+
+                out = string.concat(out, i == 0 ? "" : ", ", paramType, indexedFlag, " ", paramName);
+            } catch {
+                break;
+            }
+        }
+
+        out = string.concat(out, ")");
+
+        try vm.parseJsonBool(json, string.concat(base, ".anonymous")) returns (bool isAnonymous) {
+            out = string.concat(out, isAnonymous ? " anonymous" : " non-anonymous");
+        } catch {}
+    }
+
     /// @dev The custom errors are load-bearing for the frontend: Patrick decodes them with viem
     ///      and renders the exact copy in PRD Section 4.6 (see the note at IPolicyModule.sol:6).
     ///      A renamed error or a reordered argument list silently breaks that decode, so the
