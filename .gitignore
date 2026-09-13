@@ -1,0 +1,13 @@
+# Secrets — nothing matching these may ever be committed (PRD Section 12).
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
