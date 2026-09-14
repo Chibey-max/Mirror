@@ -1,6 +1,11 @@
 import { useCallback } from "react";
-import { type Abi, type Hex, BaseError, ContractFunctionRevertedError } from "viem";
+import { type Abi, type Hex, BaseError, ContractFunctionRevertedError, formatUnits } from "viem";
 import type { PolicyRejectReason } from "@/components/PolicyRejectBanner";
+
+/** USDG is 6-decimal (PRD v2.0 §7) — every notional value in PolicyModule's
+ * custom errors is a raw integer in this unit, same as every other USDG
+ * amount in the system. */
+const USDG_DECIMALS = 6;
 
 /**
  * The PolicyModule + CopyVault user-facing custom errors (PRD §4.3/§4.4/§4.6),
@@ -40,6 +45,20 @@ const policyErrorsAbi = [
 export type TokenSymbolResolver = (token: `0x${string}`) => string;
 
 /**
+ * Raw 6-decimal USDG bigint -> a display number, rounded to cents.
+ *
+ * Bug fixed here (PRD v2.0 §7, found while specifying the notional unit
+ * convention): this previously went straight to `Number(attempted)` with no
+ * decimal conversion — a real CapExceeded revert would have rendered
+ * "$80000000" instead of "$80". Never caught because every path exercised
+ * so far was the fixture/simulate path, which already used human-scale
+ * numbers.
+ */
+function toDisplayUsdg(raw: bigint): number {
+  return Math.round(Number(formatUnits(raw, USDG_DECIMALS)) * 100) / 100;
+}
+
+/**
  * Decodes a reverted CopyVault/PolicyModule call into a PolicyRejectReason
  * the banner can render (PRD §4.6), for all four variants. Real decoding
  * now — viem's decodeErrorResult only needs the error ABI shape above, not
@@ -69,7 +88,11 @@ export function usePolicyError(resolveSymbol?: TokenSymbolResolver) {
       switch (data.errorName) {
         case "CapExceeded": {
           const [attempted, cap] = (data.args ?? []) as [bigint, bigint];
-          return { type: "CapExceeded", attempted: Number(attempted), cap: Number(cap) };
+          return {
+            type: "CapExceeded",
+            attempted: toDisplayUsdg(attempted),
+            cap: toDisplayUsdg(cap),
+          };
         }
         case "TokenNotAllowed": {
           const [token] = (data.args ?? []) as [Hex];
