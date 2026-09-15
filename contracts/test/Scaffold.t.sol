@@ -225,6 +225,9 @@ contract ScaffoldTest is Test {
 
         assertEq(_abiSignature(registry, "error", "NotAgentOwner"), "NotAgentOwner()", "NotAgentOwner moved");
         assertEq(_abiSignature(registry, "error", "EmptyName"), "EmptyName()", "EmptyName moved");
+        assertEq(
+            _abiSignature(registry, "error", "AgentInactive"), "AgentInactive(uint256 agentId)", "AgentInactive moved"
+        );
         assertEq(_abiSignature(record, "error", "NotRunner"), "NotRunner()", "NotRunner moved");
         assertEq(
             _abiSignature(policyArtifact, "error", "CapExceeded"),
@@ -297,6 +300,11 @@ contract ScaffoldTest is Test {
             IAgentRegistry.NotAgentOwner.selector, bytes4(keccak256("NotAgentOwner()")), "NotAgentOwner signature moved"
         );
         assertEq(IAgentRegistry.EmptyName.selector, bytes4(keccak256("EmptyName()")), "EmptyName signature moved");
+        assertEq(
+            IAgentRegistry.AgentInactive.selector,
+            bytes4(keccak256("AgentInactive(uint256)")),
+            "AgentInactive signature moved"
+        );
         assertEq(ITrackRecord.NotRunner.selector, bytes4(keccak256("NotRunner()")), "NotRunner signature moved");
         assertEq(
             IPolicyModule.CapExceeded.selector,
