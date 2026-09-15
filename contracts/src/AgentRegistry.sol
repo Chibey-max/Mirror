@@ -15,10 +15,9 @@ import {IAgentRegistry} from "./interfaces/IAgentRegistry.sol";
 ///        - identity is permanent. owner, name, strategyHash, modelVersion and registeredAt are
 ///          written once at registration and have no setter, under any name — strategyHash is a
 ///          commitment to a strategy, and a track record must not be re-attributable after the fact.
+///        - deactivation is owner-only and one-way.
 ///        - there is no admin, no upgrade path, no external call, and no way to receive ETH.
 contract AgentRegistry is IAgentRegistry {
-    error NotImplemented();
-
     /// @dev agentId => Agent. agentId is 1-indexed; 0 is reserved as "no agent".
     mapping(uint256 => Agent) internal _agents;
 
@@ -54,9 +53,15 @@ contract AgentRegistry is IAgentRegistry {
     }
 
     /// @inheritdoc IAgentRegistry
+    /// @dev onlyAgentOwner runs first, so an unknown id (owner == address(0)) and a non-owner are both
+    ///      rejected with NotAgentOwner before the state check. There is deliberately no way back to
+    ///      active: a pause/resume switch would let an owner stop recording during a losing streak.
     function deactivateAgent(uint256 agentId) external onlyAgentOwner(agentId) {
-        // TODO(Day 4): set active = false; emit AgentDeactivated.
-        revert NotImplemented();
+        if (!_agents[agentId].active) revert AgentInactive(agentId);
+
+        _agents[agentId].active = false;
+
+        emit AgentDeactivated(agentId);
     }
 
     /// @inheritdoc IAgentRegistry

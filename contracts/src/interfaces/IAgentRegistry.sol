@@ -21,6 +21,12 @@ interface IAgentRegistry {
 
     error NotAgentOwner();
     error EmptyName();
+    /// @notice deactivateAgent was called on an agent that is already inactive.
+    /// @dev ADDED AFTER THE FREEZE (15 Sep 2026, Isaac) — pending whole-team sign-off in the PRD v2.2
+    ///      amendment. Deactivation is one-way, so a second call is a caller mistake and is rejected
+    ///      rather than silently re-emitting AgentDeactivated. Same signature as TrackRecord's
+    ///      AgentInactive(uint256) in PRD v2.1 Section 5.2, so both decode identically.
+    error AgentInactive(uint256 agentId);
 
     function registerAgent(string calldata name, bytes32 strategyHash, string calldata modelVersion)
         external

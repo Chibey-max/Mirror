@@ -160,6 +160,122 @@ contract AgentRegistryTest is Test {
     }
 
     // ---------------------------------------------------------------------------------------------
+    // deactivateAgent
+    // ---------------------------------------------------------------------------------------------
+
+    /// @dev Flips `active` and nothing else. Compared as whole encoded structs so a change to any
+    ///      other field — owner, name, strategyHash, modelVersion, registeredAt — fails the test.
+    function test_DeactivateAgent_OwnerFlipsActiveAndNothingElse() public {
+        uint256 agentId = _register(alice, "Pulse", PULSE_HASH, "pulse-v1.2");
+        IAgentRegistry.Agent memory expected = registry.getAgent(agentId);
+        expected.active = false;
+
+        vm.warp(block.timestamp + 7 days);
+        vm.prank(alice);
+        registry.deactivateAgent(agentId);
+
+        assertEq(abi.encode(registry.getAgent(agentId)), abi.encode(expected), "deactivation touched more than active");
+        assertEq(registry.agentCount(), 1, "deactivation must not change agentCount");
+    }
+
+    function test_DeactivateAgent_EmitsExactlyOneEvent() public {
+        uint256 agentId = _register(alice, "Pulse", PULSE_HASH, "pulse-v1.2");
+
+        vm.recordLogs();
+        vm.prank(alice);
+        registry.deactivateAgent(agentId);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        assertEq(logs.length, 1, "deactivateAgent must emit exactly one event");
+        assertEq(logs[0].emitter, address(registry));
+        assertEq(logs[0].topics.length, 2, "AgentDeactivated has one indexed parameter");
+        assertEq(logs[0].topics[0], IAgentRegistry.AgentDeactivated.selector);
+        assertEq(uint256(logs[0].topics[1]), agentId, "indexed agentId");
+        assertEq(logs[0].data.length, 0, "AgentDeactivated carries no data");
+    }
+
+    function test_DeactivateAgent_RevertsForNonOwner() public {
+        uint256 agentId = _register(alice, "Pulse", PULSE_HASH, "pulse-v1.2");
+
+        vm.prank(bob);
+        vm.expectRevert(IAgentRegistry.NotAgentOwner.selector);
+        registry.deactivateAgent(agentId);
+
+        assertTrue(registry.getAgent(agentId).active, "a non-owner deactivated the agent");
+    }
+
+    /// @dev An unknown id has owner == address(0), which no msg.sender can ever equal, so the
+    ///      ownership check rejects it before anything else runs. Id 0 included.
+    function test_DeactivateAgent_RevertsForUnknownIds() public {
+        _register(alice, "Pulse", PULSE_HASH, "pulse-v1.2");
+
+        vm.startPrank(alice);
+        vm.expectRevert(IAgentRegistry.NotAgentOwner.selector);
+        registry.deactivateAgent(0);
+        vm.expectRevert(IAgentRegistry.NotAgentOwner.selector);
+        registry.deactivateAgent(2);
+        vm.expectRevert(IAgentRegistry.NotAgentOwner.selector);
+        registry.deactivateAgent(type(uint256).max);
+        vm.stopPrank();
+
+        _assertZeroAgent(0);
+        _assertZeroAgent(2);
+    }
+
+    /// @dev Deactivation is one-way (decision D2): a second call is a caller mistake, rejected with
+    ///      AgentInactive rather than silently re-emitting AgentDeactivated.
+    function test_DeactivateAgent_RevertsWhenAlreadyInactive() public {
+        uint256 agentId = _register(alice, "Pulse", PULSE_HASH, "pulse-v1.2");
+        vm.startPrank(alice);
+        registry.deactivateAgent(agentId);
+
+        vm.expectRevert(abi.encodeWithSelector(IAgentRegistry.AgentInactive.selector, agentId));
+        registry.deactivateAgent(agentId);
+        vm.stopPrank();
+
+        assertFalse(registry.getAgent(agentId).active);
+    }
+
+    /// @dev Access control runs before the state check, so a non-owner learns nothing new and gets
+    ///      the same error whether or not the agent is still active.
+    function test_DeactivateAgent_NonOwnerGetsNotAgentOwnerEvenWhenInactive() public {
+        uint256 agentId = _register(alice, "Pulse", PULSE_HASH, "pulse-v1.2");
+        vm.prank(alice);
+        registry.deactivateAgent(agentId);
+
+        vm.prank(bob);
+        vm.expectRevert(IAgentRegistry.NotAgentOwner.selector);
+        registry.deactivateAgent(agentId);
+    }
+
+    function test_DeactivateAgent_LeavesOtherAgentsUntouched() public {
+        uint256 pulse = _register(alice, "Pulse", PULSE_HASH, "pulse-v1.2");
+        uint256 red = _register(alice, "Red", RED_HASH, "red-v1.0");
+        uint256 drift = _register(bob, "Drift", keccak256("drift-strategy"), "drift-v0.9");
+        bytes memory redBefore = abi.encode(registry.getAgent(red));
+        bytes memory driftBefore = abi.encode(registry.getAgent(drift));
+
+        vm.prank(alice);
+        registry.deactivateAgent(pulse);
+
+        assertEq(abi.encode(registry.getAgent(red)), redBefore, "same owner's other agent changed");
+        assertEq(abi.encode(registry.getAgent(drift)), driftBefore, "another owner's agent changed");
+    }
+
+    function testFuzz_DeactivateAgent_OnlyTheOwnerCan(address caller) public {
+        vm.assume(caller != alice);
+        uint256 agentId = _register(alice, "Pulse", PULSE_HASH, "pulse-v1.2");
+
+        vm.prank(caller);
+        vm.expectRevert(IAgentRegistry.NotAgentOwner.selector);
+        registry.deactivateAgent(agentId);
+
+        vm.prank(alice);
+        registry.deactivateAgent(agentId);
+        assertFalse(registry.getAgent(agentId).active);
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // getAgent / agentCount on ids that were never registered
     // ---------------------------------------------------------------------------------------------
 
