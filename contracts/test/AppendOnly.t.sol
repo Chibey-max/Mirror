@@ -145,14 +145,9 @@ contract AppendOnlyTest is Test {
 
     /// @dev BEHAVIORAL — the complement to the ABI assertions: proves a recorded Fill's bytes do
     ///      not change when every forbidden path is invoked with correctly encoded, full-arity
-    ///      calldata over a state-changing `call`.
-    ///
-    ///      Skipped until Day 4 (Sun 14 Sep): `recordFill` reverts NotImplemented, so no Fill can
-    ///      be recorded to mutate. Remove the vm.skip line when the body lands. The allowlist
-    ///      test above is live in the meantime and is the stronger of the two.
+    ///      calldata over a state-changing `call`. Agent 1 is registered in setUp. The allowlist
+    ///      test above is the stronger of the two.
     function test_RecordedFillCannotBeMutated() public {
-        vm.skip(true);
-
         vm.prank(RUNNER);
         uint256 fillId = trackRecord.recordFill(1, address(0xC0FFEE), true, 1000, 2_500_000_000, bytes32("round-1"));
 

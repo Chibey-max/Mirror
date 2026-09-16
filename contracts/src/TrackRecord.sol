@@ -13,10 +13,27 @@ import {ITrackRecord} from "./interfaces/ITrackRecord.sol";
 ///      file. The guarantee is enforced by OMISSION: a judge reading this source and finding no
 ///      mutation path IS the product's verifiability claim (PRD Section 1.4).
 ///
-/// @dev PARTIAL. The PRD v2.2 surface and constructor are in place; the recordFill and
-///      getFillsByAgent bodies are not implemented yet. The Fill struct and storage layout are final.
+/// @dev WHAT THIS CONTRACT ENFORCES
+///        - A fill, once recorded, never changes and is never removed.
+///        - fillIds run 1, 2, 3... across all agents and are never reused; id 0 is never a fill, so
+///          an unrecorded id reads as the all-zero Fill without reverting.
+///        - Only the runner can record, and the runner cannot be changed after deployment.
+///        - Every fill belongs to an agent that was registered and active in AgentRegistry when it
+///          was recorded, so no fill can predate its agent.
+///        - A fill never has a zero token, zero size or zero price.
+///        - fillId and timestamp are set here, never by the caller; timestamp is the block time of
+///          recording.
+///        - Exactly one FillRecorded event per fill, carrying the stored values.
+///        - Nothing leaves this contract except one read-only call to the registry; it holds no ETH.
+///
+/// @dev WHAT IT TRUSTS THE RUNNER FOR (a stated V1 decision, PRD v2.2 Section 5.2, oracle option A)
+///        - price and oracleRoundId are stored exactly as the runner relays them; nothing here checks
+///          them against a price feed.
+///        - Which trades get recorded: the contract cannot tell whether a trade was left out, and it
+///          does not verify that any trade executed anywhere.
+///
+/// @dev PARTIAL: getFillsByAgent is not implemented yet and returns an empty page.
 contract TrackRecord is ITrackRecord {
-    error NotImplemented();
     error ZeroRunner();
 
     /// @notice agentRegistry is the zero address or has no code.
@@ -55,20 +72,44 @@ contract TrackRecord is ITrackRecord {
     }
 
     /// @inheritdoc ITrackRecord
+    /// @dev Checks run in a fixed order: caller, then the three values in parameter order, then the
+    ///      agent. The cheap checks come first, so a refused call never reaches the registry.
     function recordFill(uint256 agentId, address token, bool isBuy, uint256 size, uint256 price, bytes32 oracleRoundId)
         external
         onlyRunner
         returns (uint256 fillId)
     {
-        // TODO(Day 4): fillId = ++_fillCount; write _fills[fillId] ONCE; push to _fillsByAgent;
-        // emit FillRecorded with uint64(block.timestamp).
-        agentId;
-        token;
-        isBuy;
-        size;
-        price;
-        oracleRoundId;
-        revert NotImplemented();
+        // A fill can never be corrected once recorded, so reject values that cannot describe a trade.
+        if (token == address(0)) revert ZeroToken();
+        if (size == 0) revert ZeroSize();
+        if (price == 0) revert ZeroPrice();
+
+        // One read, two checks (PRD v2.2 Section 5.2). getAgent never reverts: an unknown id returns
+        // the zero struct, whose owner is address(0). The call is a STATICCALL, so it cannot reenter.
+        IAgentRegistry.Agent memory agent = registry.getAgent(agentId);
+        if (agent.owner == address(0)) revert AgentNotFound(agentId);
+        if (!agent.active) revert AgentInactive(agentId);
+
+        // Pre-increment: the first fill is 1, so id 0 is never written and always reads as "no fill".
+        fillId = ++_fillCount;
+
+        // The uint64 cast cannot truncate: block.timestamp stays below 2^64 for ~584 billion years.
+        uint64 timestamp = uint64(block.timestamp);
+
+        // The only write to _fills anywhere in this contract, on a fillId that has never been used.
+        _fills[fillId] = Fill({
+            fillId: fillId,
+            agentId: agentId,
+            token: token,
+            isBuy: isBuy,
+            size: size,
+            price: price,
+            timestamp: timestamp,
+            oracleRoundId: oracleRoundId
+        });
+        _fillsByAgent[agentId].push(fillId);
+
+        emit FillRecorded(fillId, agentId, token, isBuy, size, price, timestamp, oracleRoundId);
     }
 
     /// @inheritdoc ITrackRecord
@@ -78,9 +119,9 @@ contract TrackRecord is ITrackRecord {
 
     /// @inheritdoc ITrackRecord
     function getFillsByAgent(uint256 agentId, uint256 offset, uint256 limit) external view returns (Fill[] memory) {
-        // TODO(Day 4): bounds-clamp offset/limit against _fillsByAgent[agentId].length and
-        // hydrate the page from _fills. Must not revert on an out-of-range offset — the
-        // AgentTapeTable paginates blind (PRD Section 5.2).
+        // TODO: bounds-clamp offset/limit against _fillsByAgent[agentId].length and hydrate the page
+        // from _fills. Must not revert on an out-of-range offset — the AgentTapeTable paginates
+        // blind (PRD Section 5.2).
         agentId;
         offset;
         limit;
