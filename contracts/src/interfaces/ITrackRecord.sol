@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 /// @title ITrackRecord
 /// @notice Frozen ABI — PRD v2.2 Section 5.2. Owner: Isaac.
 ///
-/// @dev NON-NEGOTIABLE (PRD Section 4.2): no `editFill`, `deleteFill`, or `setFill` function
+/// @dev NON-NEGOTIABLE (PRD v1.0 Section 4.2, unchanged in v2.2): no `editFill`, `deleteFill`, or `setFill` function
 ///      may exist anywhere in this interface or its implementation, under any name, ever —
 ///      including behind an admin modifier. The append-only guarantee is enforced by OMISSION.
 ///      A judge reading this file and finding no mutation path is the entire point of the

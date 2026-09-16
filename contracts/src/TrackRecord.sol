@@ -11,7 +11,7 @@ import {ITrackRecord} from "./interfaces/ITrackRecord.sol";
 ///      and never will — under any name, including behind an admin modifier. `_fills` is written
 ///      exactly once per fillId in `recordFill` and is never reassigned anywhere else in this
 ///      file. The guarantee is enforced by OMISSION: a judge reading this source and finding no
-///      mutation path IS the product's verifiability claim (PRD Section 1.4).
+///      mutation path IS the product's verifiability claim (PRD v1.0 Section 1.4).
 ///
 /// @dev WHAT THIS CONTRACT ENFORCES
 ///        - A fill, once recorded, never changes and is never removed.
@@ -25,7 +25,7 @@ import {ITrackRecord} from "./interfaces/ITrackRecord.sol";
 ///          recording.
 ///        - Exactly one FillRecorded event per fill, carrying the stored values.
 ///        - No read ever reverts: getFillsByAgent clamps any offset and limit to the agent's tape.
-///        - Nothing leaves this contract except one read-only call to the registry; it holds no ETH.
+///        - Nothing leaves this contract except one read-only call to the registry, and it accepts no ETH.
 ///
 /// @dev WHAT IT TRUSTS THE RUNNER FOR (a stated V1 decision, PRD v2.2 Section 5.2, oracle option A)
 ///        - price and oracleRoundId are stored exactly as the runner relays them; nothing here checks
@@ -33,6 +33,7 @@ import {ITrackRecord} from "./interfaces/ITrackRecord.sol";
 ///        - Which trades get recorded: the contract cannot tell whether a trade was left out, and it
 ///          does not verify that any trade executed anywhere.
 contract TrackRecord is ITrackRecord {
+    /// @notice runner_ is the zero address.
     error ZeroRunner();
 
     /// @notice agentRegistry is the zero address or has no code.
@@ -120,7 +121,7 @@ contract TrackRecord is ITrackRecord {
     /// @dev Returns the agent's fills oldest first: up to `limit` of them, starting at position `offset`
     ///      in that agent's own list. Never reverts, whatever the arguments: an offset at or past the end,
     ///      a zero limit, or an unknown agent returns an empty page, because the AgentTapeTable pages
-    ///      without knowing the tape's length (PRD Section 5.2). A very large page can still exceed an RPC
+    ///      without knowing the tape's length (PRD v1.0 Section 5.2). A very large page can still exceed an RPC
     ///      node's eth_call gas cap; clients should page with fillCountByAgent.
     function getFillsByAgent(uint256 agentId, uint256 offset, uint256 limit) external view returns (Fill[] memory) {
         uint256[] storage ids = _fillsByAgent[agentId];
