@@ -21,5 +21,12 @@ export function useDeposit() {
     return { txHash: MOCK_TX };
   }
 
-  return { walletBalance, vaultBalance, deposit };
+  /** Withdraw's counterpart to deposit's implicit wallet debit — credits the
+   * wallet side when funds leave the vault. Mirrors addFreeBalance in
+   * useFollow.ts, which bridges the same two hooks the other direction. */
+  function creditWallet(amount: number) {
+    setWalletBalance((balance) => balance + amount);
+  }
+
+  return { walletBalance, vaultBalance, deposit, creditWallet };
 }

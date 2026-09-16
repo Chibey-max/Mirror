@@ -43,5 +43,10 @@ export function useFollow(initialFreeBalance: number) {
     setFreeBalance((balance) => balance + amount);
   }
 
-  return { allocatedByAgent, freeBalance, follow, addFreeBalance };
+  /** Withdraw's counterpart to addFreeBalance — same bridge, opposite direction. */
+  function subtractFreeBalance(amount: number) {
+    setFreeBalance((balance) => balance - amount);
+  }
+
+  return { allocatedByAgent, freeBalance, follow, addFreeBalance, subtractFreeBalance };
 }
