@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AgentTapeTable } from "@/components/AgentTapeTable";
 import { DepositModal } from "@/components/DepositModal";
 import { FollowModal } from "@/components/FollowModal";
+import { WithdrawModal } from "@/components/WithdrawModal";
 import { TrustBadge } from "@/components/TrustBadge";
 import { FillFeed } from "@/components/FillFeed";
 import { KillButton } from "@/components/KillButton";
@@ -17,6 +18,7 @@ import { usePolicyError } from "@/hooks/usePolicyError";
 import { useAgent } from "@/hooks/useAgents";
 import { useDeposit } from "@/hooks/useDeposit";
 import { useFollow } from "@/hooks/useFollow";
+import { useWithdraw } from "@/hooks/useWithdraw";
 
 // Day 3–4 (David, PRD §5.2): tape table, deposit, follow. This file also
 // carries the consequences-flow pieces (Patrick, PRD §5.3) below the
@@ -31,14 +33,16 @@ export default function AgentDetailPage({
   const { agent, fills: tapeFills } = useAgent(agentId);
   const { fills } = useFillEvents(agent?.id);
   const { decode, simulate } = usePolicyError();
-  const { walletBalance, vaultBalance, deposit } = useDeposit();
-  const { allocatedByAgent, freeBalance, follow, addFreeBalance } =
+  const { walletBalance, vaultBalance, deposit, creditWallet } = useDeposit();
+  const { allocatedByAgent, freeBalance, follow, addFreeBalance, subtractFreeBalance } =
     useFollow(vaultBalance);
+  const { withdraw } = useWithdraw(freeBalance, subtractFreeBalance, creditWallet);
 
   const [rejectReason, setRejectReason] = useState<PolicyRejectReason | null>(null);
   const [killed, setKilled] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const [followOpen, setFollowOpen] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
 
   const allocated = agent ? (allocatedByAgent[agent.id] ?? 0) : 0;
 
@@ -113,6 +117,13 @@ export default function AgentDetailPage({
                 className="h-11 rounded-xl border border-border px-5 font-semibold text-text transition hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-45 focus:outline-none focus:ring-2 focus:ring-accent/70"
               >
                 {allocated > 0 ? "Following" : "Follow with cap"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setWithdrawOpen(true)}
+                className="h-11 rounded-xl border border-border px-5 font-semibold text-text transition hover:border-accent/60 focus:outline-none focus:ring-2 focus:ring-accent/70"
+              >
+                Withdraw
               </button>
             </div>
           </section>
@@ -208,6 +219,12 @@ export default function AgentDetailPage({
             freeBalance={freeBalance}
             alreadyFollowing={allocated > 0}
             onFollow={follow}
+          />
+          <WithdrawModal
+            open={withdrawOpen}
+            onClose={() => setWithdrawOpen(false)}
+            freeBalance={freeBalance}
+            onWithdraw={withdraw}
           />
         </>
       )}
