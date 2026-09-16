@@ -32,7 +32,7 @@ contract ScaffoldTest is Test {
 
     function setUp() public {
         registry = new AgentRegistry();
-        trackRecord = new TrackRecord(RUNNER);
+        trackRecord = new TrackRecord(address(registry), RUNNER);
         policy = new PolicyModule(VAULT, ADMIN);
     }
 
@@ -40,6 +40,7 @@ contract ScaffoldTest is Test {
         assertEq(registry.agentCount(), 0, "fresh registry should hold no agents");
         assertEq(trackRecord.fillCount(), 0, "fresh ledger should hold no fills");
         assertEq(trackRecord.runner(), RUNNER);
+        assertEq(address(trackRecord.registry()), address(registry));
         assertEq(policy.vault(), VAULT);
     }
 
@@ -50,7 +51,7 @@ contract ScaffoldTest is Test {
 
     function test_ConstructorsRejectZeroAddress() public {
         vm.expectRevert(TrackRecord.ZeroRunner.selector);
-        new TrackRecord(address(0));
+        new TrackRecord(address(registry), address(0));
 
         vm.expectRevert(PolicyModule.ZeroVault.selector);
         new PolicyModule(address(0), ADMIN);
@@ -229,6 +230,17 @@ contract ScaffoldTest is Test {
             _abiSignature(registry, "error", "AgentInactive"), "AgentInactive(uint256 agentId)", "AgentInactive moved"
         );
         assertEq(_abiSignature(record, "error", "NotRunner"), "NotRunner()", "NotRunner moved");
+        assertEq(_abiSignature(record, "error", "ZeroRunner"), "ZeroRunner()", "ZeroRunner moved");
+        assertEq(_abiSignature(record, "error", "ZeroRegistry"), "ZeroRegistry()", "ZeroRegistry moved");
+        assertEq(
+            _abiSignature(record, "error", "AgentNotFound"), "AgentNotFound(uint256 agentId)", "AgentNotFound moved"
+        );
+        assertEq(
+            _abiSignature(record, "error", "AgentInactive"), "AgentInactive(uint256 agentId)", "AgentInactive moved"
+        );
+        assertEq(_abiSignature(record, "error", "ZeroToken"), "ZeroToken()", "ZeroToken moved");
+        assertEq(_abiSignature(record, "error", "ZeroSize"), "ZeroSize()", "ZeroSize moved");
+        assertEq(_abiSignature(record, "error", "ZeroPrice"), "ZeroPrice()", "ZeroPrice moved");
         assertEq(
             _abiSignature(policyArtifact, "error", "CapExceeded"),
             "CapExceeded(uint256 attempted, uint256 cap)",
@@ -306,6 +318,21 @@ contract ScaffoldTest is Test {
             "AgentInactive signature moved"
         );
         assertEq(ITrackRecord.NotRunner.selector, bytes4(keccak256("NotRunner()")), "NotRunner signature moved");
+        assertEq(TrackRecord.ZeroRunner.selector, bytes4(keccak256("ZeroRunner()")), "ZeroRunner signature moved");
+        assertEq(TrackRecord.ZeroRegistry.selector, bytes4(keccak256("ZeroRegistry()")), "ZeroRegistry signature moved");
+        assertEq(
+            ITrackRecord.AgentNotFound.selector,
+            bytes4(keccak256("AgentNotFound(uint256)")),
+            "AgentNotFound signature moved"
+        );
+        assertEq(
+            ITrackRecord.AgentInactive.selector,
+            bytes4(keccak256("AgentInactive(uint256)")),
+            "AgentInactive signature moved"
+        );
+        assertEq(ITrackRecord.ZeroToken.selector, bytes4(keccak256("ZeroToken()")), "ZeroToken signature moved");
+        assertEq(ITrackRecord.ZeroSize.selector, bytes4(keccak256("ZeroSize()")), "ZeroSize signature moved");
+        assertEq(ITrackRecord.ZeroPrice.selector, bytes4(keccak256("ZeroPrice()")), "ZeroPrice signature moved");
         assertEq(
             IPolicyModule.CapExceeded.selector,
             bytes4(keccak256("CapExceeded(uint256,uint256)")),

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {IAgentRegistry} from "./interfaces/IAgentRegistry.sol";
 import {ITrackRecord} from "./interfaces/ITrackRecord.sol";
 
 /// @title TrackRecord
-/// @notice Append-only ledger of agent fills — PRD Section 4.2. Owner: Isaac.
+/// @notice Append-only ledger of agent fills — PRD v2.2 Section 5.2. Owner: Isaac.
 ///
 /// @dev NON-NEGOTIABLE: this contract has no `editFill`, `deleteFill`, or `setFill` function,
 ///      and never will — under any name, including behind an admin modifier. `_fills` is written
@@ -12,11 +13,21 @@ import {ITrackRecord} from "./interfaces/ITrackRecord.sol";
 ///      file. The guarantee is enforced by OMISSION: a judge reading this source and finding no
 ///      mutation path IS the product's verifiability claim (PRD Section 1.4).
 ///
-/// @dev STUB (Day 2). The Fill struct and storage layout are final; the recordFill body lands
-///      Day 4 (Sun 14 Sep) per the PRD execution plan.
+/// @dev PARTIAL. The PRD v2.2 surface and constructor are in place; the recordFill and
+///      getFillsByAgent bodies are not implemented yet. The Fill struct and storage layout are final.
 contract TrackRecord is ITrackRecord {
     error NotImplemented();
     error ZeroRunner();
+
+    /// @notice agentRegistry is the zero address or has no code.
+    /// @dev Checking for code, not just zero, turns a mistyped registry address (or, with a wallet
+    ///      runner, swapped constructor arguments) into a revert at deploy instead of every recordFill
+    ///      reverting later with empty data. It cannot prove this is the right registry: the deploy
+    ///      script reads registry() and runner() back after broadcast for that.
+    error ZeroRegistry();
+
+    /// @dev The AgentRegistry every recordFill checks the agent against. Immutable, like runner.
+    IAgentRegistry public immutable registry;
 
     /// @dev The Agent Runner's signer. Immutable: there is deliberately no setRunner —
     ///      a rotatable writer would weaken the append-only story. Redeploy to rotate.
@@ -35,8 +46,11 @@ contract TrackRecord is ITrackRecord {
         _;
     }
 
-    constructor(address runner_) {
+    constructor(address agentRegistry, address runner_) {
+        // The zero address has no code, so this one check covers PRD v2.2's zero-address check too.
+        if (agentRegistry.code.length == 0) revert ZeroRegistry();
         if (runner_ == address(0)) revert ZeroRunner();
+        registry = IAgentRegistry(agentRegistry);
         runner = runner_;
     }
 
@@ -76,5 +90,10 @@ contract TrackRecord is ITrackRecord {
     /// @inheritdoc ITrackRecord
     function fillCount() external view returns (uint256) {
         return _fillCount;
+    }
+
+    /// @inheritdoc ITrackRecord
+    function fillCountByAgent(uint256 agentId) external view returns (uint256) {
+        return _fillsByAgent[agentId].length;
     }
 }

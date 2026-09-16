@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {AgentRegistry} from "../src/AgentRegistry.sol";
 import {TrackRecord} from "../src/TrackRecord.sol";
 import {ITrackRecord} from "../src/interfaces/ITrackRecord.sol";
 
@@ -34,7 +35,10 @@ contract AppendOnlyTest is Test {
     string internal constant ARTIFACT = "out/TrackRecord.sol/TrackRecord.json";
 
     function setUp() public {
-        trackRecord = new TrackRecord(RUNNER);
+        // Agent 1 exists and is active, so the behavioural test below can record a real fill.
+        AgentRegistry registry = new AgentRegistry();
+        registry.registerAgent("Pulse", keccak256("pulse-strategy"), "pulse-v1.2");
+        trackRecord = new TrackRecord(address(registry), RUNNER);
     }
 
     /// @dev Every externally callable function on TrackRecord, as canonical signatures.
@@ -42,15 +46,17 @@ contract AppendOnlyTest is Test {
         return vm.parseJsonKeys(vm.readFile(ARTIFACT), ".methodIdentifiers");
     }
 
-    /// @dev The complete external surface of TrackRecord per PRD Section 4.2. Adding an entry
+    /// @dev The complete external surface of TrackRecord per PRD v2.2 Section 5.2. Adding an entry
     ///      here is an ABI change and needs a whole-team sync, not a test edit.
     function _frozenSurface() internal pure returns (string[] memory frozen) {
-        frozen = new string[](5);
+        frozen = new string[](7);
         frozen[0] = "recordFill(uint256,address,bool,uint256,uint256,bytes32)";
         frozen[1] = "getFill(uint256)";
         frozen[2] = "getFillsByAgent(uint256,uint256,uint256)";
         frozen[3] = "fillCount()";
-        frozen[4] = "runner()";
+        frozen[4] = "fillCountByAgent(uint256)";
+        frozen[5] = "runner()";
+        frozen[6] = "registry()";
     }
 
     /// @dev ALLOWLIST — the load-bearing assertion. Any function added under any name, with any
