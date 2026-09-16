@@ -22,7 +22,9 @@ import {ITrackRecord} from "../src/interfaces/ITrackRecord.sol";
 ///          is `getFill(fillId).fillId == 0`;
 ///        - every stored field is exactly what the runner sent, plus the contract's own fillId and
 ///          block timestamp, and exactly one FillRecorded carries the same values;
-///        - deactivating an agent stops new fills and leaves its recorded fills untouched.
+///        - deactivating an agent stops new fills and leaves its recorded fills untouched;
+///        - getFillsByAgent returns an agent's own fills oldest first, and never reverts for any offset
+///          or limit, because the AgentTapeTable pages without knowing the tape's length.
 contract TrackRecordTest is Test {
     AgentRegistry internal registry;
     TrackRecord internal trackRecord;
@@ -51,6 +53,15 @@ contract TrackRecordTest is Test {
     function _record(uint256 agentId) internal returns (uint256 fillId) {
         vm.prank(runner);
         fillId = trackRecord.recordFill(agentId, mNVDA, true, SIZE, PRICE, ROUND);
+    }
+
+    /// @dev Records n fills for agentId with distinct sizes, so pages can be told apart.
+    function _recordMany(uint256 agentId, uint256 n) internal {
+        vm.startPrank(runner);
+        for (uint256 i = 0; i < n; i++) {
+            trackRecord.recordFill(agentId, mNVDA, i % 2 == 0, SIZE + i, PRICE, ROUND);
+        }
+        vm.stopPrank();
     }
 
     function _assertZeroFill(uint256 fillId) internal view {
@@ -401,5 +412,114 @@ contract TrackRecordTest is Test {
         assertEq(trackRecord.fillCount(), 3);
 
         assertEq(_record(red), 4, "other agents keep recording");
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // getFillsByAgent
+    // ---------------------------------------------------------------------------------------------
+
+    function test_GetFillsByAgent_IsEmptyForAnAgentWithNoFills() public {
+        uint256 pulse = _registerAgent("Pulse");
+        uint256 red = _registerAgent("Red");
+        _recordMany(red, 2);
+
+        assertEq(trackRecord.getFillsByAgent(pulse, 0, 10).length, 0, "registered agent with no fills");
+        assertEq(trackRecord.getFillsByAgent(0, 0, 10).length, 0, "agent id 0");
+        assertEq(trackRecord.getFillsByAgent(type(uint256).max, 0, 10).length, 0, "unknown agent id");
+    }
+
+    function test_GetFillsByAgent_ReturnsOnlyThatAgentsFillsOldestFirst() public {
+        uint256 pulse = _registerAgent("Pulse");
+        uint256 red = _registerAgent("Red");
+        _record(pulse); // 1
+        _record(red); // 2
+        _record(pulse); // 3
+        _record(red); // 4
+        _record(pulse); // 5
+
+        ITrackRecord.Fill[] memory page = trackRecord.getFillsByAgent(pulse, 0, 10);
+
+        assertEq(page.length, 3);
+        uint256[3] memory expected = [uint256(1), 3, 5];
+        for (uint256 i = 0; i < page.length; i++) {
+            assertEq(page[i].fillId, expected[i], "wrong fill or wrong order");
+            assertEq(abi.encode(page[i]), abi.encode(trackRecord.getFill(expected[i])), "page differs from getFill");
+        }
+    }
+
+    /// @dev The table of cases a blind pager can send. None may revert.
+    function test_GetFillsByAgent_NeverRevertsOnOutOfRangeArguments() public {
+        uint256 pulse = _registerAgent("Pulse");
+        _recordMany(pulse, 3);
+        uint256 max = type(uint256).max;
+
+        assertEq(trackRecord.getFillsByAgent(pulse, 0, 0).length, 0, "limit 0");
+        assertEq(trackRecord.getFillsByAgent(pulse, 3, 1).length, 0, "offset == count");
+        assertEq(trackRecord.getFillsByAgent(pulse, 4, 1).length, 0, "offset past the end");
+        assertEq(trackRecord.getFillsByAgent(pulse, max, 1).length, 0, "offset max");
+        assertEq(trackRecord.getFillsByAgent(pulse, max, max).length, 0, "offset and limit max");
+        assertEq(trackRecord.getFillsByAgent(pulse, 0, max).length, 3, "limit max from the start");
+        assertEq(trackRecord.getFillsByAgent(pulse, 1, max).length, 2, "limit max would overflow offset + limit");
+        assertEq(trackRecord.getFillsByAgent(pulse, 2, 5).length, 1, "limit past the end");
+    }
+
+    function test_GetFillsByAgent_PagesTileTheWholeTape() public {
+        uint256 pulse = _registerAgent("Pulse");
+        _recordMany(pulse, 7);
+
+        ITrackRecord.Fill[] memory whole = trackRecord.getFillsByAgent(pulse, 0, 7);
+        uint256 seen;
+        for (uint256 offset = 0; offset < 7; offset += 3) {
+            ITrackRecord.Fill[] memory page = trackRecord.getFillsByAgent(pulse, offset, 3);
+            for (uint256 i = 0; i < page.length; i++) {
+                assertEq(abi.encode(page[i]), abi.encode(whole[seen]), "pages do not tile the tape");
+                seen++;
+            }
+        }
+        assertEq(seen, 7, "pages skipped or repeated a fill");
+        assertEq(trackRecord.getFillsByAgent(pulse, 9, 3).length, 0, "the page after the last is empty");
+    }
+
+    /// @dev Two agents with interleaved fills, any offset and limit in the full uint256 range: the page is
+    ///      exactly the model's slice. The model is the spec: empty if offset >= count, otherwise
+    ///      min(limit, count - offset) fills starting at offset.
+    function testFuzz_GetFillsByAgent_MatchesTheModelForAnyOffsetAndLimit(
+        uint8 fills,
+        uint256 ownerBits,
+        uint256 offset,
+        uint256 limit,
+        uint8 mode
+    ) public {
+        fills = uint8(bound(fills, 0, 24));
+        uint256 pulse = _registerAgent("Pulse");
+        uint256 red = _registerAgent("Red");
+
+        uint256[] memory model = new uint256[](fills);
+        uint256 count;
+        for (uint256 i = 0; i < fills; i++) {
+            uint256 agentId = (ownerBits >> i) & 1 == 1 ? pulse : red;
+            uint256 fillId = _record(agentId);
+            if (agentId == pulse) model[count++] = fillId;
+        }
+
+        // Mode 0: both near the tape's length, so pages have content. Mode 1: offset inside the tape and
+        // limit anywhere in uint256, the case where a naive offset + limit overflows. Mode 2: both unbounded.
+        mode = uint8(bound(mode, 0, 2));
+        if (mode == 0) {
+            offset = bound(offset, 0, count + 2);
+            limit = bound(limit, 0, count + 2);
+        } else if (mode == 1) {
+            offset = bound(offset, 0, count + 2);
+        }
+
+        ITrackRecord.Fill[] memory page = trackRecord.getFillsByAgent(pulse, offset, limit);
+
+        uint256 expectedLength = offset >= count ? 0 : (limit < count - offset ? limit : count - offset);
+        assertEq(page.length, expectedLength, "page length differs from the model");
+        for (uint256 i = 0; i < page.length; i++) {
+            assertEq(page[i].fillId, model[offset + i], "page content differs from the model");
+            assertEq(page[i].agentId, pulse, "another agent's fill in the page");
+        }
+        assertEq(trackRecord.fillCountByAgent(pulse), count);
     }
 }

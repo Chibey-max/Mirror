@@ -24,6 +24,7 @@ import {ITrackRecord} from "./interfaces/ITrackRecord.sol";
 ///        - fillId and timestamp are set here, never by the caller; timestamp is the block time of
 ///          recording.
 ///        - Exactly one FillRecorded event per fill, carrying the stored values.
+///        - No read ever reverts: getFillsByAgent clamps any offset and limit to the agent's tape.
 ///        - Nothing leaves this contract except one read-only call to the registry; it holds no ETH.
 ///
 /// @dev WHAT IT TRUSTS THE RUNNER FOR (a stated V1 decision, PRD v2.2 Section 5.2, oracle option A)
@@ -31,8 +32,6 @@ import {ITrackRecord} from "./interfaces/ITrackRecord.sol";
 ///          them against a price feed.
 ///        - Which trades get recorded: the contract cannot tell whether a trade was left out, and it
 ///          does not verify that any trade executed anywhere.
-///
-/// @dev PARTIAL: getFillsByAgent is not implemented yet and returns an empty page.
 contract TrackRecord is ITrackRecord {
     error ZeroRunner();
 
@@ -118,14 +117,27 @@ contract TrackRecord is ITrackRecord {
     }
 
     /// @inheritdoc ITrackRecord
+    /// @dev Returns the agent's fills oldest first: up to `limit` of them, starting at position `offset`
+    ///      in that agent's own list. Never reverts, whatever the arguments: an offset at or past the end,
+    ///      a zero limit, or an unknown agent returns an empty page, because the AgentTapeTable pages
+    ///      without knowing the tape's length (PRD Section 5.2). A very large page can still exceed an RPC
+    ///      node's eth_call gas cap; clients should page with fillCountByAgent.
     function getFillsByAgent(uint256 agentId, uint256 offset, uint256 limit) external view returns (Fill[] memory) {
-        // TODO: bounds-clamp offset/limit against _fillsByAgent[agentId].length and hydrate the page
-        // from _fills. Must not revert on an out-of-range offset — the AgentTapeTable paginates
-        // blind (PRD Section 5.2).
-        agentId;
-        offset;
-        limit;
-        return new Fill[](0);
+        uint256[] storage ids = _fillsByAgent[agentId];
+        uint256 count = ids.length;
+        if (offset >= count) return new Fill[](0);
+
+        // Clamp before any addition or allocation: offset + limit could overflow, and an unclamped
+        // limit would try to allocate a huge array.
+        uint256 remaining = count - offset;
+        if (limit > remaining) limit = remaining;
+
+        Fill[] memory page = new Fill[](limit);
+        for (uint256 i = 0; i < limit; i++) {
+            // offset + i < offset + limit <= count, so this cannot overflow or run past the list.
+            page[i] = _fills[ids[offset + i]];
+        }
+        return page;
     }
 
     /// @inheritdoc ITrackRecord
