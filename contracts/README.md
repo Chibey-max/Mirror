@@ -1,7 +1,27 @@
 # Mirror — Contracts
 
-Foundry workspace for the Mirror core primitive. Spec of record: **PRD v1.0, Section 4**
-(`Mirror-PRD.pdf`). This README does not restate the spec — it says how to run the workspace.
+Foundry workspace for the Mirror core primitive. Current spec: **PRD v2.2**, with
+unchanged requirements inherited from earlier versions (`../docs/`). Migration is
+incremental: TrackRecord and PolicyModule still contain earlier scaffold interfaces/bodies.
+
+## CopyVault foundation (not deployment-ready)
+
+`CopyVault.sol` implements deposits and withdrawals with SafeERC20 and a shared
+reentrancy guard. It supports exact-transfer, non-rebasing MockUSDG only. Donations
+are surplus and never create user credit. Zero-amount deposits/withdrawals are allowed.
+Follow, unfollow, mirror, and their related views explicitly revert `NotImplemented`.
+The CopyVault interface now reflects v2.2; frontend ABI regeneration and full policy/
+track-record integration are still pending. Do not use the foundation for real funds.
+
+`VaultFoundation.t.sol` covers exact transfers/events, user isolation, failed-transfer
+rollback, reentrancy with a funded attacker, and multi-user accounting fuzzing.
+These tests use code-bearing dependency placeholders, not policy/track-record integration.
+The original acceptance skeletons remain skipped until their full scenarios are implemented.
+
+The mock tokens expose unrestricted testnet minting (USDG: 6 decimals; stocks: 18).
+The mock oracle uses 8 decimals and owner-only positive price updates. Every update
+creates a new non-zero round, even at the same price/timestamp. Reads before the first
+update or for unknown rounds revert. `Mocks.t.sol` verifies these behaviors.
 
 ## Layout
 
@@ -12,7 +32,8 @@ contracts/
 │   │   ├── IAgentRegistry.sol
 │   │   ├── ITrackRecord.sol
 │   │   ├── IPolicyModule.sol
-│   │   └── ICopyVault.sol   # published here; implementation is Jason's
+│   │   └── ICopyVault.sol   # v2.2 interface
+│   ├── CopyVault.sol        # Jason — custody foundation only
 │   ├── AgentRegistry.sol    # Isaac
 │   ├── TrackRecord.sol      # Isaac
 │   ├── PolicyModule.sol     # Isaac
@@ -37,8 +58,10 @@ forge test
 function signature, event, error, or struct field requires a whole-team sync — not a unilateral
 edit. David and Patrick's frontend is built against these exact types from the freeze onward.
 
-`ScaffoldTest.test_FrozenStructShapes` uses named struct literals, so a field added, reordered,
-or retyped after the freeze breaks the build rather than failing silently at the ABI boundary.
+The scaffold includes compiled-ABI snapshots for field order/types, events, and errors.
+Named struct literals alone do not detect field reordering. The CopyVault v2.2 ABI
+update needs coordinated frontend adoption; passing the older scaffold is not proof
+that all contracts or consumers have migrated.
 
 ## The append-only guarantee
 
@@ -55,10 +78,10 @@ All four must be green before the **Wed 24 Sep integration checkpoint**:
 
 | # | Test | File | Status |
 |---|---|---|---|
-| 1 | Append-only enforcement | `AppendOnly.t.sol` | ✅ green |
+| 1 | Append-only enforcement | `AppendOnly.t.sol` | Surface tests pass; recorded-fill behavior still skipped |
 | 2 | Over-cap revert | `PolicyCap.t.sol` | ⏳ skipped — needs PolicyModule bodies (Day 5) |
-| 3 | Withdraw | `VaultWithdraw.t.sol` | ⏳ skipped — needs CopyVault (Jason) |
-| 4 | Drain-beyond-cap | `DrainBeyondCap.t.sol` | ⏳ skipped — needs CopyVault (Jason) |
+| 3 | Withdraw | `VaultWithdraw.t.sol` | Full acceptance skipped; custody covered in `VaultFoundation.t.sol` |
+| 4 | Drain-beyond-cap | `DrainBeyondCap.t.sol` | Full acceptance skipped; custody reentrancy/fuzz tests implemented separately |
 
 Skeletons call `vm.skip(true)` on purpose. A test that asserts nothing but reports green is
 worse than no test — it makes the Section 7 gate look satisfied when it is not. Remove the

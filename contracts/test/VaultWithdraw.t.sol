@@ -6,7 +6,8 @@ import {Test} from "forge-std/Test.sol";
 /// @title VaultWithdrawTest
 /// @notice PRD Section 7, required test #3 — withdraw. Responsible: Jason. Accountable: Isaac.
 ///
-/// @dev SKELETON. CopyVault is Jason's deliverable (PRD Section 4.4) and does not exist yet.
+/// @dev SKELETON. CopyVault custody exists; see VaultFoundation.t.sol for active custody tests.
+///      The full acceptance suite still awaits follow/unfollow allocation integration.
 ///      These are scaffolded here so the Section 7 requirement is encoded in the repo rather
 ///      than remembered. They skip, so they cannot report a false green.
 contract VaultWithdrawTest is Test {
