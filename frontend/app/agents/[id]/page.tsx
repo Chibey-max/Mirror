@@ -14,7 +14,7 @@ import {
   type PolicyRejectReason,
 } from "@/components/PolicyRejectBanner";
 import { useFillEvents } from "@/hooks/useFillEvents";
-import { usePolicyError } from "@/hooks/usePolicyError";
+import { usePolicyError, useMirrorRejection } from "@/hooks/usePolicyError";
 import { useAgent } from "@/hooks/useAgents";
 import { useDeposit } from "@/hooks/useDeposit";
 import { useFollow } from "@/hooks/useFollow";
@@ -33,12 +33,30 @@ export default function AgentDetailPage({
   const { agent, fills: tapeFills } = useAgent(agentId);
   const { fills } = useFillEvents(agent?.id);
   const { decode, simulate } = usePolicyError();
+  // A real rejection from the chain (§7.1). Inert until CopyVault is
+  // deployed; the simulate buttons below are the demo stand-in until then.
+  const { rejection, clear: clearRejection } = useMirrorRejection(agentId);
+
   const { walletBalance, vaultBalance, deposit, creditWallet } = useDeposit();
   const { allocatedByAgent, freeBalance, follow, addFreeBalance, subtractFreeBalance } =
     useFollow(vaultBalance);
   const { withdraw } = useWithdraw(freeBalance, subtractFreeBalance, creditWallet);
 
   const [rejectReason, setRejectReason] = useState<PolicyRejectReason | null>(null);
+  /*
+   * A live rejection wins over a simulated one and carries the real
+   * mirrorFill tx that logged it; the demo control has only a fixture hash
+   * to point at.
+   */
+  const banner = rejection
+    ? { reason: rejection.reason, txHash: rejection.txHash }
+    : rejectReason
+      ? {
+          reason: rejectReason,
+          txHash:
+            "0x8e11c0b4da9f3c5e1b7d9f3a5c7e1b9d3f5a7c1e9b3d5f7a1c9e3b5d7f1a9c3",
+        }
+      : null;
   const [killed, setKilled] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const [followOpen, setFollowOpen] = useState(false);
@@ -189,12 +207,15 @@ export default function AgentDetailPage({
               ))}
             </div>
 
-            {rejectReason && (
+            {banner && (
               <div className="mt-4">
                 <PolicyRejectBanner
-                  reason={rejectReason}
-                  txHash="0x8e11c0b4da9f3c5e1b7d9f3a5c7e1b9d3f5a7c1e9b3d5f7a1c9e3b5d7f1a9c3"
-                  onDismiss={() => setRejectReason(null)}
+                  reason={banner.reason}
+                  txHash={banner.txHash}
+                  onDismiss={() => {
+                    clearRejection();
+                    setRejectReason(null);
+                  }}
                 />
               </div>
             )}
