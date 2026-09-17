@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {AgentRegistry} from "../src/AgentRegistry.sol";
 import {TrackRecord} from "../src/TrackRecord.sol";
 import {ITrackRecord} from "../src/interfaces/ITrackRecord.sol";
 
@@ -34,7 +35,10 @@ contract AppendOnlyTest is Test {
     string internal constant ARTIFACT = "out/TrackRecord.sol/TrackRecord.json";
 
     function setUp() public {
-        trackRecord = new TrackRecord(RUNNER);
+        // Agent 1 exists and is active, so the behavioural test below can record a real fill.
+        AgentRegistry registry = new AgentRegistry();
+        registry.registerAgent("Pulse", keccak256("pulse-strategy"), "pulse-v1.2");
+        trackRecord = new TrackRecord(address(registry), RUNNER);
     }
 
     /// @dev Every externally callable function on TrackRecord, as canonical signatures.
@@ -42,15 +46,17 @@ contract AppendOnlyTest is Test {
         return vm.parseJsonKeys(vm.readFile(ARTIFACT), ".methodIdentifiers");
     }
 
-    /// @dev The complete external surface of TrackRecord per PRD Section 4.2. Adding an entry
+    /// @dev The complete external surface of TrackRecord per PRD v2.2 Section 5.2. Adding an entry
     ///      here is an ABI change and needs a whole-team sync, not a test edit.
     function _frozenSurface() internal pure returns (string[] memory frozen) {
-        frozen = new string[](5);
+        frozen = new string[](7);
         frozen[0] = "recordFill(uint256,address,bool,uint256,uint256,bytes32)";
         frozen[1] = "getFill(uint256)";
         frozen[2] = "getFillsByAgent(uint256,uint256,uint256)";
         frozen[3] = "fillCount()";
-        frozen[4] = "runner()";
+        frozen[4] = "fillCountByAgent(uint256)";
+        frozen[5] = "runner()";
+        frozen[6] = "registry()";
     }
 
     /// @dev ALLOWLIST — the load-bearing assertion. Any function added under any name, with any
@@ -78,7 +84,7 @@ contract AppendOnlyTest is Test {
     ///      names the offending mutation path outright. Matched on function NAME, so it catches
     ///      the path whatever arguments it is given.
     function test_NoForbiddenMutationNameIsDispatchable() public view {
-        string[10] memory forbidden = [
+        string[11] memory forbidden = [
             "editFill",
             "deleteFill",
             "setFill",
@@ -88,6 +94,7 @@ contract AppendOnlyTest is Test {
             "correctFill",
             "adminSetFill",
             "setRunner",
+            "setRegistry",
             "upgradeTo"
         ];
 
@@ -122,6 +129,47 @@ contract AppendOnlyTest is Test {
         }
     }
 
+    /// @dev No function is payable, so ETH can never be sent in through a normal call. Checked on the ABI
+    ///      because a payable recordFill keeps its selector, so the allowlist above would not notice.
+    function test_NoFunctionIsPayable() public view {
+        string memory json = vm.readFile(ARTIFACT);
+        uint256 checked;
+
+        for (uint256 i = 0; i < 256; i++) {
+            string memory at = string.concat("$.abi[", vm.toString(i), "]");
+            try vm.parseJsonString(json, string.concat(at, ".type")) returns (string memory entryType) {
+                if (!_eq(entryType, "function")) continue;
+                string memory mutability = vm.parseJsonString(json, string.concat(at, ".stateMutability"));
+                assertFalse(_eq(mutability, "payable"), "FORBIDDEN: TrackRecord has a payable function");
+                checked++;
+            } catch {
+                break;
+            }
+        }
+
+        assertEq(checked, 7, "expected to inspect exactly the 7 frozen functions");
+    }
+
+    /// @dev Behavioural corroboration of the payable check: ETH is refused on a bare call and on a
+    ///      valid recordFill from the runner, and nothing is recorded.
+    function test_EthIsRefused() public {
+        vm.deal(address(this), 1 ether);
+        (bool okBare,) = address(trackRecord).call{value: 1 wei}("");
+        assertFalse(okBare, "TrackRecord accepted ETH on a bare call");
+
+        vm.deal(RUNNER, 1 ether);
+        vm.prank(RUNNER);
+        (bool okRecord,) = address(trackRecord).call{value: 1 wei}(
+            abi.encodeCall(
+                ITrackRecord.recordFill, (1, address(0xC0FFEE), true, 1000, 2_500_000_000, bytes32("round-1"))
+            )
+        );
+        assertFalse(okRecord, "recordFill accepted ETH");
+
+        assertEq(address(trackRecord).balance, 0);
+        assertEq(trackRecord.fillCount(), 0);
+    }
+
     /// @dev Behavioral corroboration only. This proves a bare call finds nothing to dispatch to;
     ///      it does NOT prove a fallback is absent, because a gated fallback would revert here
     ///      too. test_AbiDeclaresNoFallbackOrReceive is the load-bearing check.
@@ -139,14 +187,9 @@ contract AppendOnlyTest is Test {
 
     /// @dev BEHAVIORAL — the complement to the ABI assertions: proves a recorded Fill's bytes do
     ///      not change when every forbidden path is invoked with correctly encoded, full-arity
-    ///      calldata over a state-changing `call`.
-    ///
-    ///      Skipped until Day 4 (Sun 14 Sep): `recordFill` reverts NotImplemented, so no Fill can
-    ///      be recorded to mutate. Remove the vm.skip line when the body lands. The allowlist
-    ///      test above is live in the meantime and is the stronger of the two.
+    ///      calldata over a state-changing `call`. Agent 1 is registered in setUp. The allowlist
+    ///      test above is the stronger of the two.
     function test_RecordedFillCannotBeMutated() public {
-        vm.skip(true);
-
         vm.prank(RUNNER);
         uint256 fillId = trackRecord.recordFill(1, address(0xC0FFEE), true, 1000, 2_500_000_000, bytes32("round-1"));
 

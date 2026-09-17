@@ -2,9 +2,9 @@
 pragma solidity ^0.8.24;
 
 /// @title ITrackRecord
-/// @notice Frozen ABI — PRD Section 4.2. Owner: Isaac.
+/// @notice Frozen ABI — PRD v2.2 Section 5.2. Owner: Isaac.
 ///
-/// @dev NON-NEGOTIABLE (PRD Section 4.2): no `editFill`, `deleteFill`, or `setFill` function
+/// @dev NON-NEGOTIABLE (PRD v1.0 Section 4.2, unchanged in v2.2): no `editFill`, `deleteFill`, or `setFill` function
 ///      may exist anywhere in this interface or its implementation, under any name, ever —
 ///      including behind an admin modifier. The append-only guarantee is enforced by OMISSION.
 ///      A judge reading this file and finding no mutation path is the entire point of the
@@ -17,8 +17,8 @@ interface ITrackRecord {
         bool isBuy;
         uint256 size; // in the token's smallest unit
         uint256 price; // 8-decimal, matches MockAggregatorV3
-        uint64 timestamp;
-        bytes32 oracleRoundId;
+        uint64 timestamp; // block time when the fill was recorded, not a verified execution time
+        bytes32 oracleRoundId; // bytes32(uint256(roundId)) from the feed's latestRoundData(), as relayed by the runner
     }
 
     event FillRecorded(
@@ -34,6 +34,25 @@ interface ITrackRecord {
 
     error NotRunner();
 
+    /// @notice recordFill was called for an agentId that AgentRegistry has never assigned.
+    error AgentNotFound(uint256 agentId);
+
+    /// @notice recordFill was called for an agent that has been deactivated. Same signature as
+    ///         AgentRegistry's AgentInactive(uint256), so one ABI entry decodes both.
+    error AgentInactive(uint256 agentId);
+
+    /// @notice recordFill was called with token == address(0).
+    /// @dev ZeroToken, ZeroSize and ZeroPrice were ADDED AFTER PRD v2.2 (16 Sep 2026, Isaac; agreed
+    ///      with Jason) — pending the PRD amendment. A fill can never be corrected once recorded, so
+    ///      values that cannot describe a real trade are rejected before they reach the tape.
+    error ZeroToken();
+
+    /// @notice recordFill was called with size == 0.
+    error ZeroSize();
+
+    /// @notice recordFill was called with price == 0.
+    error ZeroPrice();
+
     /// @dev onlyRunner
     function recordFill(uint256 agentId, address token, bool isBuy, uint256 size, uint256 price, bytes32 oracleRoundId)
         external
@@ -44,4 +63,6 @@ interface ITrackRecord {
     function getFillsByAgent(uint256 agentId, uint256 offset, uint256 limit) external view returns (Fill[] memory);
 
     function fillCount() external view returns (uint256);
+
+    function fillCountByAgent(uint256 agentId) external view returns (uint256);
 }

@@ -3,28 +3,8 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {AgentRegistry} from "../src/AgentRegistry.sol";
-import {IAgentRegistry} from "../src/interfaces/IAgentRegistry.sol";
-
-/// @dev The agent check PRD v2.1 Section 5.2 specifies for TrackRecord.recordFill, verbatim: read the
-///      Agent once through IAgentRegistry, revert AgentNotFound if owner is zero, revert AgentInactive
-///      if not active. Called across a real contract boundary, exactly as TrackRecord will call it.
-///      Replace this harness with TrackRecord itself once its body lands.
-contract RecordFillAgentGate {
-    error AgentNotFound(uint256 agentId);
-    error AgentInactive(uint256 agentId);
-
-    IAgentRegistry public immutable registry;
-
-    constructor(IAgentRegistry registry_) {
-        registry = registry_;
-    }
-
-    function check(uint256 agentId) external view {
-        IAgentRegistry.Agent memory a = registry.getAgent(agentId);
-        if (a.owner == address(0)) revert AgentNotFound(agentId);
-        if (!a.active) revert AgentInactive(agentId);
-    }
-}
+import {TrackRecord} from "../src/TrackRecord.sol";
+import {ITrackRecord} from "../src/interfaces/ITrackRecord.sol";
 
 /// @title AgentRegistryLookupTest
 /// @notice Pins the registry behaviour TrackRecord's recordFill depends on. Owner: Isaac.
@@ -33,15 +13,20 @@ contract RecordFillAgentGate {
 ///      rather than reverting, and `active` reflects deactivation. If either changes — for example,
 ///      someone "improves" getAgent to revert on unknown ids — recordFill stops raising AgentNotFound
 ///      and bubbles an opaque registry revert instead. This file fails first.
+///
+/// @dev Runs through the real TrackRecord.recordFill as the runner, across a real contract boundary.
+///      Until TrackRecord's body landed, a harness here copied the PRD v2.2 Section 5.2 check verbatim.
 contract AgentRegistryLookupTest is Test {
     AgentRegistry internal registry;
-    RecordFillAgentGate internal gate;
+    TrackRecord internal trackRecord;
 
     address internal alice = makeAddr("alice");
+    address internal runner = makeAddr("runner");
+    address internal token = makeAddr("mNVDA");
 
     function setUp() public {
         registry = new AgentRegistry();
-        gate = new RecordFillAgentGate(registry);
+        trackRecord = new TrackRecord(address(registry), runner);
     }
 
     function _register() internal returns (uint256 agentId) {
@@ -49,18 +34,25 @@ contract AgentRegistryLookupTest is Test {
         agentId = registry.registerAgent("Pulse", keccak256("pulse-strategy"), "pulse-v1.2");
     }
 
+    /// @dev Records a minimal valid fill for agentId, so the agent check is the only thing that can fail.
+    function _recordFor(uint256 agentId) internal {
+        vm.prank(runner);
+        trackRecord.recordFill(agentId, token, true, 1, 1, bytes32(uint256(1)));
+    }
+
     function test_UnknownIdsAreAgentNotFound() public {
         _register();
 
         uint256[3] memory unknown = [uint256(0), 2, type(uint256).max];
         for (uint256 i = 0; i < unknown.length; i++) {
-            vm.expectRevert(abi.encodeWithSelector(RecordFillAgentGate.AgentNotFound.selector, unknown[i]));
-            gate.check(unknown[i]);
+            vm.expectRevert(abi.encodeWithSelector(ITrackRecord.AgentNotFound.selector, unknown[i]));
+            _recordFor(unknown[i]);
         }
     }
 
     function test_RegisteredActiveAgentPasses() public {
-        gate.check(_register());
+        _recordFor(_register());
+        assertEq(trackRecord.fillCount(), 1);
     }
 
     function test_DeactivatedAgentIsAgentInactive() public {
@@ -68,18 +60,12 @@ contract AgentRegistryLookupTest is Test {
         vm.prank(alice);
         registry.deactivateAgent(agentId);
 
-        vm.expectRevert(abi.encodeWithSelector(RecordFillAgentGate.AgentInactive.selector, agentId));
-        gate.check(agentId);
+        vm.expectRevert(abi.encodeWithSelector(ITrackRecord.AgentInactive.selector, agentId));
+        _recordFor(agentId);
     }
 
-    /// @dev The registry's own AgentInactive and TrackRecord's share one selector, so a client decodes
-    ///      both with a single error ABI entry.
-    function test_RegistryAndTrackRecordAgentInactiveShareASelector() public pure {
-        assertEq(IAgentRegistry.AgentInactive.selector, RecordFillAgentGate.AgentInactive.selector);
-    }
-
-    /// @dev Over any number of agents, any subset deactivated, and any queried id, the gate's verdict
-    ///      is exactly: not found outside 1..agentCount, inactive if deactivated, otherwise it passes.
+    /// @dev Over any number of agents, any subset deactivated, and any queried id, recordFill's verdict
+    ///      is exactly: not found outside 1..agentCount, inactive if deactivated, otherwise it records.
     function testFuzz_VerdictMatchesRegistryState(uint8 agents, uint256 deactivatedMask, uint256 queriedId) public {
         agents = uint8(bound(agents, 0, 16));
         for (uint256 i = 1; i <= agents; i++) {
@@ -91,11 +77,15 @@ contract AgentRegistryLookupTest is Test {
         }
         queriedId = bound(queriedId, 0, uint256(agents) + 2);
 
-        if (queriedId == 0 || queriedId > agents) {
-            vm.expectRevert(abi.encodeWithSelector(RecordFillAgentGate.AgentNotFound.selector, queriedId));
-        } else if ((deactivatedMask >> queriedId) & 1 == 1) {
-            vm.expectRevert(abi.encodeWithSelector(RecordFillAgentGate.AgentInactive.selector, queriedId));
+        bool expectNotFound = queriedId == 0 || queriedId > agents;
+        bool expectInactive = !expectNotFound && (deactivatedMask >> queriedId) & 1 == 1;
+        if (expectNotFound) {
+            vm.expectRevert(abi.encodeWithSelector(ITrackRecord.AgentNotFound.selector, queriedId));
+        } else if (expectInactive) {
+            vm.expectRevert(abi.encodeWithSelector(ITrackRecord.AgentInactive.selector, queriedId));
         }
-        gate.check(queriedId);
+        _recordFor(queriedId);
+
+        assertEq(trackRecord.fillCount(), expectNotFound || expectInactive ? 0 : 1);
     }
 }
