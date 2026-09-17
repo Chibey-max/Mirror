@@ -85,7 +85,9 @@ contract TrackRecord is ITrackRecord {
         if (price == 0) revert ZeroPrice();
 
         // One read, two checks (PRD v2.2 Section 5.2). getAgent never reverts: an unknown id returns
-        // the zero struct, whose owner is address(0). The call is a STATICCALL, so it cannot reenter.
+        // the zero struct, whose owner is address(0). getAgent is view, so this is a STATICCALL: a callback
+        // into this contract is still possible, but any state change anywhere in the call reverts, so it
+        // cannot record or alter a fill.
         IAgentRegistry.Agent memory agent = registry.getAgent(agentId);
         if (agent.owner == address(0)) revert AgentNotFound(agentId);
         if (!agent.active) revert AgentInactive(agentId);
