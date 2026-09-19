@@ -1,24 +1,39 @@
-import { useCallback } from "react";
-import { type Abi, type Hex, BaseError, ContractFunctionRevertedError } from "viem";
+"use client";
+
+import { useCallback, useState } from "react";
+import {
+  type Abi,
+  type Hex,
+  BaseError,
+  ContractFunctionRevertedError,
+  decodeErrorResult,
+  formatUnits,
+} from "viem";
+import { useAccount, useWatchContractEvent } from "wagmi";
 import type { PolicyRejectReason } from "@/components/PolicyRejectBanner";
+import { addressesFor, copyVaultAbi, isDeployed } from "@/lib/contracts";
+
+/** USDG is 6-decimal (PRD v2.0 §7) — every notional value in PolicyModule's
+ * custom errors is a raw integer in this unit, same as every other USDG
+ * amount in the system. */
+const USDG_DECIMALS = 6;
 
 /**
  * The PolicyModule + CopyVault user-facing custom errors (PRD §4.3/§4.4/§4.6),
- * hand-kept in sync with IPolicyModule.sol and ICopyVault.sol on
- * origin/feat/contracts-scaffold (Isaac/Jason). That branch isn't merged
- * yet, and this frontend doesn't depend on the contracts workspace at all —
- * this fragment is a deliberate duplicate, not an import, so the two
- * workspaces stay independently buildable. If either interface's errors
- * change post-ABI-freeze, that's a whole-team sync (contracts/README.md)
- * and this array is part of it.
+ * hand-kept in sync with IPolicyModule.sol and ICopyVault.sol. The frontend
+ * doesn't depend on the contracts workspace at all — this fragment is a
+ * deliberate duplicate, not an import, so the two workspaces stay
+ * independently buildable. If either interface's errors change
+ * post-ABI-freeze, that's a whole-team sync (contracts/README.md) and this
+ * array is part of it.
  *
- * InsufficientBalance decodes for real even though CopyVault.sol itself
- * isn't implemented yet (Jason) — decoding only needs the error shape from
- * ICopyVault.sol, which is already published and frozen, same as
- * PolicyModule's errors below.
+ * These decode for real even though CopyVault.sol isn't implemented yet
+ * (Jason) — decoding only needs the error shape, which is frozen.
  */
 const policyErrorsAbi = [
   {
+    // attempted = spentToday + notional, a RUNNING TOTAL, not this trade's
+    // size (PRD v2.2 §7.6). The banner copy depends on that distinction.
     type: "error",
     name: "CapExceeded",
     inputs: [
@@ -40,16 +55,83 @@ const policyErrorsAbi = [
 export type TokenSymbolResolver = (token: `0x${string}`) => string;
 
 /**
- * Decodes a reverted CopyVault/PolicyModule call into a PolicyRejectReason
- * the banner can render (PRD §4.6), for all four variants. Real decoding
- * now — viem's decodeErrorResult only needs the error ABI shape above, not
- * a live contract or even a finished implementation, so this doesn't have
- * to wait for deployments/46630.json or for Jason to write CopyVault.sol.
+ * Raw 6-decimal USDG bigint -> a display number, rounded to cents.
+ *
+ * Bug fixed here (PRD v2.0 §7, found while specifying the notional unit
+ * convention): this previously went straight to `Number(attempted)` with no
+ * decimal conversion — a real CapExceeded would have rendered "$80000000"
+ * instead of "$80". Never caught because every path exercised so far was the
+ * fixture/simulate path, which already used human-scale numbers.
+ */
+function toDisplayUsdg(raw: bigint): number {
+  return Math.round(Number(formatUnits(raw, USDG_DECIMALS)) * 100) / 100;
+}
+
+/** Shapes one decoded error name + args into the banner's reason union. */
+function toReason(
+  errorName: string,
+  args: readonly unknown[] | undefined,
+  resolveSymbol?: TokenSymbolResolver,
+): PolicyRejectReason | null {
+  switch (errorName) {
+    case "CapExceeded": {
+      const [attempted, cap] = (args ?? []) as [bigint, bigint];
+      return {
+        type: "CapExceeded",
+        attempted: toDisplayUsdg(attempted),
+        cap: toDisplayUsdg(cap),
+      };
+    }
+    case "TokenNotAllowed": {
+      const [token] = (args ?? []) as [Hex];
+      return { type: "TokenNotAllowed", token: resolveSymbol?.(token) ?? token };
+    }
+    case "PolicyInactive":
+      return { type: "PolicyInactive" };
+    case "InsufficientBalance":
+      return { type: "InsufficientBalance" };
+    default:
+      // OnlyVault is access control, never user-facing — no banner copy for it.
+      return null;
+  }
+}
+
+/**
+ * Decodes the raw `reason` bytes carried by a MirrorRejected log.
+ *
+ * This is the path that matters after PRD v2.2 §7.1: a policy rejection
+ * inside mirrorFill is caught by the vault and logged, so no transaction ever
+ * reverts with one. The bytes are exactly what checkAndConsume reverted with,
+ * so the same policyErrorsAbi decodes them.
+ */
+export function decodePolicyReason(
+  reason: Hex,
+  resolveSymbol?: TokenSymbolResolver,
+): PolicyRejectReason | null {
+  try {
+    const decoded = decodeErrorResult({ abi: policyErrorsAbi, data: reason });
+    return toReason(decoded.errorName, decoded.args, resolveSymbol);
+  } catch {
+    // Not one of ours (or empty bytes) — the banner shows nothing rather than
+    // inventing a reason.
+    return null;
+  }
+}
+
+/**
+ * Decoding for the two ways a policy error can reach the UI.
+ *
+ * `decode` handles a caught revert. After §7.1 this is no longer how mirror
+ * rejections arrive, but it is still live for the user's own direct calls —
+ * deposit, follow, withdraw revert normally with CopyVault's errors.
+ *
+ * `decodeReason` handles MirrorRejected's bytes; `useMirrorRejection` below
+ * is the subscription that produces them.
  *
  * `simulate` still exists for the design mock's "Simulate a mirror attempt"
  * demo control (docs/demo-script.md) — it fabricates the same shape a real
  * decode would produce, so the banner and this hook don't know or care
- * whether the reason came from a real revert or a rehearsal.
+ * whether the reason came from a real rejection or a rehearsal.
  */
 export function usePolicyError(resolveSymbol?: TokenSymbolResolver) {
   const decode = useCallback(
@@ -66,24 +148,13 @@ export function usePolicyError(resolveSymbol?: TokenSymbolResolver) {
       const data = revert?.data;
       if (!data?.errorName) return null;
 
-      switch (data.errorName) {
-        case "CapExceeded": {
-          const [attempted, cap] = (data.args ?? []) as [bigint, bigint];
-          return { type: "CapExceeded", attempted: Number(attempted), cap: Number(cap) };
-        }
-        case "TokenNotAllowed": {
-          const [token] = (data.args ?? []) as [Hex];
-          return { type: "TokenNotAllowed", token: resolveSymbol?.(token) ?? token };
-        }
-        case "PolicyInactive":
-          return { type: "PolicyInactive" };
-        case "InsufficientBalance":
-          return { type: "InsufficientBalance" };
-        default:
-          // OnlyVault is an access-control error, never user-facing — no banner copy for it.
-          return null;
-      }
+      return toReason(data.errorName, data.args, resolveSymbol);
     },
+    [resolveSymbol],
+  );
+
+  const decodeReason = useCallback(
+    (reason: Hex) => decodePolicyReason(reason, resolveSymbol),
     [resolveSymbol],
   );
 
@@ -92,5 +163,61 @@ export function usePolicyError(resolveSymbol?: TokenSymbolResolver) {
     [],
   );
 
-  return { decode, simulate, policyErrorsAbi };
+  return { decode, decodeReason, simulate, policyErrorsAbi };
+}
+
+/** A rejection as the banner needs it: why, and the tx that recorded it. */
+export type MirrorRejection = {
+  reason: PolicyRejectReason;
+  /** The SUCCESSFUL mirrorFill tx that logged it — not a reverted tx (§7.1). */
+  txHash?: Hex;
+  fillId?: bigint;
+  agentId?: bigint;
+};
+
+/**
+ * Watches CopyVault for the connected wallet's mirror rejections (PRD v2.2
+ * §7.1/§10), newest wins, optionally narrowed to one agent.
+ *
+ * All three filtered fields are indexed on the event, so the node does the
+ * filtering, not the client.
+ *
+ * Inert until deployments/46630.json lands — `isDeployed` gates the
+ * subscription, because watching the zero address would look live while
+ * never firing.
+ */
+export function useMirrorRejection(
+  agentId?: number,
+  resolveSymbol?: TokenSymbolResolver,
+) {
+  const { address, chainId } = useAccount();
+  const vault = chainId ? addressesFor(chainId)?.copyVault : undefined;
+  const [rejection, setRejection] = useState<MirrorRejection | null>(null);
+
+  useWatchContractEvent({
+    address: vault,
+    abi: copyVaultAbi,
+    eventName: "MirrorRejected",
+    args: {
+      user: address,
+      ...(agentId === undefined ? {} : { agentId: BigInt(agentId) }),
+    },
+    enabled: !!address && isDeployed(vault),
+    onLogs(logs) {
+      const log = logs[logs.length - 1];
+      if (!log?.args?.reason) return;
+      const reason = decodePolicyReason(log.args.reason, resolveSymbol);
+      if (!reason) return;
+      setRejection({
+        reason,
+        txHash: log.transactionHash ?? undefined,
+        fillId: log.args.fillId,
+        agentId: log.args.agentId,
+      });
+    },
+  });
+
+  const clear = () => setRejection(null);
+
+  return { rejection, clear };
 }
