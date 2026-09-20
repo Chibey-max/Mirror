@@ -8,6 +8,7 @@ import {
   useMetalShaderSlot,
   useReducedMotion,
 } from "@/components/MetalButton";
+import { Logo } from "@/components/Logo";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { PendingTxIndicator } from "@/components/TransactionToasts";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
@@ -118,13 +119,9 @@ export function SiteHeader() {
       <div className="relative isolate flex h-16 items-center gap-6 rounded-full pr-2.5 pl-7">
         <MetalLayers shader={shader} speed={reduced ? 0 : 0.45} strip />
 
-        <Link
-          href="/"
-          className="relative z-10 font-display text-xl tracking-tight text-text"
-          aria-label="Mirror, home"
-        >
-          Mirror
-        </Link>
+        <div className="relative z-10">
+          <Logo />
+        </div>
 
         <nav className="relative z-10 hidden items-center gap-5 sm:flex">
           {NAV.map(({ href, label }) => (
