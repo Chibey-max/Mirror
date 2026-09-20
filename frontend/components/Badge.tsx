@@ -4,12 +4,12 @@
  * BUY · SELL.
  */
 const VARIANTS = {
-  verified: "border-accent/40 bg-accent/10 text-accent",
+  verified: "border-chrome/35 bg-chrome/5 text-chrome",
   following: "border-accent/40 bg-accent/10 text-accent",
   losing: "border-loss/40 bg-loss/10 text-loss",
-  killed: "border-border bg-surface-2 text-muted",
+  killed: "border-chrome-dim/60 bg-white/[0.03] text-muted",
   pending: "border-warn/40 bg-warn/10 text-warn",
-  buy: "border-accent/40 bg-accent/10 text-accent",
+  buy: "border-profit/40 bg-profit/10 text-profit",
   sell: "border-loss/40 bg-loss/10 text-loss",
 } as const;
 

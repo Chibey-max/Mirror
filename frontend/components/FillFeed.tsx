@@ -29,7 +29,7 @@ export function FillFeed({
 }) {
   if (fills.length === 0) {
     return (
-      <div className="rounded-2xl border border-border bg-surface p-6 text-center">
+      <div className="panel rounded-3xl p-6 text-center">
         <p className="text-sm text-muted">
           No mirrored activity yet. Follow an agent and its fills will land
           here.
@@ -45,10 +45,8 @@ export function FillFeed({
         return (
           <li
             key={fill.id}
-            className={`animate-[rowIn_0.25s_ease-out] flex items-center justify-between gap-3 rounded-xl border bg-surface px-4 py-3 ${
-              outcome?.status === "rejected"
-                ? "border-loss/40"
-                : "border-border"
+            className={`animate-[rowIn_0.25s_ease-out] panel flex items-center justify-between gap-3 rounded-2xl px-4 py-3 ${
+              outcome?.status === "rejected" ? "border-loss/40" : ""
             }`}
           >
             <div className="flex items-center gap-3">

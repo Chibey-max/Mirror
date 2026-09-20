@@ -22,6 +22,13 @@ export type FixtureAgent = {
   followers: number;
   volumeUsd: number;
   isLosing: boolean;
+  /**
+   * Cumulative PnL %, oldest to newest, ending at pnlPct. Sample data, like
+   * everything else here: the real series must be computed client-side from
+   * Mirrored events priced at each fill (PRD v2.2 §7.3/§10) and never from
+   * allocationOf, which is principal-only.
+   */
+  pnlSeries: number[];
 };
 
 export const fixtureAgents: FixtureAgent[] = [
@@ -38,6 +45,7 @@ export const fixtureAgents: FixtureAgent[] = [
     followers: 9,
     volumeUsd: 12480,
     isLosing: false,
+    pnlSeries: [0, 1.2, 0.6, 3.4, 5.1, 4.2, 7.8, 9.6, 12.1, 14, 16.9, 18.4],
   },
   {
     id: 2,
@@ -52,6 +60,7 @@ export const fixtureAgents: FixtureAgent[] = [
     followers: 3,
     volumeUsd: 7310,
     isLosing: true,
+    pnlSeries: [0, -0.8, 0.4, -2.1, -3.6, -2.9, -5.4, -7.2, -6.5, -9.1, -10.8, -11.7],
   },
   {
     id: 3,
@@ -66,6 +75,7 @@ export const fixtureAgents: FixtureAgent[] = [
     followers: 1,
     volumeUsd: 2140,
     isLosing: false,
+    pnlSeries: [0, 0.3, -0.2, 0.5, 0.9, 0.4, 0.7, 1.1, 0.8, 1, 0.9, 1.2],
   },
 ];
 

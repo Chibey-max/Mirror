@@ -5,17 +5,17 @@ import type { AgentFill } from "@/hooks/useAgents";
 export function AgentTapeTable({ fills }: { fills: AgentFill[] }) {
   if (fills.length === 0) {
     return (
-      <div className="rounded-2xl border border-border bg-surface p-6 text-sm text-muted">
+      <div className="panel rounded-3xl p-6 text-sm text-muted">
         No fills recorded for this agent yet.
       </div>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-surface">
+    <div className="overflow-hidden panel rounded-3xl">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[680px] text-left text-sm">
-          <thead className="border-b border-border bg-surface-2 text-xs uppercase text-muted">
+          <thead className="border-b border-border bg-white/[0.025] text-xs uppercase text-muted">
             <tr>
               <th className="px-4 py-3 font-medium">Side</th>
               <th className="px-4 py-3 font-medium">Token</th>

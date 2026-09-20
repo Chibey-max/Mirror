@@ -15,7 +15,7 @@ import {
   type FixtureAgent,
   type FixtureFill,
 } from "@/lib/fixtures";
-import { computeAgentPnl, type MirroredTrade } from "@/lib/pnl";
+import { computeAgentPnl, pnlPctSeries, type MirroredTrade } from "@/lib/pnl";
 import { USDG_DECIMALS } from "@/lib/usdg";
 import { useFillEvents } from "@/hooks/useFillEvents";
 import { useTokenMetadata } from "@/hooks/useTokenMetadata";
@@ -215,6 +215,7 @@ export function useAgents(): {
       followers: typeof followers === "bigint" ? Number(followers) : 0,
       volumeUsd: Math.round(volumeUsd * 100) / 100,
       isLosing: (pnl?.pnlPct ?? 0) < 0,
+      pnlSeries: pnlPctSeries(priced),
     });
   });
 

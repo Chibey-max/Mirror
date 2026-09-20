@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { WriteProgress } from "@/hooks/useVaultConnection";
 import { txUrl } from "@/lib/chains";
+import { MetalButton } from "@/components/MetalButton";
 
 type Stage = "idle" | "signing" | "pending" | "success";
 
@@ -65,7 +66,7 @@ export function WithdrawModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-bg/80 backdrop-blur-sm sm:items-center">
-      <div className="animate-[sheetUp_0.2s_ease-out] w-full max-w-sm rounded-t-2xl border border-border bg-surface p-6 sm:rounded-2xl">
+      <div className="animate-[sheetUp_0.2s_ease-out] w-full max-w-sm panel rounded-t-3xl p-6 sm:rounded-3xl">
         {stage === "success" ? (
           <>
             <p className="text-sm font-medium text-accent">Done</p>
@@ -82,26 +83,27 @@ export function WithdrawModal({
                 {txHash.slice(0, 6)}…{txHash.slice(-4)} ↗
               </a>
             )}
-            <button
-              type="button"
+            <MetalButton
+              tone="primary"
+              fullWidth
+              className="mt-5"
               onClick={handleClose}
-              className="mt-5 h-11 w-full rounded-xl bg-accent font-semibold text-bg transition hover:brightness-110"
             >
               Done
-            </button>
+            </MetalButton>
           </>
         ) : (
           <>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-text">Withdraw</h2>
-              <button
-                type="button"
+              <MetalButton
+                tone="quiet"
+                size="icon-sm"
                 onClick={handleClose}
                 aria-label="Close"
-                className="text-muted hover:text-text"
               >
                 ✕
-              </button>
+              </MetalButton>
             </div>
 
             <p className="mt-1 text-sm text-muted">
@@ -109,13 +111,13 @@ export function WithdrawModal({
             </p>
 
             {freeBalance === 0 ? (
-              <p className="mt-4 rounded-xl border border-border bg-surface-2 p-3 text-sm text-muted">
+              <p className="mt-4 field rounded-2xl p-3 text-sm text-muted">
                 Nothing to withdraw yet. Allocated funds must be released
                 with the kill switch before they can be withdrawn.
               </p>
             ) : (
               <>
-                <div className="mt-4 flex items-center gap-2 rounded-xl border border-border bg-surface-2 px-3 py-2">
+                <div className="mt-4 flex items-center gap-2 field rounded-full px-4 py-2">
                   <input
                     type="number"
                     inputMode="decimal"
@@ -125,13 +127,13 @@ export function WithdrawModal({
                     className="tabular w-full bg-transparent text-lg text-text outline-none placeholder:text-muted"
                   />
                   <span className="text-sm text-muted">USDG</span>
-                  <button
-                    type="button"
+                  <MetalButton
+                    tone="quiet"
+                    size="sm"
                     onClick={() => setAmount(String(freeBalance))}
-                    className="rounded-md border border-border px-2 py-1 text-xs text-muted hover:text-text"
                   >
                     Max
-                  </button>
+                  </MetalButton>
                 </div>
 
                 {overFree && (
@@ -140,18 +142,20 @@ export function WithdrawModal({
                   </p>
                 )}
 
-                <button
-                  type="button"
+                <MetalButton
+                  tone="primary"
+                  size="lg"
+                  fullWidth
+                  className="mt-5"
                   disabled={invalid || stage !== "idle"}
                   onClick={handleWithdraw}
-                  className="mt-5 h-12 w-full rounded-xl bg-accent font-semibold text-bg transition hover:brightness-110 disabled:opacity-40"
                 >
                   {stage === "signing"
                     ? "Confirm in your wallet…"
                     : stage === "pending"
                       ? "Pending on-chain…"
                       : "Withdraw"}
-                </button>
+                </MetalButton>
               </>
             )}
           </>
