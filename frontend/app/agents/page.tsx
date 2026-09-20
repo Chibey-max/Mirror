@@ -1,8 +1,12 @@
+"use client";
+
 import Link from "next/link";
 import { AgentCard } from "@/components/AgentCard";
 import { useAgents } from "@/hooks/useAgents";
 
 // Day 3–4: AgentCard grid reading AgentRegistry + TrackRecord (PRD §5.2).
+// Client-rendered: useAgents reads the chain through wagmi, which needs the
+// connected chain id, so there is nothing for the server to prerender.
 export default function AgentsPage() {
   const { agents, isLoading, error } = useAgents();
 

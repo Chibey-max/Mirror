@@ -76,14 +76,16 @@ export function FillFeed({
 
             <div className="flex flex-none items-center gap-3 text-xs text-muted">
               <span>{fill.time}</span>
-              <a
-                href={txUrl(fill.txHash)}
-                target="_blank"
-                rel="noreferrer"
-                className="text-accent hover:underline"
-              >
-                ↗
-              </a>
+              {fill.txHash && (
+                <a
+                  href={txUrl(fill.txHash)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-accent hover:underline"
+                >
+                  ↗
+                </a>
+              )}
             </div>
           </li>
         );

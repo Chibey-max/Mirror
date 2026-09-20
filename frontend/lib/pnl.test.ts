@@ -122,13 +122,13 @@ describe("computeAgentPnl", () => {
 describe("tradesFromFills", () => {
   it("replays the tape oldest-first", () => {
     const trades = tradesFromFills(fixtureFills);
-    const blocks = [...fixtureFills].map((f) => f.block).sort((a, b) => a - b);
+    const order = [...fixtureFills].map((f) => f.sequence).sort((a, b) => a - b);
 
     expect(trades).toHaveLength(fixtureFills.length);
     // The feed renders newest-first; a cost basis has to accumulate the
     // other way round, or a sell can be replayed before its own buy.
     expect(trades[0].price).toBe(
-      Number(fixtureFills.find((f) => f.block === blocks[0])!.price),
+      Number(fixtureFills.find((f) => f.sequence === order[0])!.price),
     );
   });
 

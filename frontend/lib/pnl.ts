@@ -91,7 +91,7 @@ export function computeAgentPnl(
  */
 export function tradesFromFills(fills: FixtureFill[]): MirroredTrade[] {
   return [...fills]
-    .sort((a, b) => a.block - b.block)
+    .sort((a, b) => a.sequence - b.sequence)
     .map((fill) => ({
       agentId: fill.agentId,
       token: fill.token,
