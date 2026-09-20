@@ -1,4 +1,5 @@
 import { WalletConnectButton } from "@/components/WalletConnectButton";
+import { Reveal } from "@/components/Reveal";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SingularityHorizon } from "@/components/SingularityHorizon";
@@ -34,18 +35,76 @@ function IconEye() {
 const claims = [
   {
     title: "Verifiable",
+    contract: "AgentRegistry + TrackRecord",
     body: "Every fill is an on-chain event with an oracle price and a timestamp, written to a ledger with no edit or delete function.",
     Icon: IconLedger,
   },
   {
     title: "Capped",
-    body: "You set a daily spend cap per agent. The vault enforces it on-chain, and you hold the kill switch.",
+    contract: "PolicyModule + CopyVault",
+    body: "You set a daily spend cap per agent. The vault enforces it on-chain, and you hold the kill switch — an unlock, not a stop, that always returns exactly what you put in.",
     Icon: IconShield,
   },
   {
     title: "Honest",
-    body: "Losing agents are listed as plainly as winning ones. No cherry-picked tape.",
+    contract: "The same ledger, unedited",
+    body: "Losing agents are listed as plainly as winning ones, ranked by the same number the winners are. No cherry-picked tape.",
     Icon: IconEye,
+  },
+];
+
+/**
+ * The user-facing half of the on-chain loop (PRD §11's one-page test),
+ * turned into the landing page's own walkthrough — the same sequence the
+ * demo runs, in the order a first-time visitor would actually hit it.
+ */
+const loopSteps = [
+  {
+    title: "Connect",
+    body: "RainbowKit, switch to Robinhood Chain testnet. Browsing the tape itself never needs a wallet at all.",
+  },
+  {
+    title: "Deposit",
+    body: "USDG into the vault — approve, then deposit, both re-read from chain once they land, never assumed.",
+  },
+  {
+    title: "Follow, with a cap",
+    body: "A daily notional cap per agent, enforced on-chain. Not a setting in a modal — a number PolicyModule actually checks.",
+  },
+  {
+    title: "Fills land",
+    body: "Every fill mirrors into your vault, gets blocked with the exact cause, or never touches you at all. Never a guess about which.",
+  },
+  {
+    title: "Kill, any time",
+    body: "An unlock, not a stop. Unfollow always returns exactly the principal you put in — never a mark-to-market.",
+  },
+  {
+    title: "Withdraw",
+    body: "Free balance back to your wallet, on your own schedule.",
+  },
+];
+
+/**
+ * What a visitor who already knows this space will compare Mirror to —
+ * answered before they have to ask. Framed by category, not by naming
+ * other teams' products on our own page.
+ */
+const contrasts = [
+  {
+    category: "Copy-trading dashboards and vault managers",
+    they: "ask you to trust a screenshot, or a manager's word for it.",
+    mirror: "Every fill here is an on-chain event with an oracle snapshot. Nobody, including us, can edit it. The agent never had custody of your funds.",
+  },
+  {
+    category: "“AI decides for you” agents",
+    they: "make the trading decision on your behalf.",
+    mirror: "Mirror doesn't decide anything. It proves what an agent already did, and enforces a hard cap on what it can do next.",
+  },
+  {
+    category: "Agent-credit and lending rails",
+    they: "answer “can this agent borrow.”",
+    mirror: "Mirror answers “can I trust this tape enough to follow it, and exactly how much can it cost me if I'm wrong.”",
   },
 ];
 
@@ -142,23 +201,146 @@ export default function Home() {
           <TapeTicker className="relative z-10 mt-14" />
         </section>
 
+        {/*
+          The problem, said by name, before the product — the same order the
+          demo script opens in. A visitor who doesn't yet know what Mirror is
+          should read this and recognise their own experience before seeing
+          a single screen of the app.
+        */}
+        <Reveal>
+          <section className="mx-auto max-w-2xl text-center">
+            <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-accent">
+              The problem
+            </p>
+            <h2 className="font-display mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+              Every &ldquo;AI trading agent&rdquo; has a PnL screenshot. None of
+              them are verifiable.
+            </h2>
+            <p className="mt-5 text-base leading-relaxed text-muted text-balance">
+              A trader who wants exposure to a specific agent&rsquo;s strategy
+              has usually already been burned by an edited or cherry-picked
+              tape on Twitter or Telegram. What they want isn&rsquo;t another
+              promise — it&rsquo;s a constraint they can check themselves, on an
+              explorer, without asking anyone&rsquo;s permission.
+            </p>
+          </section>
+        </Reveal>
+
+        <Reveal>
+          <section>
+            <div className="mx-auto max-w-xl text-center">
+              <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-accent">
+                The product
+              </p>
+              <h2 className="font-display mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+                Not a dashboard. A ledger with a demo attached.
+              </h2>
+            </div>
+            <div className="mt-8">
+              <ProductPreview />
+            </div>
+          </section>
+        </Reveal>
+
+        <Reveal>
+          <section className="grid gap-4 sm:grid-cols-3">
+            {claims.map(({ title, contract, body, Icon }) => (
+              <div
+                key={title}
+                className="panel flex flex-col gap-3 rounded-3xl p-6"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-full border border-border text-chrome">
+                  <Icon />
+                </span>
+                <h3 className="font-display text-2xl">{title}</h3>
+                <p className="text-sm leading-relaxed text-muted">{body}</p>
+                <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-chrome-dim">
+                  {contract}
+                </p>
+              </div>
+            ))}
+          </section>
+        </Reveal>
+
+        {/*
+          PRD §11's one-page test as content: the same sequence the demo
+          runs, in order, so a visitor can read the whole loop before ever
+          connecting a wallet.
+        */}
         <section>
-          <ProductPreview />
+          <Reveal>
+            <div className="mx-auto max-w-xl text-center">
+              <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-accent">
+                How the loop runs
+              </p>
+              <h2 className="font-display mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+                Six steps. Every one of them a chain read.
+              </h2>
+            </div>
+          </Reveal>
+
+          <ol className="relative mx-auto mt-10 flex max-w-2xl flex-col gap-0">
+            {loopSteps.map((step, index) => (
+              <Reveal key={step.title} delayMs={index * 80}>
+                <li className="relative flex gap-5 pb-10 last:pb-0">
+                  {/* The connecting rule — a ledger's running line, not a decoration. */}
+                  {index < loopSteps.length - 1 && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute left-[19px] top-10 h-[calc(100%-1.5rem)] w-px bg-border"
+                    />
+                  )}
+                  <span className="tabular relative z-10 flex h-10 w-10 flex-none items-center justify-center rounded-full border border-border bg-surface font-mono text-sm text-chrome">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <div className="pt-1.5">
+                    <h3 className="font-display text-xl">{step.title}</h3>
+                    <p className="mt-1.5 max-w-md text-sm leading-relaxed text-muted">
+                      {step.body}
+                    </p>
+                  </div>
+                </li>
+              </Reveal>
+            ))}
+          </ol>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-3">
-          {claims.map(({ title, body, Icon }) => (
-            <div
-              key={title}
-              className="panel flex flex-col gap-3 rounded-3xl p-6"
-            >
-              <span className="flex h-10 w-10 items-center justify-center rounded-full border border-border text-chrome">
-                <Icon />
-              </span>
-              <h2 className="font-display text-2xl">{title}</h2>
-              <p className="text-sm leading-relaxed text-muted">{body}</p>
+        {/*
+          Pre-emptive contrasts (briefing §12): say the comparison before the
+          visitor makes it themselves. Framed by category rather than naming
+          other teams' products on our own page.
+        */}
+        <section>
+          <Reveal>
+            <div className="mx-auto max-w-xl text-center">
+              <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-accent">
+                How this is different
+              </p>
+              <h2 className="font-display mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+                Not a promise. A constraint you can check yourself.
+              </h2>
             </div>
-          ))}
+          </Reveal>
+
+          <div className="mt-8 grid gap-4 sm:grid-cols-3">
+            {contrasts.map((row, index) => (
+              <Reveal key={row.category} delayMs={index * 90}>
+                <div className="panel flex h-full flex-col gap-3 rounded-3xl p-6">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted">
+                    {row.category}
+                  </p>
+                  <p className="text-sm leading-relaxed text-muted">
+                    <span className="text-chrome-dim">They </span>
+                    {row.they}
+                  </p>
+                  <p className="text-sm leading-relaxed text-text">
+                    <span className="accent-text font-medium">Mirror </span>
+                    {row.mirror}
+                  </p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
         </section>
       </main>
 
