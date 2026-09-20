@@ -45,7 +45,7 @@ export default function AgentDetailPage({
 
   const { walletBalance, vaultBalance, deposit, creditWallet } = useDeposit();
   const { allocatedByAgent, freeBalance, follow, addFreeBalance, subtractFreeBalance } =
-    useFollow(vaultBalance);
+    useFollow(vaultBalance, [agentId]);
   const { withdraw } = useWithdraw(freeBalance, subtractFreeBalance, creditWallet);
 
   const [rejectReason, setRejectReason] = useState<PolicyRejectReason | null>(null);

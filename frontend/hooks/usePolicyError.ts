@@ -7,16 +7,11 @@ import {
   BaseError,
   ContractFunctionRevertedError,
   decodeErrorResult,
-  formatUnits,
 } from "viem";
 import { useAccount, useWatchContractEvent } from "wagmi";
 import type { PolicyRejectReason } from "@/components/PolicyRejectBanner";
 import { addressesFor, copyVaultAbi, isDeployed } from "@/lib/contracts";
-
-/** USDG is 6-decimal (PRD v2.0 §7) — every notional value in PolicyModule's
- * custom errors is a raw integer in this unit, same as every other USDG
- * amount in the system. */
-const USDG_DECIMALS = 6;
+import { fromUsdg } from "@/lib/usdg";
 
 /**
  * The PolicyModule + CopyVault user-facing custom errors (PRD §4.3/§4.4/§4.6),
@@ -54,19 +49,6 @@ const policyErrorsAbi = [
 /** Maps a decoded token address to the symbol PolicyRejectBanner renders. */
 export type TokenSymbolResolver = (token: `0x${string}`) => string;
 
-/**
- * Raw 6-decimal USDG bigint -> a display number, rounded to cents.
- *
- * Bug fixed here (PRD v2.0 §7, found while specifying the notional unit
- * convention): this previously went straight to `Number(attempted)` with no
- * decimal conversion — a real CapExceeded would have rendered "$80000000"
- * instead of "$80". Never caught because every path exercised so far was the
- * fixture/simulate path, which already used human-scale numbers.
- */
-function toDisplayUsdg(raw: bigint): number {
-  return Math.round(Number(formatUnits(raw, USDG_DECIMALS)) * 100) / 100;
-}
-
 /** Shapes one decoded error name + args into the banner's reason union. */
 function toReason(
   errorName: string,
@@ -75,11 +57,14 @@ function toReason(
 ): PolicyRejectReason | null {
   switch (errorName) {
     case "CapExceeded": {
+      // Both are raw 6-decimal USDG — going straight to Number() here once
+      // rendered a $80 cap breach as "$80000000", and only the fixture path
+      // (already human-scale) hid it.
       const [attempted, cap] = (args ?? []) as [bigint, bigint];
       return {
         type: "CapExceeded",
-        attempted: toDisplayUsdg(attempted),
-        cap: toDisplayUsdg(cap),
+        attempted: fromUsdg(attempted),
+        cap: fromUsdg(cap),
       };
     }
     case "TokenNotAllowed": {
