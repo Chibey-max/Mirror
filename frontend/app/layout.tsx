@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { NetworkGuard } from "@/components/NetworkGuard";
@@ -14,6 +14,23 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+/**
+ * Display-only face for headlines and hero-scale numerals. Everything else
+ * stays Geist — this isn't a font swap, it's one deliberate accent.
+ *
+ * Was Instrument Serif — swapped after feedback that the hero read as too
+ * thin. Instrument Serif only ships one weight (400); no CSS font-weight
+ * makes a single-weight face heavier, the font file itself is thin. Fraunces
+ * has a genuine 600-900 range plus an optical-size axis tuned for large
+ * display text, which is what "bolder and thicker" actually requires.
+ */
+const fraunces = Fraunces({
+  variable: "--font-display",
+  weight: ["600", "700", "900"],
+  style: ["normal", "italic"],
+  subsets: ["latin"],
+});
+
 export const metadata: Metadata = {
   title: "Mirror — on-chain agent track records",
   description:
@@ -25,9 +42,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-bg text-text">
+      <body
+        suppressHydrationWarning
+        className="min-h-full flex flex-col bg-bg text-text"
+      >
         <Providers>
           <NetworkGuard>{children}</NetworkGuard>
         </Providers>

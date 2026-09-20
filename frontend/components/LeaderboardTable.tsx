@@ -15,7 +15,7 @@ export function LeaderboardTable({ agents }: { agents: FixtureAgent[] }) {
 
   if (ranked.length === 0) {
     return (
-      <div className="rounded-2xl border border-border bg-surface p-6 text-center">
+      <div className="panel rounded-3xl p-6 text-center">
         <p className="text-sm text-muted">
           No agents registered yet. Once AgentRegistry has an entry, it
           ranks here — nothing is seeded by hand.
@@ -32,7 +32,7 @@ export function LeaderboardTable({ agents }: { agents: FixtureAgent[] }) {
       </p>
 
       {/* Desktop table */}
-      <div className="hidden overflow-x-auto rounded-2xl border border-border sm:block">
+      <div className="hidden overflow-x-auto panel rounded-3xl sm:block">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
@@ -57,7 +57,7 @@ export function LeaderboardTable({ agents }: { agents: FixtureAgent[] }) {
                   <span className="text-xs text-muted">{agent.strategy}</span>
                 </td>
                 <td
-                  className={`tabular px-4 py-3 font-semibold ${agent.pnlPct >= 0 ? "text-accent" : "text-loss"}`}
+                  className={`tabular px-4 py-3 font-semibold ${agent.pnlPct >= 0 ? "text-profit" : "text-loss"}`}
                 >
                   {agent.pnlPct >= 0 ? "+" : ""}
                   {agent.pnlPct.toFixed(1)}%
@@ -80,7 +80,7 @@ export function LeaderboardTable({ agents }: { agents: FixtureAgent[] }) {
       {/* Mobile cards */}
       <div className="flex flex-col gap-2 sm:hidden">
         {ranked.map((agent, i) => (
-          <div key={agent.id} className="rounded-xl border border-border bg-surface p-4">
+          <div key={agent.id} className="panel rounded-2xl p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="tabular text-muted">#{i + 1}</span>
@@ -88,7 +88,7 @@ export function LeaderboardTable({ agents }: { agents: FixtureAgent[] }) {
                 {agent.isLosing && <Badge variant="losing">Losing agent</Badge>}
               </div>
               <span
-                className={`tabular font-semibold ${agent.pnlPct >= 0 ? "text-accent" : "text-loss"}`}
+                className={`tabular font-semibold ${agent.pnlPct >= 0 ? "text-profit" : "text-loss"}`}
               >
                 {agent.pnlPct >= 0 ? "+" : ""}
                 {agent.pnlPct.toFixed(1)}%

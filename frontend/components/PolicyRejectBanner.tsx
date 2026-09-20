@@ -1,6 +1,7 @@
 "use client";
 
 import { txUrl } from "@/lib/chains";
+import { MetalButton } from "@/components/MetalButton";
 
 /**
  * The demo centerpiece (PRD §5.3, design prompt §9). Never a generic
@@ -73,14 +74,15 @@ export function PolicyRejectBanner({
           </div>
         </div>
 
-        <button
-          type="button"
+        <MetalButton
+          tone="quiet"
+          size="icon-sm"
+          className="flex-none"
           onClick={onDismiss}
           aria-label="Dismiss"
-          className="flex-none text-muted transition hover:text-text"
         >
           ✕
-        </button>
+        </MetalButton>
       </div>
     </div>
   );

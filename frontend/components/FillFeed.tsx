@@ -17,7 +17,7 @@ import type { FixtureFill } from "@/lib/fixtures";
 export function FillFeed({ fills }: { fills: FixtureFill[] }) {
   if (fills.length === 0) {
     return (
-      <div className="rounded-2xl border border-border bg-surface p-6 text-center">
+      <div className="panel rounded-3xl p-6 text-center">
         <p className="text-sm text-muted">
           No mirrored activity yet. Follow an agent and its fills will land
           here.
@@ -31,7 +31,7 @@ export function FillFeed({ fills }: { fills: FixtureFill[] }) {
       {fills.map((fill) => (
         <li
           key={fill.id}
-          className="animate-[rowIn_0.25s_ease-out] flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3"
+          className="animate-[rowIn_0.25s_ease-out] flex items-center justify-between gap-3 panel rounded-2xl px-4 py-3"
         >
           <div className="flex items-center gap-3">
             <Badge variant={fill.side === "BUY" ? "buy" : "sell"}>
