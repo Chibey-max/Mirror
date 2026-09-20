@@ -24,9 +24,9 @@ import { useWithdraw } from "@/hooks/useWithdraw";
 
 // Day 3–4 (David, PRD §5.2): tape table, deposit, follow. This file also
 // carries the consequences-flow pieces (Patrick, PRD §5.3) below the
-// divider so the two halves of the same screen are visible together while
-// contracts aren't live yet — swap fixtures for real reads per each
-// component's TODO once addresses/ABIs land (PRD §4, Day 7+).
+// divider so the two halves of the same screen are visible together. Every
+// hook below reads the chain where one is deployed and falls back to
+// fixtures where it isn't (PRD §4), so this page needs no fixture imports.
 export default function AgentDetailPage({
   params,
 }: PageProps<"/agents/[id]">) {

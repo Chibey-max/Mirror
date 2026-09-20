@@ -17,9 +17,8 @@ import type { FixtureFill } from "@/lib/fixtures";
  * irrelevant to a third (PRD v2.2 §7.1). A fill with no outcome is an agent
  * trade that didn't touch you, and the row says nothing about your vault.
  *
- * TODO(Day 9+, once Jason's Runner is live): swap the `fills` prop source
- * from lib/fixtures to hooks/useFillEvents, which watches CopyVault's
- * Mirrored event via wagmi's useWatchContractEvent.
+ * `fills` comes from hooks/useFillEvents, which backfills from TrackRecord
+ * and watches FillRecorded; `outcomes` from hooks/useMirrorOutcomes.
  */
 export function FillFeed({
   fills,
