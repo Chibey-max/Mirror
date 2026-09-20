@@ -26,6 +26,7 @@ import { useDeposit } from "@/hooks/useDeposit";
 import { useFollow } from "@/hooks/useFollow";
 import { useWithdraw } from "@/hooks/useWithdraw";
 import { MetalButton } from "@/components/MetalButton";
+import { useTrackedWrite } from "@/components/TransactionToasts";
 
 // Day 3–4 (David, PRD §5.2): tape table, deposit, follow. This file also
 // carries the consequences-flow pieces (Patrick, PRD §5.3) below the
@@ -58,6 +59,10 @@ export default function AgentDetailPage({
     subtractFreeBalance,
   } = useFollow(vaultBalance, [agentId]);
   const { withdraw } = useWithdraw(freeBalance, subtractFreeBalance, creditWallet);
+  // Reports every write to the header's pending count and a toast that
+  // outlives whichever modal started it (closing mid-transaction used to
+  // make the transaction disappear).
+  const track = useTrackedWrite();
 
   const [rejectReason, setRejectReason] = useState<PolicyRejectReason | null>(null);
   /*
@@ -290,7 +295,12 @@ export default function AgentDetailPage({
                     allocatedAmount={allocated}
                     onKill={(onProgress) => {
                       setKillStarted(true);
-                      return unfollow(agent.id, onProgress);
+                      return track(`Kill follow: ${agent.name}`, (progress) => {
+                        return unfollow(agent.id, (event) => {
+                          progress(event);
+                          onProgress?.(event);
+                        });
+                      });
                     }}
                     verify={verifyKill}
                   />
@@ -304,11 +314,16 @@ export default function AgentDetailPage({
             onClose={() => setDepositOpen(false)}
             walletBalance={walletBalance}
             vaultBalance={vaultBalance}
-            onDeposit={async (amount, onProgress) => {
-              const result = await deposit(amount, onProgress);
-              addFreeBalance(amount);
-              return result;
-            }}
+            onDeposit={(amount, onProgress) =>
+              track(`Deposit ${amount.toFixed(2)} USDG`, async (progress) => {
+                const result = await deposit(amount, (event) => {
+                  progress(event);
+                  onProgress?.(event);
+                });
+                addFreeBalance(amount);
+                return result;
+              })
+            }
           />
           <FollowModal
             open={followOpen}
@@ -317,13 +332,27 @@ export default function AgentDetailPage({
             agentName={agent.name}
             freeBalance={freeBalance}
             alreadyFollowing={allocated > 0}
-            onFollow={follow}
+            onFollow={(input, onProgress) =>
+              track(`Follow with $${input.capAmount.toFixed(2)} cap`, (progress) => {
+                return follow(input, (event) => {
+                  progress(event);
+                  onProgress?.(event);
+                });
+              })
+            }
           />
           <WithdrawModal
             open={withdrawOpen}
             onClose={() => setWithdrawOpen(false)}
             freeBalance={freeBalance}
-            onWithdraw={withdraw}
+            onWithdraw={(amount, onProgress) =>
+              track(`Withdraw ${amount.toFixed(2)} USDG`, (progress) => {
+                return withdraw(amount, (event) => {
+                  progress(event);
+                  onProgress?.(event);
+                });
+              })
+            }
           />
         </>
       )}

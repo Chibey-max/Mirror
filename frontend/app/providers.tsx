@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RainbowKitProvider, darkTheme, type Theme } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
 import { wagmiConfig } from "@/lib/wagmi";
+import { TransactionsProvider } from "@/components/TransactionToasts";
 
 /**
  * RainbowKit's own dark theme is a mid-grey card with its own type and radii,
@@ -87,7 +88,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider theme={mirrorTheme} modalSize="compact">
-          {children}
+          <TransactionsProvider>{children}</TransactionsProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>

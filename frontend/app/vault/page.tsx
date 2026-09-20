@@ -9,6 +9,7 @@ import { PageAtmosphere } from "@/components/PageAtmosphere";
 import { PageHeader, SectionHeader } from "@/components/PageHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
+import { useTrackedWrite } from "@/components/TransactionToasts";
 import { WithdrawModal } from "@/components/WithdrawModal";
 import { useAgents } from "@/hooks/useAgents";
 import { useDeposit } from "@/hooks/useDeposit";
@@ -38,6 +39,7 @@ export default function VaultPage() {
   const { allocatedByAgent, freeBalance, addFreeBalance, subtractFreeBalance } =
     useFollow(vaultBalance, agentIds);
   const { withdraw } = useWithdraw(freeBalance, subtractFreeBalance, creditWallet);
+  const track = useTrackedWrite();
 
   const followedIds = agentIds.filter((id) => (allocatedByAgent[id] ?? 0) > 0);
   const spentToday = useSpentToday(followedIds);
@@ -147,17 +149,29 @@ export default function VaultPage() {
         onClose={() => setDepositOpen(false)}
         walletBalance={walletBalance}
         vaultBalance={vaultBalance}
-        onDeposit={async (amount, onProgress) => {
-          const result = await deposit(amount, onProgress);
-          addFreeBalance(amount);
-          return result;
-        }}
+        onDeposit={(amount, onProgress) =>
+          track(`Deposit ${amount.toFixed(2)} USDG`, async (progress) => {
+            const result = await deposit(amount, (event) => {
+              progress(event);
+              onProgress?.(event);
+            });
+            addFreeBalance(amount);
+            return result;
+          })
+        }
       />
       <WithdrawModal
         open={withdrawOpen}
         onClose={() => setWithdrawOpen(false)}
         freeBalance={freeBalance}
-        onWithdraw={withdraw}
+        onWithdraw={(amount, onProgress) =>
+          track(`Withdraw ${amount.toFixed(2)} USDG`, (progress) => {
+            return withdraw(amount, (event) => {
+              progress(event);
+              onProgress?.(event);
+            });
+          })
+        }
       />
     </div>
   );
