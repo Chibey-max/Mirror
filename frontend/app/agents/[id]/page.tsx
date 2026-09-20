@@ -28,6 +28,7 @@ import { useFollow } from "@/hooks/useFollow";
 import { useWithdraw } from "@/hooks/useWithdraw";
 import { MetalButton } from "@/components/MetalButton";
 import { useTrackedWrite } from "@/components/TransactionToasts";
+import { useRequireConnection } from "@/hooks/useRequireConnection";
 
 // Day 3–4 (David, PRD §5.2): tape table, deposit, follow. This file also
 // carries the consequences-flow pieces (Patrick, PRD §5.3) below the
@@ -64,6 +65,11 @@ export default function AgentDetailPage({
   // outlives whichever modal started it (closing mid-transaction used to
   // make the transaction disappear).
   const track = useTrackedWrite();
+  // A disconnected visitor browses read-only; an action prompts them to
+  // connect instead of running against nothing and failing silently at the
+  // wallet layer (§13) — easy to miss, since the fixture path renders a
+  // full "as if following" demo state with nobody connected at all.
+  const { isConnected, requireConnection } = useRequireConnection();
   const allocated = agent ? (allocatedByAgent[agent.id] ?? 0) : 0;
   // Only asked live while there's a cap to measure against (design prompt
   // §5: "spent today, progress bar against the cap") — allocated doubles as
@@ -314,19 +320,23 @@ export default function AgentDetailPage({
                   <MetalButton
                     tone="primary"
                     fullWidth
-                    onClick={() => setDepositOpen(true)}
+                    onClick={() => requireConnection(() => setDepositOpen(true))}
                   >
                     Deposit
                   </MetalButton>
                   <MetalButton
                     tone="quiet"
                     fullWidth
-                    onClick={() => setFollowOpen(true)}
+                    onClick={() => requireConnection(() => setFollowOpen(true))}
                     disabled={allocated > 0}
                   >
                     {allocated > 0 ? "Following" : "Follow with cap"}
                   </MetalButton>
-                  <MetalButton tone="quiet" fullWidth onClick={() => setWithdrawOpen(true)}>
+                  <MetalButton
+                    tone="quiet"
+                    fullWidth
+                    onClick={() => requireConnection(() => setWithdrawOpen(true))}
+                  >
                     Withdraw
                   </MetalButton>
                 </div>
@@ -338,6 +348,12 @@ export default function AgentDetailPage({
                     agentName={agent.name}
                     allocatedAmount={allocated}
                     onKill={(onProgress) => {
+                      if (!isConnected) {
+                        requireConnection(() => {});
+                        return Promise.reject(
+                          new Error("Connect your wallet to kill a follow."),
+                        );
+                      }
                       setKillStarted(true);
                       return track(`Kill follow: ${agent.name}`, (progress) => {
                         return unfollow(agent.id, (event) => {

@@ -10,6 +10,7 @@ import { PageHeader, SectionHeader } from "@/components/PageHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { useTrackedWrite } from "@/components/TransactionToasts";
+import { useRequireConnection } from "@/hooks/useRequireConnection";
 import { WithdrawModal } from "@/components/WithdrawModal";
 import { useAgents } from "@/hooks/useAgents";
 import { useDeposit } from "@/hooks/useDeposit";
@@ -40,6 +41,7 @@ export default function VaultPage() {
     useFollow(vaultBalance, agentIds);
   const { withdraw } = useWithdraw(freeBalance, subtractFreeBalance, creditWallet);
   const track = useTrackedWrite();
+  const { requireConnection } = useRequireConnection();
 
   const followedIds = agentIds.filter((id) => (allocatedByAgent[id] ?? 0) > 0);
   const spentToday = useSpentToday(followedIds);
@@ -73,10 +75,16 @@ export default function VaultPage() {
         />
 
         <div className="mt-6 flex flex-wrap gap-2">
-          <MetalButton tone="primary" onClick={() => setDepositOpen(true)}>
+          <MetalButton
+            tone="primary"
+            onClick={() => requireConnection(() => setDepositOpen(true))}
+          >
             Deposit
           </MetalButton>
-          <MetalButton tone="quiet" onClick={() => setWithdrawOpen(true)}>
+          <MetalButton
+            tone="quiet"
+            onClick={() => requireConnection(() => setWithdrawOpen(true))}
+          >
             Withdraw
           </MetalButton>
         </div>
