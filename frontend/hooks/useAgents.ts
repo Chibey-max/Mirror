@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { formatUnits, type Address } from "viem";
 import {
@@ -94,6 +95,9 @@ export function useAgents(): {
   agents: Agent[];
   isLoading: boolean;
   error: Error | null;
+  /** Re-runs every read this hook made. For a calm error banner, not a
+   *  spinner — the caller decides when "try again" is worth showing. */
+  refetch: () => void;
 } {
   const { chainId } = useAccount();
   const addresses = chainId ? addressesFor(chainId) : undefined;
@@ -156,8 +160,14 @@ export function useAgents(): {
   ];
   const metadata = useTokenMetadata(tokens, live);
 
+  const refetch = useCallback(() => {
+    void count.refetch();
+    void registry.refetch();
+    void activity.refetch();
+  }, [count, registry, activity]);
+
   if (!live) {
-    return { agents: fixtureAgents, isLoading: false, error: null };
+    return { agents: fixtureAgents, isLoading: false, error: null, refetch };
   }
 
   const agents: Agent[] = [];
@@ -225,6 +235,7 @@ export function useAgents(): {
     agents,
     isLoading: count.isLoading || registry.isLoading || activity.isLoading,
     error: (count.error ?? registry.error ?? activity.error) as Error | null,
+    refetch,
   };
 }
 
@@ -234,9 +245,19 @@ export function useAgent(agentId: number): {
   fills: AgentFill[];
   isLoading: boolean;
   error: Error | null;
+  refetch: () => void;
 } {
-  const { agents, isLoading, error } = useAgents();
-  const { fills, isLoading: fillsLoading } = useFillEvents(agentId);
+  const { agents, isLoading, error, refetch: refetchAgents } = useAgents();
+  const {
+    fills,
+    isLoading: fillsLoading,
+    refetch: refetchFills,
+  } = useFillEvents(agentId);
+
+  const refetch = useCallback(() => {
+    refetchAgents();
+    refetchFills();
+  }, [refetchAgents, refetchFills]);
 
   return {
     agent: agents.find((agent) => agent.id === agentId),
@@ -247,5 +268,6 @@ export function useAgent(agentId: number): {
       : fills,
     isLoading: isLoading || fillsLoading,
     error,
+    refetch,
   };
 }

@@ -4,6 +4,7 @@ import { use, useState } from "react";
 import { AgentTapeTable } from "@/components/AgentTapeTable";
 import { Badge } from "@/components/Badge";
 import { PageHeader, SectionHeader } from "@/components/PageHeader";
+import { RetryBanner } from "@/components/RetryBanner";
 import { PageAtmosphere } from "@/components/PageAtmosphere";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -40,7 +41,7 @@ export default function AgentDetailPage({
 }: PageProps<"/agents/[id]">) {
   const { id } = use(params);
   const agentId = Number(id);
-  const { agent, fills: tapeFills } = useAgent(agentId);
+  const { agent, fills: tapeFills, isLoading, error, refetch } = useAgent(agentId);
   const { fills } = useFillEvents(agent?.id);
   const { decode, simulate } = usePolicyError();
   // Proves the kill from chain state rather than trusting the write (§10).
@@ -129,6 +130,22 @@ export default function AgentDetailPage({
       <PageAtmosphere />
       <SiteHeader />
       <main className="mx-auto w-full max-w-6xl px-5 pb-20 sm:px-10">
+      {isLoading && (
+        <div className="mt-8 animate-pulse" aria-label="Loading agent">
+          <div className="h-9 w-48 rounded-lg bg-surface" />
+          <div className="mt-3 h-4 w-80 rounded-lg bg-surface" />
+          <div className="mt-8 h-64 rounded-3xl bg-surface" />
+        </div>
+      )}
+
+      {error && (
+        <RetryBanner
+          className="mt-8"
+          message="Could not load this agent from the chain. The RPC may be unreachable."
+          onRetry={refetch}
+        />
+      )}
+
       {agent && (
         <div className="border-b border-border pb-6">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
@@ -176,7 +193,7 @@ export default function AgentDetailPage({
         </div>
       )}
 
-      {!agent && (
+      {!isLoading && !error && !agent && (
         <div className="mt-8 panel rounded-3xl p-6 text-sm text-muted">
           Agent #{agentId} is not in the current fixture set. Once
           AgentRegistry is wired, this page will resolve from chain reads.

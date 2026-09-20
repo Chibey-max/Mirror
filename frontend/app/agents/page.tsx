@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { PageAtmosphere } from "@/components/PageAtmosphere";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
+import { RetryBanner } from "@/components/RetryBanner";
 import { useAgents } from "@/hooks/useAgents";
 import { useFillEvents } from "@/hooks/useFillEvents";
 
@@ -13,7 +14,7 @@ import { useFillEvents } from "@/hooks/useFillEvents";
 // Client-rendered: useAgents reads the chain through wagmi, which needs the
 // connected chain id, so there is nothing for the server to prerender.
 export default function AgentsPage() {
-  const { agents, isLoading, error } = useAgents();
+  const { agents, isLoading, error, refetch } = useAgents();
   const { fills } = useFillEvents();
   const ready = !isLoading && !error && agents.length > 0;
 
@@ -64,10 +65,11 @@ export default function AgentsPage() {
         )}
 
         {error && (
-          <div className="mt-8 rounded-2xl border border-loss/40 bg-loss/10 p-5 text-sm text-loss">
-            Could not load agents. Keep the fixture shell visible locally, then
-            retry once the registry read is wired.
-          </div>
+          <RetryBanner
+            className="mt-8"
+            message="Could not load agents from the chain. The RPC may be unreachable."
+            onRetry={refetch}
+          />
         )}
 
         {!isLoading && !error && agents.length === 0 && (

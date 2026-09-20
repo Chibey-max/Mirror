@@ -27,9 +27,14 @@ import { useAgents } from "@/hooks/useAgents";
  * smaller wherever a cap clipped one. Joining Mirrored logs to each fill's
  * recorded price gives the figure a follower actually earned.
  */
-export function useLeaderboard(): { agents: FixtureAgent[] } {
-  const { agents: live } = useAgents();
-  if (live !== fixtureAgents) return { agents: live };
+export function useLeaderboard(): {
+  agents: FixtureAgent[];
+  isLoading: boolean;
+  error: Error | null;
+  refetch: () => void;
+} {
+  const { agents: live, isLoading, error, refetch } = useAgents();
+  if (live !== fixtureAgents) return { agents: live, isLoading, error, refetch };
 
   const computed = computeAgentPnl(tradesFromFills(fixtureFills));
 
@@ -39,5 +44,5 @@ export function useLeaderboard(): { agents: FixtureAgent[] } {
     return { ...agent, pnlUsd: pnl.pnlUsd, pnlPct: pnl.pnlPct };
   });
 
-  return { agents };
+  return { agents, isLoading, error, refetch };
 }

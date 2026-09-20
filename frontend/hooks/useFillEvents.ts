@@ -98,7 +98,9 @@ const BACKFILL_LIMIT = 50;
  *
  * Sizes are formatted with the token's own decimals, read from the token
  * itself — the same `size` is 0.42 shares or 4.2e17 depending on them, and
- * the stock tokens' decimals aren't frozen in any doc. Prices are USDG.
+ * the stock tokens' decimals aren't frozen in any doc. Prices are the raw
+ * 8-decimal oracle price TrackRecord stores (ORACLE_PRICE_DECIMALS), not a
+ * USDG amount.
  *
  * `getFillsByAgent` needs an agent, so the all-agents case stays on
  * fixtures until there's a reason to fan out across the registry.
@@ -106,6 +108,7 @@ const BACKFILL_LIMIT = 50;
 export function useFillEvents(agentId?: number): {
   fills: FixtureFill[];
   isLoading: boolean;
+  refetch: () => void;
 } {
   const { chainId } = useAccount();
   const trackRecord = chainId ? addressesFor(chainId)?.trackRecord : undefined;
@@ -151,18 +154,20 @@ export function useFillEvents(agentId?: number): {
   const tokens = [...new Set([...unique.values()].map((fill) => fill.token))];
   const metadata = useTokenMetadata(tokens, live);
 
+  const refetch = () => void backfill.refetch();
+
   if (!live) {
     const fills = agentId
       ? fixtureFills.filter((f) => f.agentId === agentId)
       : fixtureFills;
-    return { fills, isLoading: false };
+    return { fills, isLoading: false, refetch };
   }
 
   const fills = [...unique.values()]
     .sort((a, b) => Number(b.timestamp - a.timestamp))
     .map((fill) => toDisplayFill(fill, metadata.get(fill.token)));
 
-  return { fills, isLoading: backfill.isLoading };
+  return { fills, isLoading: backfill.isLoading, refetch };
 }
 
 type IndexedFill = OnChainFill & { txHash?: `0x${string}` };
