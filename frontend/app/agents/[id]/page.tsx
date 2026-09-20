@@ -20,6 +20,7 @@ import {
 import { useFillEvents } from "@/hooks/useFillEvents";
 import { useKillVerification } from "@/hooks/useKillVerification";
 import { useMirrorOutcomes } from "@/hooks/useMirrorOutcomes";
+import { useSpentToday } from "@/hooks/useSpentToday";
 import { usePolicyError, useMirrorRejection } from "@/hooks/usePolicyError";
 import { useAgent } from "@/hooks/useAgents";
 import { useDeposit } from "@/hooks/useDeposit";
@@ -63,6 +64,11 @@ export default function AgentDetailPage({
   // outlives whichever modal started it (closing mid-transaction used to
   // make the transaction disappear).
   const track = useTrackedWrite();
+  const allocated = agent ? (allocatedByAgent[agent.id] ?? 0) : 0;
+  // Only asked live while there's a cap to measure against (design prompt
+  // §5: "spent today, progress bar against the cap") — allocated doubles as
+  // the cap because follow() sets both from the one capAmount argument.
+  const spentToday = useSpentToday(allocated > 0 ? [agentId] : []);
 
   const [rejectReason, setRejectReason] = useState<PolicyRejectReason | null>(null);
   /*
@@ -89,8 +95,6 @@ export default function AgentDetailPage({
   const [depositOpen, setDepositOpen] = useState(false);
   const [followOpen, setFollowOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
-
-  const allocated = agent ? (allocatedByAgent[agent.id] ?? 0) : 0;
 
   if (!Number.isInteger(agentId) || agentId <= 0) {
     return (
@@ -265,6 +269,46 @@ export default function AgentDetailPage({
                     </div>
                   ))}
                 </dl>
+
+                {/*
+                  The follow panel design prompt §5 asks for: cap, spent
+                  today against it, allocation (above), kill switch (below).
+                  Only shown while following — spending against a cap that
+                  doesn't exist isn't a state that means anything.
+                */}
+                {allocated > 0 && (() => {
+                  const spent = spentToday[agentId] ?? 0;
+                  // Enforcement is on-chain; a fill can still land between
+                  // reads and put this over 100% for a moment — clamped so
+                  // the bar never draws past its own track.
+                  const pct = Math.min(100, (spent / allocated) * 100);
+                  return (
+                    <div className="mt-4 border-t border-border pt-4">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <p className="text-sm text-muted">Spent today</p>
+                        <p className="tabular text-sm font-semibold">
+                          ${spent.toFixed(2)}
+                          <span className="text-muted"> / ${allocated.toFixed(2)}</span>
+                        </p>
+                      </div>
+                      <div
+                        role="progressbar"
+                        aria-label={`Spent today against ${agent.name}'s cap`}
+                        aria-valuenow={Math.round(pct)}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        className="mt-2 h-1.5 overflow-hidden rounded-full bg-border"
+                      >
+                        <div
+                          className={`h-full rounded-full transition-[width] ${
+                            pct >= 100 ? "bg-loss" : "bg-accent"
+                          }`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="mt-5 flex flex-col gap-2">
                   <MetalButton
