@@ -141,6 +141,74 @@ export const trackRecordAbi = [
   },
 ] as const satisfies Abi;
 
+/**
+ * PolicyModule's reads, hand-kept in sync with IPolicyModule.sol (Isaac).
+ *
+ * Only the views: setPolicy, checkAndConsume and kill are onlyVault, so the
+ * frontend never calls them — it follows and unfollows through CopyVault and
+ * reads the result here. The custom errors live in usePolicyError's own
+ * fragment, which decodes them from MirrorRejected's reason bytes.
+ */
+export const policyModuleAbi = [
+  {
+    type: "function",
+    name: "getPolicy",
+    stateMutability: "view",
+    inputs: [
+      { name: "user", type: "address" },
+      { name: "agentId", type: "uint256" },
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "maxNotionalPerDay", type: "uint256" },
+          { name: "maxSlippageBps", type: "uint256" },
+          { name: "active", type: "bool" },
+        ],
+      },
+    ],
+  },
+  {
+    // spentToday + this trade is what CapExceeded.attempted reports (§7.6).
+    type: "function",
+    name: "spentToday",
+    stateMutability: "view",
+    inputs: [
+      { name: "user", type: "address" },
+      { name: "agentId", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "isTokenAllowed",
+    stateMutability: "view",
+    inputs: [{ name: "token", type: "address" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    type: "event",
+    name: "PolicySet",
+    inputs: [
+      { name: "user", type: "address", indexed: true },
+      { name: "agentId", type: "uint256", indexed: true },
+      { name: "maxNotionalPerDay", type: "uint256", indexed: false },
+      { name: "maxSlippageBps", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    // The kill switch's on-chain receipt.
+    type: "event",
+    name: "PolicyKilled",
+    inputs: [
+      { name: "user", type: "address", indexed: true },
+      { name: "agentId", type: "uint256", indexed: true },
+    ],
+  },
+] as const satisfies Abi;
+
 export const copyVaultAbi = [
   {
     type: "function",

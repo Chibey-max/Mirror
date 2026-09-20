@@ -14,6 +14,7 @@ import {
   type PolicyRejectReason,
 } from "@/components/PolicyRejectBanner";
 import { useFillEvents } from "@/hooks/useFillEvents";
+import { useKillVerification } from "@/hooks/useKillVerification";
 import { usePolicyError, useMirrorRejection } from "@/hooks/usePolicyError";
 import { useAgent } from "@/hooks/useAgents";
 import { useDeposit } from "@/hooks/useDeposit";
@@ -33,6 +34,8 @@ export default function AgentDetailPage({
   const { agent, fills: tapeFills } = useAgent(agentId);
   const { fills } = useFillEvents(agent?.id);
   const { decode, simulate } = usePolicyError();
+  // Proves the kill from chain state rather than trusting the write (§10).
+  const { verify: verifyKill } = useKillVerification(agentId);
   // A real rejection from the chain (§7.1). Inert until CopyVault is
   // deployed; the simulate buttons below are the demo stand-in until then.
   const { rejection, clear: clearRejection } = useMirrorRejection(agentId);
@@ -173,8 +176,9 @@ export default function AgentDetailPage({
                         "0xb7d2c5e1a9f3b5d7c1e9a3f5b7d1c9e3a5f7b1d9c3e5a7f9b1d3a5c7e9f1b3d",
                     })}
                     verify={async () => {
-                      setKilled(true);
-                      return true;
+                      const dead = await verifyKill();
+                      if (dead) setKilled(true);
+                      return dead;
                     }}
                   />
                 </div>
