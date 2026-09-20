@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import type { WriteProgress } from "@/hooks/useVaultConnection";
 import { txUrl } from "@/lib/chains";
+import { MetalButton } from "@/components/MetalButton";
 
 type Stage = "idle" | "confirming" | "signing" | "pending" | "killed" | "error";
 
@@ -12,9 +14,8 @@ type Stage = "idle" | "confirming" | "signing" | "pending" | "killed" | "error";
  * owns the actual read-after-write — this component just renders the state
  * machine and calls back into it.
  *
- * TODO(Day 13+): wire `onKill` to CopyVault.unfollow() via wagmi's
- * useWriteContract, and `verify` to a fresh PolicyModule.getPolicy() read
- * (not the optimistic `killed` state alone) before showing the final badge.
+ * `onKill` is CopyVault.unfollow() and `verify` is a fresh read of the
+ * chain — neither is optimistic, and the badge waits for both.
  */
 export function KillButton({
   agentName,
@@ -24,7 +25,9 @@ export function KillButton({
 }: {
   agentName: string;
   allocatedAmount: number;
-  onKill: () => Promise<{ txHash: string }>;
+  /** Resolves once the unfollow's receipt is in; reports the hash as soon
+   *  as the transaction is submitted. */
+  onKill: (onProgress?: WriteProgress) => Promise<{ txHash: string }>;
   /** Re-reads PolicyModule.getPolicy() after the tx confirms. Must resolve
    * true only once the chain itself confirms the follow is inactive. */
   verify: () => Promise<boolean>;
@@ -35,10 +38,14 @@ export function KillButton({
   async function handleConfirm() {
     setStage("signing");
     try {
-      const { txHash: hash } = await onKill();
+      const { txHash: hash } = await onKill((event) => {
+        if (event.stage !== "submitted") return;
+        setTxHash(event.txHash);
+        setStage("pending");
+      });
       setTxHash(hash);
-      setStage("pending");
 
+      // Only now is the unfollow mined, so the reads below see its effect.
       const confirmed = await verify();
       setStage(confirmed ? "killed" : "error");
     } catch {
@@ -48,7 +55,7 @@ export function KillButton({
 
   if (stage === "killed") {
     return (
-      <div className="rounded-xl border border-border bg-surface-2 p-3">
+      <div className="field rounded-2xl p-3">
         <p className="text-sm font-medium text-text">
           This agent can no longer move your funds
         </p>
@@ -80,20 +87,20 @@ export function KillButton({
           allocation returns to your free balance immediately.
         </p>
         <div className="mt-3 flex gap-2">
-          <button
-            type="button"
+          <MetalButton
+            tone="quiet"
+            className="flex-1"
             onClick={() => setStage("idle")}
-            className="h-9 flex-1 rounded-lg border border-border text-sm text-muted transition hover:text-text"
           >
             Cancel
-          </button>
-          <button
-            type="button"
+          </MetalButton>
+          <MetalButton
+            tone="danger"
+            className="flex-1"
             onClick={handleConfirm}
-            className="h-9 flex-1 rounded-lg bg-loss text-sm font-semibold text-bg transition hover:brightness-110"
           >
             Kill follow
-          </button>
+          </MetalButton>
         </div>
       </div>
     );
@@ -101,35 +108,35 @@ export function KillButton({
 
   if (stage === "signing" || stage === "pending") {
     return (
-      <button
-        type="button"
+      <MetalButton
+        tone="quiet"
+        fullWidth
         disabled
-        className="h-9 w-full rounded-lg border border-border text-sm text-muted"
       >
         {stage === "signing" ? "Confirm in your wallet…" : "Pending on-chain…"}
-      </button>
+      </MetalButton>
     );
   }
 
   if (stage === "error") {
     return (
-      <button
-        type="button"
+      <MetalButton
+        tone="danger"
+        fullWidth
         onClick={() => setStage("confirming")}
-        className="h-9 w-full rounded-lg border border-loss/40 bg-loss/10 text-sm text-loss"
       >
         Kill didn&apos;t confirm — try again
-      </button>
+      </MetalButton>
     );
   }
 
   return (
-    <button
-      type="button"
+    <MetalButton
+      tone="danger"
+      fullWidth
       onClick={() => setStage("confirming")}
-      className="h-9 w-full rounded-lg border border-loss/40 text-sm font-semibold text-loss transition hover:bg-loss/10"
     >
       Kill follow
-    </button>
+    </MetalButton>
   );
 }

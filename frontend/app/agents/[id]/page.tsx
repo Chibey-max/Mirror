@@ -1,10 +1,15 @@
 "use client";
 
 import { use, useState } from "react";
-import Link from "next/link";
 import { AgentTapeTable } from "@/components/AgentTapeTable";
+import { Badge } from "@/components/Badge";
+import { PageHeader, SectionHeader } from "@/components/PageHeader";
+import { PageAtmosphere } from "@/components/PageAtmosphere";
+import { SiteFooter } from "@/components/SiteFooter";
+import { SiteHeader } from "@/components/SiteHeader";
 import { DepositModal } from "@/components/DepositModal";
 import { FollowModal } from "@/components/FollowModal";
+import { WithdrawModal } from "@/components/WithdrawModal";
 import { TrustBadge } from "@/components/TrustBadge";
 import { FillFeed } from "@/components/FillFeed";
 import { KillButton } from "@/components/KillButton";
@@ -13,16 +18,23 @@ import {
   type PolicyRejectReason,
 } from "@/components/PolicyRejectBanner";
 import { useFillEvents } from "@/hooks/useFillEvents";
-import { usePolicyError } from "@/hooks/usePolicyError";
+import { useKillVerification } from "@/hooks/useKillVerification";
+import { useMirrorOutcomes } from "@/hooks/useMirrorOutcomes";
+import { useSpentToday } from "@/hooks/useSpentToday";
+import { usePolicyError, useMirrorRejection } from "@/hooks/usePolicyError";
 import { useAgent } from "@/hooks/useAgents";
 import { useDeposit } from "@/hooks/useDeposit";
 import { useFollow } from "@/hooks/useFollow";
+import { useWithdraw } from "@/hooks/useWithdraw";
+import { MetalButton } from "@/components/MetalButton";
+import { useTrackedWrite } from "@/components/TransactionToasts";
+import { useRequireConnection } from "@/hooks/useRequireConnection";
 
 // Day 3–4 (David, PRD §5.2): tape table, deposit, follow. This file also
 // carries the consequences-flow pieces (Patrick, PRD §5.3) below the
-// divider so the two halves of the same screen are visible together while
-// contracts aren't live yet — swap fixtures for real reads per each
-// component's TODO once addresses/ABIs land (PRD §4, Day 7+).
+// divider so the two halves of the same screen are visible together. Every
+// hook below reads the chain where one is deployed and falls back to
+// fixtures where it isn't (PRD §4), so this page needs no fixture imports.
 export default function AgentDetailPage({
   params,
 }: PageProps<"/agents/[id]">) {
@@ -31,40 +43,141 @@ export default function AgentDetailPage({
   const { agent, fills: tapeFills } = useAgent(agentId);
   const { fills } = useFillEvents(agent?.id);
   const { decode, simulate } = usePolicyError();
-  const { walletBalance, vaultBalance, deposit } = useDeposit();
-  const { allocatedByAgent, freeBalance, follow, addFreeBalance } =
-    useFollow(vaultBalance);
+  // Proves the kill from chain state rather than trusting the write (§10).
+  const { verify: verifyKill } = useKillVerification(agentId);
+  // A real rejection from the chain (§7.1). Inert until CopyVault is
+  // deployed; the simulate buttons below are the demo stand-in until then.
+  const { rejection, clear: clearRejection } = useMirrorRejection(agentId);
+  // Per-fill: mirrored, blocked, or never touched this vault (§7.1).
+  const mirrorOutcomes = useMirrorOutcomes(agentId);
+
+  const { walletBalance, vaultBalance, deposit, creditWallet } = useDeposit();
+  const {
+    allocatedByAgent,
+    freeBalance,
+    follow,
+    unfollow,
+    addFreeBalance,
+    subtractFreeBalance,
+  } = useFollow(vaultBalance, [agentId]);
+  const { withdraw } = useWithdraw(freeBalance, subtractFreeBalance, creditWallet);
+  // Reports every write to the header's pending count and a toast that
+  // outlives whichever modal started it (closing mid-transaction used to
+  // make the transaction disappear).
+  const track = useTrackedWrite();
+  // A disconnected visitor browses read-only; an action prompts them to
+  // connect instead of running against nothing and failing silently at the
+  // wallet layer (§13) — easy to miss, since the fixture path renders a
+  // full "as if following" demo state with nobody connected at all.
+  const { isConnected, requireConnection } = useRequireConnection();
+  const allocated = agent ? (allocatedByAgent[agent.id] ?? 0) : 0;
+  // Only asked live while there's a cap to measure against (design prompt
+  // §5: "spent today, progress bar against the cap") — allocated doubles as
+  // the cap because follow() sets both from the one capAmount argument.
+  const spentToday = useSpentToday(allocated > 0 ? [agentId] : []);
 
   const [rejectReason, setRejectReason] = useState<PolicyRejectReason | null>(null);
-  const [killed, setKilled] = useState(false);
+  /*
+   * A live rejection wins over a simulated one and carries the real
+   * mirrorFill tx that logged it; the demo control has only a fixture hash
+   * to point at.
+   */
+  const banner = rejection
+    ? { reason: rejection.reason, txHash: rejection.txHash }
+    : rejectReason
+      ? {
+          reason: rejectReason,
+          txHash:
+            "0x8e11c0b4da9f3c5e1b7d9f3a5c7e1b9d3f5a7c1e9b3d5f7a1c9e3b5d7f1a9c3",
+        }
+      : null;
+  /*
+   * Keeps KillButton mounted across the kill. It renders the "can no longer
+   * move your funds" badge itself, off its own verified state — and the
+   * allocation it was mounted for is zero by then, so mounting on the
+   * allocation alone tears the badge down at the moment it is earned.
+   */
+  const [killStarted, setKillStarted] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const [followOpen, setFollowOpen] = useState(false);
-
-  const allocated = agent ? (allocatedByAgent[agent.id] ?? 0) : 0;
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
 
   if (!Number.isInteger(agentId) || agentId <= 0) {
     return (
-      <main className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-8">
-        <h1 className="text-3xl font-semibold tracking-tight">Agent not found</h1>
-        <p className="mt-2 text-muted">This route does not map to an agent id.</p>
-        <Link href="/agents" className="mt-8 inline-block text-accent">
-          Back to agents
-        </Link>
-      </main>
+      <div className="relative overflow-x-clip">
+        <PageAtmosphere />
+        <SiteHeader />
+        <main className="mx-auto w-full max-w-6xl px-5 pb-20 sm:px-10">
+          <PageHeader
+            eyebrow="Registry"
+            title="Agent not found"
+            description="This route does not map to an agent id."
+            actions={
+              <MetalButton tone="quiet" href="/agents" size="sm">
+                Browse agents
+              </MetalButton>
+            }
+          />
+        </main>
+        <SiteFooter />
+      </div>
     );
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-8">
-      <h1 className="text-3xl font-semibold tracking-tight">
-        {agent ? agent.name : `Agent #${id}`}
-      </h1>
-      <p className="mt-2 text-muted">
-        {agent ? `${agent.strategy} · ${agent.fills} fills` : "Not found in fixtures."}
-      </p>
+    <div className="relative overflow-x-clip">
+      <PageAtmosphere />
+      <SiteHeader />
+      <main className="mx-auto w-full max-w-6xl px-5 pb-20 sm:px-10">
+      {agent && (
+        <div className="border-b border-border pb-6">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">
+                Agent #{agent.id} &middot; {agent.strategy}
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <h1 className="font-display text-4xl tracking-tight">
+                  {agent.name}
+                </h1>
+                {agent.isLosing ? (
+                  <Badge variant="losing">Losing agent</Badge>
+                ) : (
+                  <Badge variant="verified">Verified</Badge>
+                )}
+              </div>
+              {/*
+                What the registry actually holds about this agent. The hash is
+                the claim the tape is checked against, so it belongs on the
+                page rather than only in the card that linked here.
+              */}
+              <dl className="mt-4 flex flex-wrap gap-x-7 gap-y-2 font-mono text-[11px] text-muted">
+                <div className="flex gap-2">
+                  <dt className="uppercase tracking-[0.08em]">Model</dt>
+                  <dd className="text-text">{agent.modelVersion}</dd>
+                </div>
+                <div className="flex min-w-0 gap-2">
+                  <dt className="uppercase tracking-[0.08em]">Strategy hash</dt>
+                  <dd className="truncate text-text">
+                    {agent.strategyHash.slice(0, 10)}…{agent.strategyHash.slice(-6)}
+                  </dd>
+                </div>
+                <div className="flex gap-2">
+                  <dt className="uppercase tracking-[0.08em]">Registered</dt>
+                  <dd className="text-text">{agent.registeredAt}</dd>
+                </div>
+              </dl>
+            </div>
+
+            <div className="flex-none">
+              <TrustBadge fillCount={agent.fills} verifiedThroughBlock={1284392} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {!agent && (
-        <div className="mt-8 rounded-2xl border border-border bg-surface p-6 text-sm text-muted">
+        <div className="mt-8 panel rounded-3xl p-6 text-sm text-muted">
           Agent #{agentId} is not in the current fixture set. Once
           AgentRegistry is wired, this page will resolve from chain reads.
         </div>
@@ -72,93 +185,33 @@ export default function AgentDetailPage({
 
       {agent && (
         <>
-          <div className="mt-4">
-            <TrustBadge fillCount={agent.fills} verifiedThroughBlock={1284392} />
-          </div>
+          <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_20rem]">
+            <div className="min-w-0">
+              <section>
+                <SectionHeader
+                  label="Verified tape"
+                  description="Every row carries its own explorer link."
+                />
+                <AgentTapeTable fills={tapeFills} />
+              </section>
 
-          <section className="mt-8 rounded-2xl border border-border bg-surface p-5">
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div>
-                <p className="text-sm text-muted">Wallet</p>
-                <p className="tabular mt-1 text-xl font-semibold">
-                  {walletBalance.toFixed(2)} USDG
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted">Vault free</p>
-                <p className="tabular mt-1 text-xl font-semibold">
-                  {freeBalance.toFixed(2)} USDG
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted">Allocated here</p>
-                <p className="tabular mt-1 text-xl font-semibold">
-                  {allocated.toFixed(2)} USDG
-                </p>
-              </div>
-            </div>
+              <section className="mt-10">
+                <SectionHeader
+                  label="Live activity"
+                  description="Fills as the runner mirrors them into your vault."
+                />
+                <FillFeed fills={fills} outcomes={mirrorOutcomes} />
 
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => setDepositOpen(true)}
-                className="h-11 rounded-xl bg-accent px-5 font-semibold text-bg transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-accent/70"
-              >
-                Deposit
-              </button>
-              <button
-                type="button"
-                onClick={() => setFollowOpen(true)}
-                disabled={allocated > 0}
-                className="h-11 rounded-xl border border-border px-5 font-semibold text-text transition hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-45 focus:outline-none focus:ring-2 focus:ring-accent/70"
-              >
-                {allocated > 0 ? "Following" : "Follow with cap"}
-              </button>
-            </div>
-          </section>
-
-          <section className="mt-8">
-            <div className="mb-4 flex items-end justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold">Verified tape</h2>
-                <p className="mt-1 text-sm text-muted">
-                  Every row carries its own explorer link.
-                </p>
-              </div>
-            </div>
-            <AgentTapeTable fills={tapeFills} />
-          </section>
-
-          <div className="my-10 border-t border-border" />
-
-          <section>
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Live activity</h2>
-              {!killed && allocated > 0 && (
-                <div className="w-48">
-                  <KillButton
-                    agentName={agent.name}
-                    allocatedAmount={allocated}
-                    onKill={async () => ({
-                      txHash:
-                        "0xb7d2c5e1a9f3b5d7c1e9a3f5b7d1c9e3a5f7b1d9c3e5a7f9b1d3a5c7e9f1b3d",
-                    })}
-                    verify={async () => {
-                      setKilled(true);
-                      return true;
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="mt-4">
-              <FillFeed fills={fills} />
-            </div>
-
-            {/* Mirrors the mock's "Simulate a mirror attempt →" control so the
-                PolicyReject banner is demo-able without live market state. */}
-            <div className="mt-4 flex flex-wrap gap-2">
+                {/*
+                  Demo controls, boxed and labelled so nobody watching the
+                  demo mistakes them for something a follower would ever see.
+                  They stand in for live market state (docs/demo-script.md).
+                */}
+                <div className="mt-6 rounded-2xl border border-dashed border-border p-4">
+                  <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">
+                    Demo controls &middot; not part of the product
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
               {(
                 [
                   { type: "CapExceeded", attempted: 80, cap: 50 },
@@ -167,38 +220,170 @@ export default function AgentDetailPage({
                   { type: "InsufficientBalance" },
                 ] as PolicyRejectReason[]
               ).map((reason) => (
-                <button
+                <MetalButton
+                  tone="quiet"
+                  size="sm"
                   key={reason.type}
-                  type="button"
                   onClick={() => setRejectReason(decode(simulate(reason)))}
-                  className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted transition hover:text-text"
                 >
                   Simulate {reason.type} →
-                </button>
+                </MetalButton>
               ))}
             </div>
 
-            {rejectReason && (
-              <div className="mt-4">
-                <PolicyRejectBanner
-                  reason={rejectReason}
-                  txHash="0x8e11c0b4da9f3c5e1b7d9f3a5c7e1b9d3f5a7c1e9b3d5f7a1c9e3b5d7f1a9c3"
-                  onDismiss={() => setRejectReason(null)}
-                />
+                </div>
+
+                {banner && (
+                  <div className="mt-4">
+                    <PolicyRejectBanner
+                      reason={banner.reason}
+                      txHash={banner.txHash}
+                      onDismiss={() => {
+                        clearRejection();
+                        setRejectReason(null);
+                      }}
+                    />
+                  </div>
+                )}
+              </section>
+            </div>
+
+            {/*
+              Balances and the actions that change them travel together, and
+              stay in view while the tape is scrolled.
+            */}
+            <aside className="order-first lg:order-none lg:sticky lg:top-6 lg:self-start">
+              <div className="panel rounded-3xl p-5">
+                <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">
+                  Your position
+                </p>
+                <dl className="mt-3 divide-y divide-border">
+                  {[
+                    { label: "Wallet", value: walletBalance },
+                    { label: "Vault free", value: freeBalance },
+                    { label: "Allocated here", value: allocated },
+                  ].map((row) => (
+                    <div
+                      key={row.label}
+                      className="flex items-baseline justify-between gap-3 py-2.5"
+                    >
+                      <dt className="text-sm text-muted">{row.label}</dt>
+                      <dd className="tabular font-semibold">
+                        {row.value.toFixed(2)}{" "}
+                        <span className="text-xs text-muted">USDG</span>
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+
+                {/*
+                  The follow panel design prompt §5 asks for: cap, spent
+                  today against it, allocation (above), kill switch (below).
+                  Only shown while following — spending against a cap that
+                  doesn't exist isn't a state that means anything.
+                */}
+                {allocated > 0 && (() => {
+                  const spent = spentToday[agentId] ?? 0;
+                  // Enforcement is on-chain; a fill can still land between
+                  // reads and put this over 100% for a moment — clamped so
+                  // the bar never draws past its own track.
+                  const pct = Math.min(100, (spent / allocated) * 100);
+                  return (
+                    <div className="mt-4 border-t border-border pt-4">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <p className="text-sm text-muted">Spent today</p>
+                        <p className="tabular text-sm font-semibold">
+                          ${spent.toFixed(2)}
+                          <span className="text-muted"> / ${allocated.toFixed(2)}</span>
+                        </p>
+                      </div>
+                      <div
+                        role="progressbar"
+                        aria-label={`Spent today against ${agent.name}'s cap`}
+                        aria-valuenow={Math.round(pct)}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        className="mt-2 h-1.5 overflow-hidden rounded-full bg-border"
+                      >
+                        <div
+                          className={`h-full rounded-full transition-[width] ${
+                            pct >= 100 ? "bg-loss" : "bg-accent"
+                          }`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="mt-5 flex flex-col gap-2">
+                  <MetalButton
+                    tone="primary"
+                    fullWidth
+                    onClick={() => requireConnection(() => setDepositOpen(true))}
+                  >
+                    Deposit
+                  </MetalButton>
+                  <MetalButton
+                    tone="quiet"
+                    fullWidth
+                    onClick={() => requireConnection(() => setFollowOpen(true))}
+                    disabled={allocated > 0}
+                  >
+                    {allocated > 0 ? "Following" : "Follow with cap"}
+                  </MetalButton>
+                  <MetalButton
+                    tone="quiet"
+                    fullWidth
+                    onClick={() => requireConnection(() => setWithdrawOpen(true))}
+                  >
+                    Withdraw
+                  </MetalButton>
+                </div>
               </div>
-            )}
-          </section>
+
+              {(allocated > 0 || killStarted) && (
+                <div className="mt-4">
+                  <KillButton
+                    agentName={agent.name}
+                    allocatedAmount={allocated}
+                    onKill={(onProgress) => {
+                      if (!isConnected) {
+                        requireConnection(() => {});
+                        return Promise.reject(
+                          new Error("Connect your wallet to kill a follow."),
+                        );
+                      }
+                      setKillStarted(true);
+                      return track(`Kill follow: ${agent.name}`, (progress) => {
+                        return unfollow(agent.id, (event) => {
+                          progress(event);
+                          onProgress?.(event);
+                        });
+                      });
+                    }}
+                    verify={verifyKill}
+                  />
+                </div>
+              )}
+            </aside>
+          </div>
 
           <DepositModal
             open={depositOpen}
             onClose={() => setDepositOpen(false)}
             walletBalance={walletBalance}
             vaultBalance={vaultBalance}
-            onDeposit={async (amount) => {
-              const result = await deposit(amount);
-              addFreeBalance(amount);
-              return result;
-            }}
+            onDeposit={(amount, onProgress) =>
+              track(`Deposit ${amount.toFixed(2)} USDG`, async (progress) => {
+                const result = await deposit(amount, (event) => {
+                  progress(event);
+                  onProgress?.(event);
+                });
+                addFreeBalance(amount);
+                return result;
+              })
+            }
           />
           <FollowModal
             open={followOpen}
@@ -207,14 +392,33 @@ export default function AgentDetailPage({
             agentName={agent.name}
             freeBalance={freeBalance}
             alreadyFollowing={allocated > 0}
-            onFollow={follow}
+            onFollow={(input, onProgress) =>
+              track(`Follow with $${input.capAmount.toFixed(2)} cap`, (progress) => {
+                return follow(input, (event) => {
+                  progress(event);
+                  onProgress?.(event);
+                });
+              })
+            }
+          />
+          <WithdrawModal
+            open={withdrawOpen}
+            onClose={() => setWithdrawOpen(false)}
+            freeBalance={freeBalance}
+            onWithdraw={(amount, onProgress) =>
+              track(`Withdraw ${amount.toFixed(2)} USDG`, (progress) => {
+                return withdraw(amount, (event) => {
+                  progress(event);
+                  onProgress?.(event);
+                });
+              })
+            }
           />
         </>
       )}
 
-      <Link href="/agents" className="mt-10 inline-block text-accent">
-        Back to agents
-      </Link>
-    </main>
+      </main>
+      <SiteFooter />
+    </div>
   );
 }

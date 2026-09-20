@@ -1,16 +1,22 @@
 "use client";
 
 import { txUrl } from "@/lib/chains";
+import { MetalButton } from "@/components/MetalButton";
 
 /**
  * The demo centerpiece (PRD §5.3, design prompt §9). Never a generic
  * "transaction failed" toast, never a raw revert string — always the exact
  * copy below, framed as the system *protecting* the user, with an inline
- * explorer link to the failed tx. Renders one of the four PolicyModule
- * custom errors (PRD §4.6):
+ * explorer link. Renders one of the four PolicyModule custom errors
+ * (PRD §4.6):
  *
  *   CapExceeded(attempted, cap) · TokenNotAllowed(token) ·
  *   PolicyInactive() · InsufficientBalance()
+ *
+ * The link points at a SUCCESSFUL transaction, not a failed one: under PRD
+ * v2.2 §7.1 the vault catches a policy rejection and logs MirrorRejected, so
+ * the mirrorFill that carried it went through for everyone else. Hence
+ * "rejected", never "reverted" — the tx is the evidence, not the failure.
  */
 export type PolicyRejectReason =
   | { type: "CapExceeded"; attempted: number; cap: number }
@@ -21,7 +27,10 @@ export type PolicyRejectReason =
 function copyFor(reason: PolicyRejectReason): string {
   switch (reason.type) {
     case "CapExceeded":
-      return `Blocked: this trade would move $${reason.attempted} but your daily cap for this agent is $${reason.cap}.`;
+      // `attempted` is spentToday + this trade, a running total — not the
+      // trade's own size (PRD v2.2 §7.6). The old copy read it as the size,
+      // which made a $30 trade blocked at "$70" impossible to understand.
+      return `Blocked: this trade would take today's total for this agent to $${reason.attempted}, over your $${reason.cap} daily cap.`;
     case "TokenNotAllowed":
       return `Blocked: ${reason.token} isn't on the approved list for copy-trading yet.`;
     case "PolicyInactive":
@@ -67,20 +76,21 @@ export function PolicyRejectBanner({
                 rel="noreferrer"
                 className="text-accent hover:underline"
               >
-                View reverted tx ↗
+                View the rejection on-chain ↗
               </a>
             )}
           </div>
         </div>
 
-        <button
-          type="button"
+        <MetalButton
+          tone="quiet"
+          size="icon-sm"
+          className="flex-none"
           onClick={onDismiss}
           aria-label="Dismiss"
-          className="flex-none text-muted transition hover:text-text"
         >
           ✕
-        </button>
+        </MetalButton>
       </div>
     </div>
   );

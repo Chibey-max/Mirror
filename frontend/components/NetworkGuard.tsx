@@ -3,6 +3,7 @@
 import { type ReactNode } from "react";
 import { useAccount, useSwitchChain } from "wagmi";
 import { targetChain } from "@/lib/chains";
+import { MetalButton } from "@/components/MetalButton";
 
 /**
  * Blocks the app whenever a connected wallet sits on the wrong chain, and
@@ -22,7 +23,7 @@ export function NetworkGuard({ children }: { children: ReactNode }) {
       {children}
       {onWrongChain && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/90 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-6">
+          <div className="w-full max-w-md panel rounded-3xl p-6">
             <p className="text-sm text-warn">Wrong network</p>
             <h2 className="mt-2 text-xl font-semibold">
               You&apos;re on {chain?.name ?? "an unsupported chain"}.
@@ -32,14 +33,16 @@ export function NetworkGuard({ children }: { children: ReactNode }) {
               to keep going.
             </p>
 
-            <button
-              type="button"
+            <MetalButton
+              tone="primary"
+              size="lg"
+              fullWidth
+              className="mt-5"
               onClick={() => switchChain({ chainId: targetChain.id })}
               disabled={isPending}
-              className="mt-5 h-12 w-full rounded-xl bg-accent px-4 font-semibold text-bg transition hover:brightness-110 disabled:opacity-60"
             >
               {isPending ? "Check your wallet…" : `Switch to ${targetChain.name}`}
-            </button>
+            </MetalButton>
 
             {error && (
               <p className="mt-3 text-sm text-loss">
