@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { WriteProgress } from "@/hooks/useVaultConnection";
 import { txUrl } from "@/lib/chains";
 
 type Stage = "idle" | "confirming" | "signing" | "pending" | "killed" | "error";
@@ -12,9 +13,8 @@ type Stage = "idle" | "confirming" | "signing" | "pending" | "killed" | "error";
  * owns the actual read-after-write — this component just renders the state
  * machine and calls back into it.
  *
- * TODO(Day 13+): wire `onKill` to CopyVault.unfollow() via wagmi's
- * useWriteContract, and `verify` to a fresh PolicyModule.getPolicy() read
- * (not the optimistic `killed` state alone) before showing the final badge.
+ * `onKill` is CopyVault.unfollow() and `verify` is a fresh read of the
+ * chain — neither is optimistic, and the badge waits for both.
  */
 export function KillButton({
   agentName,
@@ -24,7 +24,9 @@ export function KillButton({
 }: {
   agentName: string;
   allocatedAmount: number;
-  onKill: () => Promise<{ txHash: string }>;
+  /** Resolves once the unfollow's receipt is in; reports the hash as soon
+   *  as the transaction is submitted. */
+  onKill: (onProgress?: WriteProgress) => Promise<{ txHash: string }>;
   /** Re-reads PolicyModule.getPolicy() after the tx confirms. Must resolve
    * true only once the chain itself confirms the follow is inactive. */
   verify: () => Promise<boolean>;
@@ -35,10 +37,14 @@ export function KillButton({
   async function handleConfirm() {
     setStage("signing");
     try {
-      const { txHash: hash } = await onKill();
+      const { txHash: hash } = await onKill((event) => {
+        if (event.stage !== "submitted") return;
+        setTxHash(event.txHash);
+        setStage("pending");
+      });
       setTxHash(hash);
-      setStage("pending");
 
+      // Only now is the unfollow mined, so the reads below see its effect.
       const confirmed = await verify();
       setStage(confirmed ? "killed" : "error");
     } catch {

@@ -38,14 +38,20 @@ export function AgentTapeTable({ fills }: { fills: AgentFill[] }) {
                 <td className="tabular px-4 py-3 text-text">${fill.price}</td>
                 <td className="px-4 py-3 text-muted">{fill.time}</td>
                 <td className="px-4 py-3">
-                  <a
-                    href={txUrl(fill.txHash)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-medium text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/70"
-                  >
-                    Open tx
-                  </a>
+                  {fill.txHash ? (
+                    <a
+                      href={txUrl(fill.txHash)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-medium text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/70"
+                    >
+                      Open tx
+                    </a>
+                  ) : (
+                    // Read back from TrackRecord, which returns the fill and
+                    // not the transaction that recorded it.
+                    <span className="text-muted">—</span>
+                  )}
                 </td>
               </tr>
             ))}

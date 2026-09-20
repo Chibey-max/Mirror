@@ -107,7 +107,7 @@ Blend the references above into Mirror's own look: **dark, calm, confident, very
 - Desktop: a right-hand "Live activity" panel. Mobile: a collapsible activity drawer.
 
 ### 9. Policy reject banner (the demo centerpiece, so give it the most care)
-- A prominent in-context banner or card, never a generic "transaction failed" toast and never a raw revert string. It always shows the **exact copy** below plus an **inline explorer link to the failed transaction**, and a small label "Enforced on-chain by PolicyModule".
+- A prominent in-context banner or card, never a generic "transaction failed" toast and never a raw revert string. It always shows the **exact copy** below plus an **inline explorer link to the `mirrorFill` transaction that logged the rejection** (PRD v2.2 §7.1: rejections are logged as `MirrorRejected` on a tx that succeeds, so there is no failed tx to link), and a small label "Enforced on-chain by PolicyModule".
 - Design all four variants:
   - Cap exceeded: **"Blocked: this trade would move $80 but your daily cap for this agent is $50."**
   - Token not allowed: **"Blocked: mTSLA isn't on the approved list for copy-trading yet."**

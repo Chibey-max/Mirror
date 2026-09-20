@@ -6,9 +6,8 @@ import type { FixtureAgent } from "@/lib/fixtures";
  * and CopyVault events. No spreadsheets." Red sits visibly in the red —
  * don't soften it, that honesty is the whole point (PRD §11).
  *
- * TODO(Day 15+): swap the `agents` prop source from lib/fixtures to
- * hooks/useLeaderboard, which aggregates PnL client-side from raw
- * TrackRecord + CopyVault events, never from a hardcoded array.
+ * `agents` comes from hooks/useLeaderboard, which aggregates PnL
+ * client-side from TrackRecord and CopyVault, never from a hardcoded array.
  */
 export function LeaderboardTable({ agents }: { agents: FixtureAgent[] }) {
   const ranked = [...agents].sort((a, b) => b.pnlPct - a.pnlPct);

@@ -14,6 +14,8 @@ import {
   type PolicyRejectReason,
 } from "@/components/PolicyRejectBanner";
 import { useFillEvents } from "@/hooks/useFillEvents";
+import { useKillVerification } from "@/hooks/useKillVerification";
+import { useMirrorOutcomes } from "@/hooks/useMirrorOutcomes";
 import { usePolicyError, useMirrorRejection } from "@/hooks/usePolicyError";
 import { useAgent } from "@/hooks/useAgents";
 import { useDeposit } from "@/hooks/useDeposit";
@@ -22,9 +24,9 @@ import { useWithdraw } from "@/hooks/useWithdraw";
 
 // Day 3–4 (David, PRD §5.2): tape table, deposit, follow. This file also
 // carries the consequences-flow pieces (Patrick, PRD §5.3) below the
-// divider so the two halves of the same screen are visible together while
-// contracts aren't live yet — swap fixtures for real reads per each
-// component's TODO once addresses/ABIs land (PRD §4, Day 7+).
+// divider so the two halves of the same screen are visible together. Every
+// hook below reads the chain where one is deployed and falls back to
+// fixtures where it isn't (PRD §4), so this page needs no fixture imports.
 export default function AgentDetailPage({
   params,
 }: PageProps<"/agents/[id]">) {
@@ -33,13 +35,23 @@ export default function AgentDetailPage({
   const { agent, fills: tapeFills } = useAgent(agentId);
   const { fills } = useFillEvents(agent?.id);
   const { decode, simulate } = usePolicyError();
+  // Proves the kill from chain state rather than trusting the write (§10).
+  const { verify: verifyKill } = useKillVerification(agentId);
   // A real rejection from the chain (§7.1). Inert until CopyVault is
   // deployed; the simulate buttons below are the demo stand-in until then.
   const { rejection, clear: clearRejection } = useMirrorRejection(agentId);
+  // Per-fill: mirrored, blocked, or never touched this vault (§7.1).
+  const mirrorOutcomes = useMirrorOutcomes(agentId);
 
   const { walletBalance, vaultBalance, deposit, creditWallet } = useDeposit();
-  const { allocatedByAgent, freeBalance, follow, addFreeBalance, subtractFreeBalance } =
-    useFollow(vaultBalance);
+  const {
+    allocatedByAgent,
+    freeBalance,
+    follow,
+    unfollow,
+    addFreeBalance,
+    subtractFreeBalance,
+  } = useFollow(vaultBalance, [agentId]);
   const { withdraw } = useWithdraw(freeBalance, subtractFreeBalance, creditWallet);
 
   const [rejectReason, setRejectReason] = useState<PolicyRejectReason | null>(null);
@@ -57,7 +69,13 @@ export default function AgentDetailPage({
             "0x8e11c0b4da9f3c5e1b7d9f3a5c7e1b9d3f5a7c1e9b3d5f7a1c9e3b5d7f1a9c3",
         }
       : null;
-  const [killed, setKilled] = useState(false);
+  /*
+   * Keeps KillButton mounted across the kill. It renders the "can no longer
+   * move your funds" badge itself, off its own verified state — and the
+   * allocation it was mounted for is zero by then, so mounting on the
+   * allocation alone tears the badge down at the moment it is earned.
+   */
+  const [killStarted, setKillStarted] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const [followOpen, setFollowOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
@@ -163,26 +181,23 @@ export default function AgentDetailPage({
           <section>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">Live activity</h2>
-              {!killed && allocated > 0 && (
+              {(allocated > 0 || killStarted) && (
                 <div className="w-48">
                   <KillButton
                     agentName={agent.name}
                     allocatedAmount={allocated}
-                    onKill={async () => ({
-                      txHash:
-                        "0xb7d2c5e1a9f3b5d7c1e9a3f5b7d1c9e3a5f7b1d9c3e5a7f9b1d3a5c7e9f1b3d",
-                    })}
-                    verify={async () => {
-                      setKilled(true);
-                      return true;
+                    onKill={(onProgress) => {
+                      setKillStarted(true);
+                      return unfollow(agent.id, onProgress);
                     }}
+                    verify={verifyKill}
                   />
                 </div>
               )}
             </div>
 
             <div className="mt-4">
-              <FillFeed fills={fills} />
+              <FillFeed fills={fills} outcomes={mirrorOutcomes} />
             </div>
 
             {/* Mirrors the mock's "Simulate a mirror attempt →" control so the
@@ -226,8 +241,8 @@ export default function AgentDetailPage({
             onClose={() => setDepositOpen(false)}
             walletBalance={walletBalance}
             vaultBalance={vaultBalance}
-            onDeposit={async (amount) => {
-              const result = await deposit(amount);
+            onDeposit={async (amount, onProgress) => {
+              const result = await deposit(amount, onProgress);
               addFreeBalance(amount);
               return result;
             }}

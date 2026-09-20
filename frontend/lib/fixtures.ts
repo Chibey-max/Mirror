@@ -78,10 +78,26 @@ export type FixtureFill = {
   price: string;
   time: string;
   txHash: string;
-  block: number;
+  /** Monotonic ordering key: the fill's own id on chain, the block it
+   *  landed in for these fixtures. Never displayed. */
+  sequence: number;
 };
 
 export const fixtureFills: FixtureFill[] = [
+  {
+    // The agent's trade still landed on the tape — it was this follower's
+    // mirror that PolicyModule rejected (PRD v2.2 §7.1). See
+    // hooks/useMirrorOutcomes for the per-follower outcome of each fill.
+    id: "fill-0",
+    agentId: 1,
+    side: "BUY",
+    token: "mNVDA",
+    size: "0.90",
+    price: "129.10",
+    time: "1 min ago",
+    txHash: "0x2f7b9d1c3e5a7f9b1d3a5c7e9f1b3d5a7c9e1f3b5d7a9c1e3f5b7d9a1c3e5f7",
+    sequence: 1284401,
+  },
   {
     id: "fill-1",
     agentId: 1,
@@ -91,7 +107,7 @@ export const fixtureFills: FixtureFill[] = [
     price: "128.41",
     time: "2 min ago",
     txHash: "0x5c1ea9f0b3d7c5e1a9f3b5d7c1e9a3f5b7d1c9e3a5f7b1d9c3e5a7f9b1d3a5",
-    block: 1284392,
+    sequence: 1284392,
   },
   {
     id: "fill-2",
@@ -102,7 +118,7 @@ export const fixtureFills: FixtureFill[] = [
     price: "214.06",
     time: "18 min ago",
     txHash: "0x8e11c0b4da9f3c5e1b7d9f3a5c7e1b9d3f5a7c1e9b3d5f7a1c9e3b5d7f1a9c3",
-    block: 1284370,
+    sequence: 1284370,
   },
   {
     id: "fill-3",
@@ -113,7 +129,7 @@ export const fixtureFills: FixtureFill[] = [
     price: "218.90",
     time: "24 min ago",
     txHash: "0x3a91f0b6c4e2d8a1f7b5c3d9e1a7f5c2b8d4e6a0c9f1b3d5e7a9c1f3b5d7e9a1",
-    block: 1284355,
+    sequence: 1284355,
   },
   {
     id: "fill-4",
@@ -124,7 +140,7 @@ export const fixtureFills: FixtureFill[] = [
     price: "124.02",
     time: "41 min ago",
     txHash: "0x6d8a2f4c0e9b1d3f5a7c9e1b3d5f7a9c1e3b5d7f9a1c3e5b7d9f1a3c5e8b2d4",
-    block: 1284318,
+    sequence: 1284318,
   },
   {
     id: "fill-5",
@@ -135,7 +151,7 @@ export const fixtureFills: FixtureFill[] = [
     price: "507.12",
     time: "1 hr ago",
     txHash: "0x1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b2d4f6a8c0e2b4d6f8a0c2e4b6d8f1a3c5",
-    block: 1284250,
+    sequence: 1284250,
   },
 ];
 
