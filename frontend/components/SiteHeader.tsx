@@ -8,11 +8,13 @@ import {
   useReducedMotion,
 } from "@/components/MetalButton";
 import { NetworkBadge } from "@/components/NetworkBadge";
+import { PendingTxIndicator } from "@/components/TransactionToasts";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 
 const NAV = [
   { href: "/agents", label: "Agents" },
   { href: "/leaderboard", label: "Leaderboard" },
+  { href: "/vault", label: "Vault" },
 ];
 
 /**
@@ -71,6 +73,11 @@ export function SiteHeader() {
           })}
         </nav>
 
+        {/* Anything still in flight, wherever it was started from. */}
+        <div className="relative z-10 hidden sm:block">
+          <PendingTxIndicator />
+        </div>
+
         {/* The live chain, and the way to change it. */}
         <div className="relative z-10 hidden lg:block">
           <NetworkBadge />
@@ -104,6 +111,7 @@ export function SiteHeader() {
         })}
         <span aria-hidden="true" className="text-chrome-dim">/</span>
         <NetworkBadge compact />
+        <PendingTxIndicator />
       </nav>
     </header>
   );

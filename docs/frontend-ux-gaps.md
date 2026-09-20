@@ -19,17 +19,19 @@ Items are grouped by what their absence costs, not by size. Anything marked
 
 ## Tier 1 — a user can't finish a journey without these
 
-### 1. A persistent app shell
-`SiteHeader` renders per page, not in `app/layout.tsx`. There is no footer and
-no mobile navigation of any kind: on a phone, the only way between sections is
-the browser back button. Spec §3 wants desktop top nav plus a bottom tab bar
-(Agents · Leaderboard · Vault).
+### 1. A persistent app shell — ✅ nav + footer shipped
+`SiteHeader` still renders per page rather than once in `app/layout.tsx` (left
+alone: the landing hero's canvas positioning is tuned against its own page
+wrapper and moving the header risked breaking it for a cosmetic win). What
+shipped: a shared `SiteFooter` on all four routes, and "Vault" added to the
+nav — the mobile row under the pill already existed and picked it up for
+free. Spec §3's dedicated bottom tab bar is still open; the under-pill row
+covers the same job today.
 
-### 2. A vault surface
-Balances exist only on one agent's detail page. Follow two agents and there is
-nowhere to see total position, per-follow caps, or what has been spent. Needs a
-`/vault` route or a persistent summary in the shell: free balance, total
-allocated, a row per follow, deposit and withdraw. Spec §3.
+### 2. A vault surface — ✅ shipped
+`/vault`: wallet, vault free, total allocated, one row per active follow with
+its own spent-today bar, deposit and withdraw. `docs/frontend-ux-gaps.md`
+itself is now slightly stale on this one — everything asked for is built.
 
 ### 3. "Get test USDG" faucet — **blocked on contracts**
 Spec §3, §6. A judge connects with an empty wallet and the whole flow is dead:
@@ -37,27 +39,25 @@ deposit needs USDG nobody can obtain. `contracts/src/mocks/` is empty —
 MockUSDG doesn't exist yet. It is a ten-line contract on the demo's critical
 path.
 
-### 4. Transaction lifecycle outside the modal
-Every write's state lives inside the modal that started it; close the modal
-mid-transaction and the transaction disappears from the UI. Spec §8, §13 want a
-toast host and a pending indicator in the header. The plumbing exists:
-`WriteProgress` in `hooks/useVaultConnection.ts` already reports `submitted`
-with the hash, so this is a store plus a host, not new hook work.
+### 4. Transaction lifecycle outside the modal — ✅ shipped
+`TransactionsProvider` + `useTrackedWrite`: a toast host and a pending count
+in the header, both independent of whichever modal started the write. Wired
+into every write on both screens that have one.
 
-### 5. Connect-gating on actions
-Spec §13: read-only browsing works, actions prompt to connect. Today Deposit,
-Follow and Withdraw render as live buttons for a disconnected visitor and fail
-at the wallet layer. One wrapper, not a check per button.
+### 5. Connect-gating on actions — ✅ shipped
+`useRequireConnection`, applied to Deposit/Follow/Withdraw/Kill on both
+screens. Disconnected, they open RainbowKit's connect modal instead of
+running.
 
 ---
 
 ## Tier 2 — the trust layer
 
-### 6. The follow panel, with "spent today"
-Spec §5. The cap is the product, and after you set it you never see it again.
-Needs cap, spent today as a progress bar against it, allocation, and the kill
-switch together in one panel. `spentToday` is already in `policyModuleAbi` with
-no consumer. **The highest-value single component on this list.**
+### 6. The follow panel, with "spent today" — ✅ shipped
+Cap, spent-today progress bar, allocation and the kill switch, together in
+the agent page's own "Your position" panel — exactly the order spec §5 asks
+for. `useSpentToday` reads `policyModuleAbi.spentToday`, shared with the
+vault page's own bar.
 
 ### 7. PnL chart with range pills
 Spec §5 wants the big figure plus a line chart on agent detail. We have
@@ -123,17 +123,18 @@ the next fifteen components each inventing their own input.
 
 ---
 
-## Order
+## Status
 
-1. **Merge the design shell-first** — layout, header, footer, tokens, and the
-   button/input/badge set. Port the system, then re-skin screens against it;
-   porting screen by screen produces fifteen one-off styles.
-2. **Shell gaps** — tab bar, vault summary, toast host, pending indicator,
-   connect-gating. All shell-level, so they land in one pass.
-3. **The follow panel** (#6), which needs the vault context from step 2.
-4. **States** (#11) across all four routes at once.
-5. **Chart, pagination, sort, clipboard, tooltip** — independent pickups, no
-   collisions between them.
+Done: the design merge, #2, #4, #5, #6, and the nav/footer half of #1.
+Remaining, roughly in order:
+
+1. **#11 states** — skeletons, empty, error/retry — across `/leaderboard` and
+   agent detail, which have none; `/agents` already has all three.
+2. **#7 PnL chart**, **#8 tape pagination**, **#12 sort control** — independent
+   pickups against data that already exists (`getFillsByAgent`).
+3. **#9 copyable hashes + tooltip**, **#10 "your mirrors" view**, **#13 the
+   third network state**, **#14 mobile treatments**, **#15 accessibility**.
+4. **#3 the faucet** — still blocked on `contracts/src/mocks/` being empty.
 
 ## Not ours
 

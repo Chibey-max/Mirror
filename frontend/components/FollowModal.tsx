@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { txUrl } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
+import type { WriteProgress } from "@/hooks/useVaultConnection";
 
 type Stage = "idle" | "signing" | "success" | "error";
 
@@ -21,11 +22,10 @@ export function FollowModal({
   agentName: string;
   freeBalance: number;
   alreadyFollowing: boolean;
-  onFollow: (input: {
-    agentId: number;
-    capAmount: number;
-    maxSlippageBps: number;
-  }) => Promise<{ txHash: string }>;
+  onFollow: (
+    input: { agentId: number; capAmount: number; maxSlippageBps: number },
+    onProgress?: WriteProgress,
+  ) => Promise<{ txHash: string }>;
 }) {
   const [capAmount, setCapAmount] = useState("");
   const [maxSlippageBps, setMaxSlippageBps] = useState("50");
@@ -74,11 +74,12 @@ export function FollowModal({
   async function handleFollow() {
     setStage("signing");
     try {
-      const { txHash: hash } = await onFollow({
-        agentId,
-        capAmount: parsedCap,
-        maxSlippageBps: parsedSlippage,
-      });
+      const { txHash: hash } = await onFollow(
+        { agentId, capAmount: parsedCap, maxSlippageBps: parsedSlippage },
+        (event) => {
+          if (event.stage === "submitted") setTxHash(event.txHash);
+        },
+      );
       setTxHash(hash);
       setStage("success");
     } catch {

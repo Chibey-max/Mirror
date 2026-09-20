@@ -5,6 +5,7 @@ import { AgentTapeTable } from "@/components/AgentTapeTable";
 import { Badge } from "@/components/Badge";
 import { PageHeader, SectionHeader } from "@/components/PageHeader";
 import { PageAtmosphere } from "@/components/PageAtmosphere";
+import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { DepositModal } from "@/components/DepositModal";
 import { FollowModal } from "@/components/FollowModal";
@@ -19,12 +20,15 @@ import {
 import { useFillEvents } from "@/hooks/useFillEvents";
 import { useKillVerification } from "@/hooks/useKillVerification";
 import { useMirrorOutcomes } from "@/hooks/useMirrorOutcomes";
+import { useSpentToday } from "@/hooks/useSpentToday";
 import { usePolicyError, useMirrorRejection } from "@/hooks/usePolicyError";
 import { useAgent } from "@/hooks/useAgents";
 import { useDeposit } from "@/hooks/useDeposit";
 import { useFollow } from "@/hooks/useFollow";
 import { useWithdraw } from "@/hooks/useWithdraw";
 import { MetalButton } from "@/components/MetalButton";
+import { useTrackedWrite } from "@/components/TransactionToasts";
+import { useRequireConnection } from "@/hooks/useRequireConnection";
 
 // Day 3–4 (David, PRD §5.2): tape table, deposit, follow. This file also
 // carries the consequences-flow pieces (Patrick, PRD §5.3) below the
@@ -57,6 +61,20 @@ export default function AgentDetailPage({
     subtractFreeBalance,
   } = useFollow(vaultBalance, [agentId]);
   const { withdraw } = useWithdraw(freeBalance, subtractFreeBalance, creditWallet);
+  // Reports every write to the header's pending count and a toast that
+  // outlives whichever modal started it (closing mid-transaction used to
+  // make the transaction disappear).
+  const track = useTrackedWrite();
+  // A disconnected visitor browses read-only; an action prompts them to
+  // connect instead of running against nothing and failing silently at the
+  // wallet layer (§13) — easy to miss, since the fixture path renders a
+  // full "as if following" demo state with nobody connected at all.
+  const { isConnected, requireConnection } = useRequireConnection();
+  const allocated = agent ? (allocatedByAgent[agent.id] ?? 0) : 0;
+  // Only asked live while there's a cap to measure against (design prompt
+  // §5: "spent today, progress bar against the cap") — allocated doubles as
+  // the cap because follow() sets both from the one capAmount argument.
+  const spentToday = useSpentToday(allocated > 0 ? [agentId] : []);
 
   const [rejectReason, setRejectReason] = useState<PolicyRejectReason | null>(null);
   /*
@@ -84,8 +102,6 @@ export default function AgentDetailPage({
   const [followOpen, setFollowOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
 
-  const allocated = agent ? (allocatedByAgent[agent.id] ?? 0) : 0;
-
   if (!Number.isInteger(agentId) || agentId <= 0) {
     return (
       <div className="relative overflow-x-clip">
@@ -103,6 +119,7 @@ export default function AgentDetailPage({
             }
           />
         </main>
+        <SiteFooter />
       </div>
     );
   }
@@ -259,23 +276,67 @@ export default function AgentDetailPage({
                   ))}
                 </dl>
 
+                {/*
+                  The follow panel design prompt §5 asks for: cap, spent
+                  today against it, allocation (above), kill switch (below).
+                  Only shown while following — spending against a cap that
+                  doesn't exist isn't a state that means anything.
+                */}
+                {allocated > 0 && (() => {
+                  const spent = spentToday[agentId] ?? 0;
+                  // Enforcement is on-chain; a fill can still land between
+                  // reads and put this over 100% for a moment — clamped so
+                  // the bar never draws past its own track.
+                  const pct = Math.min(100, (spent / allocated) * 100);
+                  return (
+                    <div className="mt-4 border-t border-border pt-4">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <p className="text-sm text-muted">Spent today</p>
+                        <p className="tabular text-sm font-semibold">
+                          ${spent.toFixed(2)}
+                          <span className="text-muted"> / ${allocated.toFixed(2)}</span>
+                        </p>
+                      </div>
+                      <div
+                        role="progressbar"
+                        aria-label={`Spent today against ${agent.name}'s cap`}
+                        aria-valuenow={Math.round(pct)}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        className="mt-2 h-1.5 overflow-hidden rounded-full bg-border"
+                      >
+                        <div
+                          className={`h-full rounded-full transition-[width] ${
+                            pct >= 100 ? "bg-loss" : "bg-accent"
+                          }`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div className="mt-5 flex flex-col gap-2">
                   <MetalButton
                     tone="primary"
                     fullWidth
-                    onClick={() => setDepositOpen(true)}
+                    onClick={() => requireConnection(() => setDepositOpen(true))}
                   >
                     Deposit
                   </MetalButton>
                   <MetalButton
                     tone="quiet"
                     fullWidth
-                    onClick={() => setFollowOpen(true)}
+                    onClick={() => requireConnection(() => setFollowOpen(true))}
                     disabled={allocated > 0}
                   >
                     {allocated > 0 ? "Following" : "Follow with cap"}
                   </MetalButton>
-                  <MetalButton tone="quiet" fullWidth onClick={() => setWithdrawOpen(true)}>
+                  <MetalButton
+                    tone="quiet"
+                    fullWidth
+                    onClick={() => requireConnection(() => setWithdrawOpen(true))}
+                  >
                     Withdraw
                   </MetalButton>
                 </div>
@@ -287,8 +348,19 @@ export default function AgentDetailPage({
                     agentName={agent.name}
                     allocatedAmount={allocated}
                     onKill={(onProgress) => {
+                      if (!isConnected) {
+                        requireConnection(() => {});
+                        return Promise.reject(
+                          new Error("Connect your wallet to kill a follow."),
+                        );
+                      }
                       setKillStarted(true);
-                      return unfollow(agent.id, onProgress);
+                      return track(`Kill follow: ${agent.name}`, (progress) => {
+                        return unfollow(agent.id, (event) => {
+                          progress(event);
+                          onProgress?.(event);
+                        });
+                      });
                     }}
                     verify={verifyKill}
                   />
@@ -302,11 +374,16 @@ export default function AgentDetailPage({
             onClose={() => setDepositOpen(false)}
             walletBalance={walletBalance}
             vaultBalance={vaultBalance}
-            onDeposit={async (amount, onProgress) => {
-              const result = await deposit(amount, onProgress);
-              addFreeBalance(amount);
-              return result;
-            }}
+            onDeposit={(amount, onProgress) =>
+              track(`Deposit ${amount.toFixed(2)} USDG`, async (progress) => {
+                const result = await deposit(amount, (event) => {
+                  progress(event);
+                  onProgress?.(event);
+                });
+                addFreeBalance(amount);
+                return result;
+              })
+            }
           />
           <FollowModal
             open={followOpen}
@@ -315,18 +392,33 @@ export default function AgentDetailPage({
             agentName={agent.name}
             freeBalance={freeBalance}
             alreadyFollowing={allocated > 0}
-            onFollow={follow}
+            onFollow={(input, onProgress) =>
+              track(`Follow with $${input.capAmount.toFixed(2)} cap`, (progress) => {
+                return follow(input, (event) => {
+                  progress(event);
+                  onProgress?.(event);
+                });
+              })
+            }
           />
           <WithdrawModal
             open={withdrawOpen}
             onClose={() => setWithdrawOpen(false)}
             freeBalance={freeBalance}
-            onWithdraw={withdraw}
+            onWithdraw={(amount, onProgress) =>
+              track(`Withdraw ${amount.toFixed(2)} USDG`, (progress) => {
+                return withdraw(amount, (event) => {
+                  progress(event);
+                  onProgress?.(event);
+                });
+              })
+            }
           />
         </>
       )}
 
       </main>
+      <SiteFooter />
     </div>
   );
 }

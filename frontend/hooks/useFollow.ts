@@ -76,7 +76,10 @@ export function useFollow(initialFreeBalance: number, agentIds: number[] = []) {
   const allocatedByAgent = live ? liveAllocated : mockAllocated;
   const freeBalance = live ? fromUsdg(freeRead.data ?? BigInt(0)) : mockFreeBalance;
 
-  async function follow(input: FollowInput): Promise<{ txHash: string }> {
+  async function follow(
+    input: FollowInput,
+    onProgress?: WriteProgress,
+  ): Promise<{ txHash: string }> {
     const { agentId, capAmount, maxSlippageBps } = input;
     const alreadyFollowing = (allocatedByAgent[agentId] ?? 0) > 0;
 
@@ -93,6 +96,7 @@ export function useFollow(initialFreeBalance: number, agentIds: number[] = []) {
 
     if (!live || !addresses) {
       await new Promise((resolve) => setTimeout(resolve, 500));
+      onProgress?.({ stage: "submitted", txHash: MOCK_TX });
       setMockAllocated((current) => ({ ...current, [agentId]: capAmount }));
       setMockFreeBalance((balance) => balance - capAmount);
       return { txHash: MOCK_TX };
@@ -106,6 +110,7 @@ export function useFollow(initialFreeBalance: number, agentIds: number[] = []) {
       // conversion, unlike the cap beside it.
       args: [BigInt(agentId), toUsdg(capAmount), BigInt(maxSlippageBps)],
     });
+    onProgress?.({ stage: "submitted", txHash });
     await confirm(txHash);
     await Promise.all([freeRead.refetch(), allocationReads.refetch()]);
     return { txHash };
