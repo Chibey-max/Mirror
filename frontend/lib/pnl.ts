@@ -83,6 +83,25 @@ export function computeAgentPnl(
 }
 
 /**
+ * Realised PnL% after each trade, oldest first — what the sparkline draws.
+ *
+ * Recomputed from scratch at each prefix rather than tracked incrementally,
+ * because `computeAgentPnl` is already the single source of truth for the
+ * number and a second, hand-rolled running total is exactly how the two
+ * would drift apart. Trades are assumed to be one agent's own, in order;
+ * `useAgents` builds them that way already.
+ */
+export function pnlPctSeries(trades: MirroredTrade[]): number[] {
+  if (trades.length === 0) return [0];
+  const agentId = trades[0].agentId;
+  const series = [0];
+  for (let i = 1; i <= trades.length; i++) {
+    series.push(computeAgentPnl(trades.slice(0, i)).get(agentId)?.pnlPct ?? 0);
+  }
+  return series;
+}
+
+/**
  * The tape as trades, for a follower whose cap never bit.
  *
  * A stand-in until CopyVault emits Mirrored: the real series is per-follower

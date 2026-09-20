@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { WriteProgress } from "@/hooks/useVaultConnection";
 import { txUrl } from "@/lib/chains";
+import { MetalButton } from "@/components/MetalButton";
 
 type Stage = "idle" | "confirming" | "signing" | "pending" | "killed" | "error";
 
@@ -54,7 +55,7 @@ export function KillButton({
 
   if (stage === "killed") {
     return (
-      <div className="rounded-xl border border-border bg-surface-2 p-3">
+      <div className="field rounded-2xl p-3">
         <p className="text-sm font-medium text-text">
           This agent can no longer move your funds
         </p>
@@ -86,20 +87,20 @@ export function KillButton({
           allocation returns to your free balance immediately.
         </p>
         <div className="mt-3 flex gap-2">
-          <button
-            type="button"
+          <MetalButton
+            tone="quiet"
+            className="flex-1"
             onClick={() => setStage("idle")}
-            className="h-9 flex-1 rounded-lg border border-border text-sm text-muted transition hover:text-text"
           >
             Cancel
-          </button>
-          <button
-            type="button"
+          </MetalButton>
+          <MetalButton
+            tone="danger"
+            className="flex-1"
             onClick={handleConfirm}
-            className="h-9 flex-1 rounded-lg bg-loss text-sm font-semibold text-bg transition hover:brightness-110"
           >
             Kill follow
-          </button>
+          </MetalButton>
         </div>
       </div>
     );
@@ -107,35 +108,35 @@ export function KillButton({
 
   if (stage === "signing" || stage === "pending") {
     return (
-      <button
-        type="button"
+      <MetalButton
+        tone="quiet"
+        fullWidth
         disabled
-        className="h-9 w-full rounded-lg border border-border text-sm text-muted"
       >
         {stage === "signing" ? "Confirm in your wallet…" : "Pending on-chain…"}
-      </button>
+      </MetalButton>
     );
   }
 
   if (stage === "error") {
     return (
-      <button
-        type="button"
+      <MetalButton
+        tone="danger"
+        fullWidth
         onClick={() => setStage("confirming")}
-        className="h-9 w-full rounded-lg border border-loss/40 bg-loss/10 text-sm text-loss"
       >
         Kill didn&apos;t confirm — try again
-      </button>
+      </MetalButton>
     );
   }
 
   return (
-    <button
-      type="button"
+    <MetalButton
+      tone="danger"
+      fullWidth
       onClick={() => setStage("confirming")}
-      className="h-9 w-full rounded-lg border border-loss/40 text-sm font-semibold text-loss transition hover:bg-loss/10"
     >
       Kill follow
-    </button>
+    </MetalButton>
   );
 }

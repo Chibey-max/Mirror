@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import type { WriteProgress } from "@/hooks/useVaultConnection";
 import { txUrl } from "@/lib/chains";
+import { MetalButton } from "@/components/MetalButton";
 
 type Stage = "idle" | "approving" | "depositing" | "success" | "error";
 
@@ -83,7 +84,7 @@ export function DepositModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="deposit-title"
-        className="w-full max-w-md rounded-t-2xl border border-border bg-surface p-6 shadow-2xl sm:rounded-2xl"
+        className="w-full max-w-md panel rounded-t-3xl p-6 sm:rounded-3xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
@@ -96,14 +97,14 @@ export function DepositModal({
               {vaultBalance.toFixed(2)} USDG
             </p>
           </div>
-          <button
-            type="button"
+          <MetalButton
+            tone="quiet"
+            size="icon-sm"
             onClick={handleClose}
             aria-label="Close deposit"
-            className="rounded-md px-2 text-xl text-muted hover:text-text focus:outline-none focus:ring-2 focus:ring-accent/70"
           >
-            x
-          </button>
+            ✕
+          </MetalButton>
         </div>
 
         {stage === "success" ? (
@@ -119,13 +120,14 @@ export function DepositModal({
                 Open deposit transaction
               </a>
             )}
-            <button
-              type="button"
+            <MetalButton
+              tone="primary"
+              fullWidth
+              className="mt-5"
               onClick={handleClose}
-              className="mt-5 h-11 w-full rounded-xl bg-accent font-semibold text-bg transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-accent/70"
             >
               Done
-            </button>
+            </MetalButton>
           </div>
         ) : (
           <>
@@ -134,7 +136,7 @@ export function DepositModal({
               className="mt-5 block text-sm font-medium text-text"
             >
               Amount
-              <div className="mt-2 flex items-center gap-2 rounded-xl border border-border bg-surface-2 px-3 py-2 focus-within:ring-2 focus-within:ring-accent/70">
+              <div className="mt-2 flex items-center gap-2 field rounded-full px-4 py-2">
                 <input
                   id={amountId}
                   type="number"
@@ -146,13 +148,13 @@ export function DepositModal({
                   className="tabular w-full bg-transparent text-lg text-text outline-none placeholder:text-muted"
                 />
                 <span className="text-sm text-muted">USDG</span>
-                <button
-                  type="button"
+                <MetalButton
+                  tone="quiet"
+                  size="sm"
                   onClick={() => setAmount(String(walletBalance))}
-                  className="rounded-md border border-border px-2 py-1 text-xs text-muted hover:text-text focus:outline-none focus:ring-2 focus:ring-accent/70"
                 >
                   Max
-                </button>
+                </MetalButton>
               </div>
             </label>
 
@@ -167,18 +169,20 @@ export function DepositModal({
               </p>
             )}
 
-            <button
-              type="button"
+            <MetalButton
+              tone="primary"
+              size="lg"
+              fullWidth
+              className="mt-5"
               disabled={invalid || stage === "approving" || stage === "depositing"}
               onClick={handleDeposit}
-              className="mt-5 h-12 w-full rounded-xl bg-accent font-semibold text-bg transition hover:brightness-110 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-accent/70"
             >
               {stage === "approving"
                 ? "Approve USDG..."
                 : stage === "depositing"
                   ? "Depositing..."
                   : "Approve and deposit"}
-            </button>
+            </MetalButton>
           </>
         )}
       </div>

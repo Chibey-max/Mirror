@@ -1,18 +1,42 @@
 @import "tailwindcss";
 
+/*
+ * A trading ledger on black.
+ *
+ * Flat surfaces and hairline rules, tabular mono for anything that is data,
+ * copper as the one warm accent (from the primary button's tint). Chrome only
+ * where it means something: the buttons and the planet.
+ */
 @theme {
-  --color-bg: #0a0b0d;
-  --color-surface: #131518;
-  --color-surface-2: #1b1e22;
-  --color-border: #23272c;
-  --color-text: #f2f3f5;
-  --color-muted: #8a9099;
-  --color-accent: #00e28a;
-  --color-loss: #ff5a4e;
+  --color-bg: #000000;
+  --color-surface: #0c0c0e;
+  --color-surface-2: #141417;
+  /* Every rule and hairline. */
+  --color-border: #2b2c31;
+  --color-text: #ececef;
+  --color-muted: #8e9097;
+
+  /* Chrome, kept for small details: icon strokes, dim ledger annotations. */
+  --color-chrome: #dfe1e6;
+  --color-chrome-dim: #5d5f66;
+
+  /*
+   * Copper, from the primary button's shader tint (#ffb27a), pulled down
+   * enough to hold contrast as text on black. Links, focus rings, live dots.
+   */
+  --color-accent: #e2a97f;
+
+  /*
+   * P&L colours are SEMANTIC and deliberately not the accent. Green/red
+   * carries the meaning; the accent is free to be a brand colour.
+   */
+  --color-profit: #00e28a;
+  --color-loss: #ff4d43;
   --color-warn: #ffb547;
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-serif: var(--font-display), ui-serif, Georgia, serif;
 }
 
 body {
@@ -25,4 +49,114 @@ body {
 .tabular {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Dark scrollbars. The tape and leaderboard tables scroll horizontally on
+ * narrow viewports, and the browser default is a bright light-mode bar that
+ * reads as a rendering fault against this palette.
+ */
+* {
+  scrollbar-color: var(--color-border) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-muted) 60%, var(--color-border));
+}
+
+@layer components {
+  /* The signature gradient, as type. */
+  .accent-text {
+    background-image: linear-gradient(
+      100deg,
+      var(--color-accent) 0%,
+      color-mix(in srgb, var(--color-accent) 55%, var(--color-chrome)) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* A soft bloom of the signature, for sitting behind a panel or a heading. */
+  .accent-glow {
+    background: radial-gradient(
+      ellipse at center,
+      color-mix(in srgb, var(--color-chrome) 24%, transparent) 0%,
+      color-mix(in srgb, var(--color-accent) 14%, transparent) 45%,
+      transparent 72%
+    );
+  }
+
+  /*
+   * Surfaces are flat on purpose: black with a single hairline rule, like a
+   * statement or a ledger page. Chrome is reserved for exactly two things —
+   * the buttons (what you can act on) and the planet (the mark). When every
+   * panel was chrome-rimmed nothing stood out and the whole UI read as a
+   * generic glossy template rather than a trading ledger.
+   *
+   * In the components layer so a Tailwind utility on the same element (a
+   * radius, a hover border) still wins.
+   */
+  .panel {
+    background: #09090a;
+    border: 1px solid var(--color-border);
+  }
+
+  /* Input fields: a shade below the panel they sit in; the rule lifts on focus. */
+  .field {
+    background: #030303;
+    border: 1px solid var(--color-border);
+    transition: border-color 150ms ease;
+  }
+  .field:focus-within {
+    border-color: var(--color-chrome-dim);
+  }
+}
+
+/* The verified-tape ticker: two copies of the list, slid by exactly one. */
+@keyframes tape {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/*
+ * There is deliberately no ambient background layer. An earlier version had a
+ * fixed, full-viewport opaque black div at z-index -1 here, which painted over
+ * the hero's WebGL canvas entirely — the disk rendered the whole time and was
+ * simply covered. The body background is the page ground.
+ */
+
+/*
+ * Fades the ring field out below the body so it doesn't run into the headline
+ * at full strength. The stop sits where the body's lower limb lands, which is
+ * a different fraction of the canvas per breakpoint — the camera dollies out
+ * on portrait viewports, so the body occupies less of the box there. Hence a
+ * media query rather than one inline style.
+ */
+.hero-canvas-mask {
+  mask-image: linear-gradient(to bottom, #000 74%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 74%, transparent 100%);
+}
+@media (min-width: 640px) {
+  .hero-canvas-mask {
+    mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
+  }
+}
+
+.font-display {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }

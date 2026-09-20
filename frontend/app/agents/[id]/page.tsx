@@ -1,8 +1,11 @@
 "use client";
 
 import { use, useState } from "react";
-import Link from "next/link";
 import { AgentTapeTable } from "@/components/AgentTapeTable";
+import { Badge } from "@/components/Badge";
+import { PageHeader, SectionHeader } from "@/components/PageHeader";
+import { PageAtmosphere } from "@/components/PageAtmosphere";
+import { SiteHeader } from "@/components/SiteHeader";
 import { DepositModal } from "@/components/DepositModal";
 import { FollowModal } from "@/components/FollowModal";
 import { WithdrawModal } from "@/components/WithdrawModal";
@@ -21,6 +24,7 @@ import { useAgent } from "@/hooks/useAgents";
 import { useDeposit } from "@/hooks/useDeposit";
 import { useFollow } from "@/hooks/useFollow";
 import { useWithdraw } from "@/hooks/useWithdraw";
+import { MetalButton } from "@/components/MetalButton";
 
 // Day 3–4 (David, PRD §5.2): tape table, deposit, follow. This file also
 // carries the consequences-flow pieces (Patrick, PRD §5.3) below the
@@ -84,27 +88,79 @@ export default function AgentDetailPage({
 
   if (!Number.isInteger(agentId) || agentId <= 0) {
     return (
-      <main className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-8">
-        <h1 className="text-3xl font-semibold tracking-tight">Agent not found</h1>
-        <p className="mt-2 text-muted">This route does not map to an agent id.</p>
-        <Link href="/agents" className="mt-8 inline-block text-accent">
-          Back to agents
-        </Link>
-      </main>
+      <div className="relative overflow-x-clip">
+        <PageAtmosphere />
+        <SiteHeader />
+        <main className="mx-auto w-full max-w-6xl px-5 pb-20 sm:px-10">
+          <PageHeader
+            eyebrow="Registry"
+            title="Agent not found"
+            description="This route does not map to an agent id."
+            actions={
+              <MetalButton tone="quiet" href="/agents" size="sm">
+                Browse agents
+              </MetalButton>
+            }
+          />
+        </main>
+      </div>
     );
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-8">
-      <h1 className="text-3xl font-semibold tracking-tight">
-        {agent ? agent.name : `Agent #${id}`}
-      </h1>
-      <p className="mt-2 text-muted">
-        {agent ? `${agent.strategy} · ${agent.fills} fills` : "Not found in fixtures."}
-      </p>
+    <div className="relative overflow-x-clip">
+      <PageAtmosphere />
+      <SiteHeader />
+      <main className="mx-auto w-full max-w-6xl px-5 pb-20 sm:px-10">
+      {agent && (
+        <div className="border-b border-border pb-6">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">
+                Agent #{agent.id} &middot; {agent.strategy}
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <h1 className="font-display text-4xl tracking-tight">
+                  {agent.name}
+                </h1>
+                {agent.isLosing ? (
+                  <Badge variant="losing">Losing agent</Badge>
+                ) : (
+                  <Badge variant="verified">Verified</Badge>
+                )}
+              </div>
+              {/*
+                What the registry actually holds about this agent. The hash is
+                the claim the tape is checked against, so it belongs on the
+                page rather than only in the card that linked here.
+              */}
+              <dl className="mt-4 flex flex-wrap gap-x-7 gap-y-2 font-mono text-[11px] text-muted">
+                <div className="flex gap-2">
+                  <dt className="uppercase tracking-[0.08em]">Model</dt>
+                  <dd className="text-text">{agent.modelVersion}</dd>
+                </div>
+                <div className="flex min-w-0 gap-2">
+                  <dt className="uppercase tracking-[0.08em]">Strategy hash</dt>
+                  <dd className="truncate text-text">
+                    {agent.strategyHash.slice(0, 10)}…{agent.strategyHash.slice(-6)}
+                  </dd>
+                </div>
+                <div className="flex gap-2">
+                  <dt className="uppercase tracking-[0.08em]">Registered</dt>
+                  <dd className="text-text">{agent.registeredAt}</dd>
+                </div>
+              </dl>
+            </div>
+
+            <div className="flex-none">
+              <TrustBadge fillCount={agent.fills} verifiedThroughBlock={1284392} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {!agent && (
-        <div className="mt-8 rounded-2xl border border-border bg-surface p-6 text-sm text-muted">
+        <div className="mt-8 panel rounded-3xl p-6 text-sm text-muted">
           Agent #{agentId} is not in the current fixture set. Once
           AgentRegistry is wired, this page will resolve from chain reads.
         </div>
@@ -112,77 +168,121 @@ export default function AgentDetailPage({
 
       {agent && (
         <>
-          <div className="mt-4">
-            <TrustBadge fillCount={agent.fills} verifiedThroughBlock={1284392} />
-          </div>
+          <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_20rem]">
+            <div className="min-w-0">
+              <section>
+                <SectionHeader
+                  label="Verified tape"
+                  description="Every row carries its own explorer link."
+                />
+                <AgentTapeTable fills={tapeFills} />
+              </section>
 
-          <section className="mt-8 rounded-2xl border border-border bg-surface p-5">
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div>
-                <p className="text-sm text-muted">Wallet</p>
-                <p className="tabular mt-1 text-xl font-semibold">
-                  {walletBalance.toFixed(2)} USDG
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted">Vault free</p>
-                <p className="tabular mt-1 text-xl font-semibold">
-                  {freeBalance.toFixed(2)} USDG
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted">Allocated here</p>
-                <p className="tabular mt-1 text-xl font-semibold">
-                  {allocated.toFixed(2)} USDG
-                </p>
-              </div>
+              <section className="mt-10">
+                <SectionHeader
+                  label="Live activity"
+                  description="Fills as the runner mirrors them into your vault."
+                />
+                <FillFeed fills={fills} outcomes={mirrorOutcomes} />
+
+                {/*
+                  Demo controls, boxed and labelled so nobody watching the
+                  demo mistakes them for something a follower would ever see.
+                  They stand in for live market state (docs/demo-script.md).
+                */}
+                <div className="mt-6 rounded-2xl border border-dashed border-border p-4">
+                  <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">
+                    Demo controls &middot; not part of the product
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+              {(
+                [
+                  { type: "CapExceeded", attempted: 80, cap: 50 },
+                  { type: "TokenNotAllowed", token: "mTSLA" },
+                  { type: "PolicyInactive" },
+                  { type: "InsufficientBalance" },
+                ] as PolicyRejectReason[]
+              ).map((reason) => (
+                <MetalButton
+                  tone="quiet"
+                  size="sm"
+                  key={reason.type}
+                  onClick={() => setRejectReason(decode(simulate(reason)))}
+                >
+                  Simulate {reason.type} →
+                </MetalButton>
+              ))}
             </div>
 
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => setDepositOpen(true)}
-                className="h-11 rounded-xl bg-accent px-5 font-semibold text-bg transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-accent/70"
-              >
-                Deposit
-              </button>
-              <button
-                type="button"
-                onClick={() => setFollowOpen(true)}
-                disabled={allocated > 0}
-                className="h-11 rounded-xl border border-border px-5 font-semibold text-text transition hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-45 focus:outline-none focus:ring-2 focus:ring-accent/70"
-              >
-                {allocated > 0 ? "Following" : "Follow with cap"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setWithdrawOpen(true)}
-                className="h-11 rounded-xl border border-border px-5 font-semibold text-text transition hover:border-accent/60 focus:outline-none focus:ring-2 focus:ring-accent/70"
-              >
-                Withdraw
-              </button>
-            </div>
-          </section>
+                </div>
 
-          <section className="mt-8">
-            <div className="mb-4 flex items-end justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold">Verified tape</h2>
-                <p className="mt-1 text-sm text-muted">
-                  Every row carries its own explorer link.
+                {banner && (
+                  <div className="mt-4">
+                    <PolicyRejectBanner
+                      reason={banner.reason}
+                      txHash={banner.txHash}
+                      onDismiss={() => {
+                        clearRejection();
+                        setRejectReason(null);
+                      }}
+                    />
+                  </div>
+                )}
+              </section>
+            </div>
+
+            {/*
+              Balances and the actions that change them travel together, and
+              stay in view while the tape is scrolled.
+            */}
+            <aside className="order-first lg:order-none lg:sticky lg:top-6 lg:self-start">
+              <div className="panel rounded-3xl p-5">
+                <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">
+                  Your position
                 </p>
+                <dl className="mt-3 divide-y divide-border">
+                  {[
+                    { label: "Wallet", value: walletBalance },
+                    { label: "Vault free", value: freeBalance },
+                    { label: "Allocated here", value: allocated },
+                  ].map((row) => (
+                    <div
+                      key={row.label}
+                      className="flex items-baseline justify-between gap-3 py-2.5"
+                    >
+                      <dt className="text-sm text-muted">{row.label}</dt>
+                      <dd className="tabular font-semibold">
+                        {row.value.toFixed(2)}{" "}
+                        <span className="text-xs text-muted">USDG</span>
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+
+                <div className="mt-5 flex flex-col gap-2">
+                  <MetalButton
+                    tone="primary"
+                    fullWidth
+                    onClick={() => setDepositOpen(true)}
+                  >
+                    Deposit
+                  </MetalButton>
+                  <MetalButton
+                    tone="quiet"
+                    fullWidth
+                    onClick={() => setFollowOpen(true)}
+                    disabled={allocated > 0}
+                  >
+                    {allocated > 0 ? "Following" : "Follow with cap"}
+                  </MetalButton>
+                  <MetalButton tone="quiet" fullWidth onClick={() => setWithdrawOpen(true)}>
+                    Withdraw
+                  </MetalButton>
+                </div>
               </div>
-            </div>
-            <AgentTapeTable fills={tapeFills} />
-          </section>
 
-          <div className="my-10 border-t border-border" />
-
-          <section>
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Live activity</h2>
               {(allocated > 0 || killStarted) && (
-                <div className="w-48">
+                <div className="mt-4">
                   <KillButton
                     agentName={agent.name}
                     allocatedAmount={allocated}
@@ -194,47 +294,8 @@ export default function AgentDetailPage({
                   />
                 </div>
               )}
-            </div>
-
-            <div className="mt-4">
-              <FillFeed fills={fills} outcomes={mirrorOutcomes} />
-            </div>
-
-            {/* Mirrors the mock's "Simulate a mirror attempt →" control so the
-                PolicyReject banner is demo-able without live market state. */}
-            <div className="mt-4 flex flex-wrap gap-2">
-              {(
-                [
-                  { type: "CapExceeded", attempted: 80, cap: 50 },
-                  { type: "TokenNotAllowed", token: "mTSLA" },
-                  { type: "PolicyInactive" },
-                  { type: "InsufficientBalance" },
-                ] as PolicyRejectReason[]
-              ).map((reason) => (
-                <button
-                  key={reason.type}
-                  type="button"
-                  onClick={() => setRejectReason(decode(simulate(reason)))}
-                  className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted transition hover:text-text"
-                >
-                  Simulate {reason.type} →
-                </button>
-              ))}
-            </div>
-
-            {banner && (
-              <div className="mt-4">
-                <PolicyRejectBanner
-                  reason={banner.reason}
-                  txHash={banner.txHash}
-                  onDismiss={() => {
-                    clearRejection();
-                    setRejectReason(null);
-                  }}
-                />
-              </div>
-            )}
-          </section>
+            </aside>
+          </div>
 
           <DepositModal
             open={depositOpen}
@@ -265,9 +326,7 @@ export default function AgentDetailPage({
         </>
       )}
 
-      <Link href="/agents" className="mt-10 inline-block text-accent">
-        Back to agents
-      </Link>
-    </main>
+      </main>
+    </div>
   );
 }
