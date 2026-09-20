@@ -16,7 +16,7 @@ import {
   type FixtureFill,
 } from "@/lib/fixtures";
 import { computeAgentPnl, pnlPctSeries, type MirroredTrade } from "@/lib/pnl";
-import { USDG_DECIMALS } from "@/lib/usdg";
+import { ORACLE_PRICE_DECIMALS } from "@/lib/usdg";
 import { useFillEvents } from "@/hooks/useFillEvents";
 import { useTokenMetadata } from "@/hooks/useTokenMetadata";
 
@@ -188,7 +188,9 @@ export function useAgents(): {
             token: fill.token,
             isBuy: fill.isBuy,
             size: Number(formatUnits(fill.size, token.decimals)),
-            price: Number(formatUnits(fill.price, USDG_DECIMALS)),
+            // Same fix as useFillEvents.ts: fill.price is an 8-decimal
+            // oracle price (ITrackRecord.sol), not 6-decimal USDG.
+            price: Number(formatUnits(fill.price, ORACLE_PRICE_DECIMALS)),
           },
         ];
       });

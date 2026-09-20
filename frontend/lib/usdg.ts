@@ -10,6 +10,16 @@ import { formatUnits, parseUnits } from "viem";
 export const USDG_DECIMALS = 6;
 
 /**
+ * TrackRecord's `price` field, not a USDG amount — 8-decimal, matching
+ * MockAggregatorV3's convention (ITrackRecord.sol). Confusing this with
+ * USDG_DECIMALS renders every live fill's price 100x too large: dividing a
+ * raw oracle price by 10^6 instead of 10^8 leaves two extra powers of ten
+ * in the result. Fixtures never exercise this — they carry hand-written
+ * decimal strings — so the bug is invisible until a real fill decodes.
+ */
+export const ORACLE_PRICE_DECIMALS = 8;
+
+/**
  * Display number -> raw on-chain amount.
  *
  * Goes through toFixed first: 0.1 + 0.2 is 0.30000000000000004 in binary

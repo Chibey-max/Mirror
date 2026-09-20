@@ -7,7 +7,7 @@ import { addressesFor, isDeployed, trackRecordAbi } from "@/lib/contracts";
 import { fixtureFills, type FixtureFill } from "@/lib/fixtures";
 import { relativeTime } from "@/lib/format";
 import { shortAddress, type TokenMetadata } from "@/lib/tokens";
-import { USDG_DECIMALS } from "@/lib/usdg";
+import { ORACLE_PRICE_DECIMALS } from "@/lib/usdg";
 import { useTokenMetadata } from "@/hooks/useTokenMetadata";
 
 /**
@@ -177,7 +177,10 @@ function toDisplayFill(
     sizeFormatted: token
       ? trimZeros(formatUnits(fill.size, token.decimals))
       : "—",
-    priceFormatted: formatUnits(fill.price, USDG_DECIMALS),
+    // fill.price is TrackRecord's raw oracle price (8-decimal, matches
+    // MockAggregatorV3) — not a USDG amount. Formatting it with
+    // USDG_DECIMALS renders every price 100x too large.
+    priceFormatted: formatUnits(fill.price, ORACLE_PRICE_DECIMALS),
     timeFormatted: relativeTime(Number(fill.timestamp)),
     // Only a watched fill has one. A row without it renders without the
     // explorer link rather than linking somewhere wrong.
