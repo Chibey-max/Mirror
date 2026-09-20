@@ -4,6 +4,7 @@ import { AgentCard } from "@/components/AgentCard";
 import { LedgerStats } from "@/components/LedgerStats";
 import { PageHeader } from "@/components/PageHeader";
 import { PageAtmosphere } from "@/components/PageAtmosphere";
+import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { useAgents } from "@/hooks/useAgents";
 import { useFillEvents } from "@/hooks/useFillEvents";
@@ -84,6 +85,8 @@ export default function AgentsPage() {
           </div>
         )}
       </main>
+
+      <SiteFooter />
     </div>
   );
 }

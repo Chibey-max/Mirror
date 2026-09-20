@@ -5,6 +5,7 @@ import { LedgerStats } from "@/components/LedgerStats";
 import { MetalButton } from "@/components/MetalButton";
 import { PageHeader } from "@/components/PageHeader";
 import { PageAtmosphere } from "@/components/PageAtmosphere";
+import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
 
@@ -52,6 +53,8 @@ export default function LeaderboardPage() {
           <LeaderboardTable agents={agents} />
         </div>
       </main>
+
+      <SiteFooter />
     </div>
   );
 }

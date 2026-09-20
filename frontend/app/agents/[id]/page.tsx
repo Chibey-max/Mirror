@@ -5,6 +5,7 @@ import { AgentTapeTable } from "@/components/AgentTapeTable";
 import { Badge } from "@/components/Badge";
 import { PageHeader, SectionHeader } from "@/components/PageHeader";
 import { PageAtmosphere } from "@/components/PageAtmosphere";
+import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { DepositModal } from "@/components/DepositModal";
 import { FollowModal } from "@/components/FollowModal";
@@ -103,6 +104,7 @@ export default function AgentDetailPage({
             }
           />
         </main>
+        <SiteFooter />
       </div>
     );
   }
@@ -327,6 +329,7 @@ export default function AgentDetailPage({
       )}
 
       </main>
+      <SiteFooter />
     </div>
   );
 }

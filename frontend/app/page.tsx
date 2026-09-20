@@ -1,4 +1,5 @@
 import { WalletConnectButton } from "@/components/WalletConnectButton";
+import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SingularityHorizon } from "@/components/SingularityHorizon";
 import { ProductPreview } from "@/components/ProductPreview";
@@ -161,12 +162,7 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="px-5 pb-8 pt-4 sm:px-10">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 border-t border-border pt-5 font-mono text-[11px] uppercase tracking-[0.08em] text-muted">
-          <span>Deployed on Robinhood Chain testnet &middot; chain 46630</span>
-          <span>Contracts verified &middot; open source</span>
-        </div>
-      </footer>
+      <SiteFooter wide />
     </div>
   );
 }
