@@ -170,10 +170,9 @@ contract VaultFoundationTest is Test {
 
     function test_UnimplementedTradingFailsClosed() public {
         vm.expectRevert(CopyVault.NotImplemented.selector);
-        vault.follow(1, 1, 1);
-        vm.expectRevert(CopyVault.NotImplemented.selector);
-        vault.unfollow(1);
-        vm.expectRevert(CopyVault.NotImplemented.selector);
         vault.mirrorFill(1);
+        assertEq(vault.positionOf(alice, 1, address(token)), 0);
+        vm.expectRevert(CopyVault.NotImplemented.selector);
+        vault.isMirrored(1);
     }
 }

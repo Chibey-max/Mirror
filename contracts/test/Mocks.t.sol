@@ -28,6 +28,26 @@ contract MocksTest is Test {
         assertEq(stock.balanceOf(address(456)), 10e18);
     }
 
+    function test_MetadataAndOwnershipLifecycle() public {
+        assertEq(oracle.description(), "Mirror mock USD price feed");
+        assertEq(oracle.version(), 1);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableInvalidOwner.selector, address(0)));
+        new MockAggregatorV3(address(0));
+        oracle.transferOwnership(address(123));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        oracle.setPrice(1);
+        vm.prank(address(123));
+        oracle.setPrice(2);
+        vm.prank(address(123));
+        oracle.renounceOwnership();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(123)));
+        vm.prank(address(123));
+        oracle.setPrice(3);
+        (uint80 round, int256 price,,,) = oracle.latestRoundData();
+        assertEq(round, 1);
+        assertEq(price, 2);
+    }
+
     function test_NoDataBeforeFirstUpdateAndUnknownRound() public {
         vm.expectRevert(MockAggregatorV3.NoDataPresent.selector);
         oracle.latestRoundData();

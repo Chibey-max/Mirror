@@ -9,14 +9,36 @@ incremental: TrackRecord and PolicyModule still contain earlier scaffold interfa
 `CopyVault.sol` implements deposits and withdrawals with SafeERC20 and a shared
 reentrancy guard. It supports exact-transfer, non-rebasing MockUSDG only. Donations
 are surplus and never create user credit. Zero-amount deposits/withdrawals are allowed.
-Follow, unfollow, mirror, and their related views explicitly revert `NotImplemented`.
+Follow reserves `capAmount` from free funds as principal and calls `setPolicy`.
+Unfollow returns only that principal, removes membership, clears virtual positions,
+and calls `kill`. Both operations are non-reentrant and roll back on policy failure.
+Follower removal uses swap-and-pop, so list ordering is not stable across removals.
+Zero-cap follows are allowed (no zero-cap rejection is specified); membership is tracked
+independently of principal. No agent-existence or slippage-range validation is added in this slice.
+Mirror and `isMirrored` still explicitly revert `NotImplemented`.
 The CopyVault interface now reflects v2.2; frontend ABI regeneration and full policy/
 track-record integration are still pending. Do not use the foundation for real funds.
 
 `VaultFoundation.t.sol` covers exact transfers/events, user isolation, failed-transfer
 rollback, reentrancy with a funded attacker, and multi-user accounting fuzzing.
 These tests use code-bearing dependency placeholders, not policy/track-record integration.
+`VaultCustodyRegression.t.sol` adds token return-value rollback and 64-action custody
+sequences. `VaultLifecycle.t.sol` adds principal/membership tests, policy failures and
+callbacks, and 48-action follow/unfollow sequences with final full withdrawal.
+The lifecycle policy is a test double: the real PolicyModule remains a stub and follow
+against it still fails. This is explicitly tested, not hidden by a passing mock test.
 The original acceptance skeletons remain skipped until their full scenarios are implemented.
+
+### Lifecycle decision (Jason, 20 September 2026)
+
+Unfollow clears simulated positions. An internal per-user/per-agent epoch makes this
+constant-time even after many different tokens were mirrored; historical slots remain
+in storage but are no longer current positions. Future mirror writes must use the current epoch.
+Re-follow must preserve the same day's policy spend. CopyVault never clears spend;
+the real PolicyModule's `setPolicy` and `kill` must preserve its daily buckets. Changing
+the cap below already-spent notional must not forgive that spend. Actual enforcement
+and day rollover require Isaac's implementation and integration tests.
+Delayed-fill eligibility remains unresolved; do not implement mirroring until it is specified.
 
 The mock tokens expose unrestricted testnet minting (USDG: 6 decimals; stocks: 18).
 The mock oracle uses 8 decimals and owner-only positive price updates. Every update
@@ -33,7 +55,7 @@ contracts/
 │   │   ├── ITrackRecord.sol
 │   │   ├── IPolicyModule.sol
 │   │   └── ICopyVault.sol   # v2.2 interface
-│   ├── CopyVault.sol        # Jason — custody foundation only
+│   ├── CopyVault.sol        # Jason — custody + principal lifecycle; mirroring pending
 │   ├── AgentRegistry.sol    # Isaac
 │   ├── TrackRecord.sol      # Isaac
 │   ├── PolicyModule.sol     # Isaac
