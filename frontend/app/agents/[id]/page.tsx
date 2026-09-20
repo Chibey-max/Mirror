@@ -15,6 +15,7 @@ import {
 } from "@/components/PolicyRejectBanner";
 import { useFillEvents } from "@/hooks/useFillEvents";
 import { useKillVerification } from "@/hooks/useKillVerification";
+import { useMirrorOutcomes } from "@/hooks/useMirrorOutcomes";
 import { usePolicyError, useMirrorRejection } from "@/hooks/usePolicyError";
 import { useAgent } from "@/hooks/useAgents";
 import { useDeposit } from "@/hooks/useDeposit";
@@ -39,6 +40,8 @@ export default function AgentDetailPage({
   // A real rejection from the chain (§7.1). Inert until CopyVault is
   // deployed; the simulate buttons below are the demo stand-in until then.
   const { rejection, clear: clearRejection } = useMirrorRejection(agentId);
+  // Per-fill: mirrored, blocked, or never touched this vault (§7.1).
+  const mirrorOutcomes = useMirrorOutcomes(agentId);
 
   const { walletBalance, vaultBalance, deposit, creditWallet } = useDeposit();
   const { allocatedByAgent, freeBalance, follow, addFreeBalance, subtractFreeBalance } =
@@ -186,7 +189,7 @@ export default function AgentDetailPage({
             </div>
 
             <div className="mt-4">
-              <FillFeed fills={fills} />
+              <FillFeed fills={fills} outcomes={mirrorOutcomes} />
             </div>
 
             {/* Mirrors the mock's "Simulate a mirror attempt →" control so the

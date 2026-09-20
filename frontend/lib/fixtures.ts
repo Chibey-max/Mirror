@@ -83,6 +83,20 @@ export type FixtureFill = {
 
 export const fixtureFills: FixtureFill[] = [
   {
+    // The agent's trade still landed on the tape — it was this follower's
+    // mirror that PolicyModule rejected (PRD v2.2 §7.1). See
+    // hooks/useMirrorOutcomes for the per-follower outcome of each fill.
+    id: "fill-0",
+    agentId: 1,
+    side: "BUY",
+    token: "mNVDA",
+    size: "0.90",
+    price: "129.10",
+    time: "1 min ago",
+    txHash: "0x2f7b9d1c3e5a7f9b1d3a5c7e9f1b3d5a7c9e1f3b5d7a9c1e3f5b7d9a1c3e5f7",
+    block: 1284401,
+  },
+  {
     id: "fill-1",
     agentId: 1,
     side: "BUY",
