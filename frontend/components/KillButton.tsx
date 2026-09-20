@@ -83,8 +83,10 @@ export function KillButton({
     return (
       <div className="rounded-xl border border-loss/40 bg-loss/10 p-3">
         <p className="text-sm text-text">
-          Stop following {agentName}? Your {allocatedAmount.toFixed(2)} USDG
-          allocation returns to your free balance immediately.
+          Kill {agentName}&apos;s follow and release your funds? Your{" "}
+          {allocatedAmount.toFixed(2)} USDG principal returns to your free
+          balance immediately — unfollow always returns exactly what you put
+          in, never a mark-to-market.
         </p>
         <div className="mt-3 flex gap-2">
           <MetalButton
