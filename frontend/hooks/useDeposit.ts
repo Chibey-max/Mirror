@@ -5,7 +5,10 @@ import { useReadContract } from "wagmi";
 import { copyVaultAbi, usdgAbi } from "@/lib/contracts";
 import { fixtureWallet } from "@/lib/fixtures";
 import { fromUsdg, toUsdg } from "@/lib/usdg";
-import { useVaultConnection } from "@/hooks/useVaultConnection";
+import {
+  useVaultConnection,
+  type WriteProgress,
+} from "@/hooks/useVaultConnection";
 
 const MOCK_TX =
   "0x7d2c9e1b3a5f8c0e4b6d9a1c3e5f7b9d2a4c6e8f0b1d3a5c7e9f1b3d5a7c9e1";
@@ -53,12 +56,18 @@ export function useDeposit() {
   const walletBalance = live ? fromUsdg(walletRead.data ?? BigInt(0)) : mockWallet;
   const vaultBalance = live ? fromUsdg(vaultRead.data ?? BigInt(0)) : mockVault;
 
-  async function deposit(amount: number): Promise<{ txHash: string }> {
+  async function deposit(
+    amount: number,
+    onProgress?: WriteProgress,
+  ): Promise<{ txHash: string }> {
     if (!Number.isFinite(amount) || amount <= 0 || amount > walletBalance) {
       throw new Error("Invalid deposit amount");
     }
 
     if (!live || !addresses || !address || !publicClient) {
+      onProgress?.({ stage: "approving" });
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      onProgress?.({ stage: "submitted", txHash: MOCK_TX });
       await new Promise((resolve) => setTimeout(resolve, 500));
       setMockWallet((balance) => balance - amount);
       setMockVault((balance) => balance + amount);
@@ -74,6 +83,7 @@ export function useDeposit() {
     });
 
     if (allowance < raw) {
+      onProgress?.({ stage: "approving" });
       const approvalHash = await writeContractAsync({
         address: addresses.usdg,
         abi: usdgAbi,
@@ -89,6 +99,7 @@ export function useDeposit() {
       functionName: "deposit",
       args: [raw],
     });
+    onProgress?.({ stage: "submitted", txHash });
     await confirm(txHash);
     await Promise.all([walletRead.refetch(), vaultRead.refetch()]);
 

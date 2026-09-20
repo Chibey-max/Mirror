@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { WriteProgress } from "@/hooks/useVaultConnection";
 import { txUrl } from "@/lib/chains";
 
 type Stage = "idle" | "signing" | "pending" | "success";
@@ -11,8 +12,6 @@ type Stage = "idle" | "signing" | "pending" | "success";
  * balance — never a silent clamp. Free balance only; allocated funds must go
  * through KillButton first, per CopyVault's design (PRD §4.4).
  *
- * TODO(Day 13+): wire `onWithdraw` to CopyVault.withdraw() via wagmi's
- * useWriteContract instead of the resolved-promise stand-in.
  */
 export function WithdrawModal({
   open,
@@ -23,7 +22,12 @@ export function WithdrawModal({
   open: boolean;
   onClose: () => void;
   freeBalance: number;
-  onWithdraw: (amount: number) => Promise<{ txHash: string }>;
+  /** Resolves once the withdraw's receipt is in; reports the hash as soon
+   *  as the transaction is submitted. */
+  onWithdraw: (
+    amount: number,
+    onProgress?: WriteProgress,
+  ) => Promise<{ txHash: string }>;
 }) {
   const [amount, setAmount] = useState("");
   const [stage, setStage] = useState<Stage>("idle");
@@ -38,11 +42,14 @@ export function WithdrawModal({
   async function handleWithdraw() {
     setStage("signing");
     try {
-      const { txHash: hash } = await onWithdraw(parsed);
+      // "Pending" starts when the transaction has a hash, and ends when
+      // onWithdraw resolves — which is when its receipt is in.
+      const { txHash: hash } = await onWithdraw(parsed, (event) => {
+        if (event.stage !== "submitted") return;
+        setTxHash(event.txHash);
+        setStage("pending");
+      });
       setTxHash(hash);
-      setStage("pending");
-      // TODO(Day 13+): await the real receipt instead of a fixed delay.
-      await new Promise((r) => setTimeout(r, 600));
       setStage("success");
     } catch {
       setStage("idle");

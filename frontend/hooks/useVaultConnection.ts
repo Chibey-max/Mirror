@@ -5,6 +5,20 @@ import type { Hex } from "viem";
 import { addressesFor, isDeployed, type MirrorAddresses } from "@/lib/contracts";
 
 /**
+ * How far along a write is, reported as it happens.
+ *
+ * The screens have always had these stages; they were driven by fixed
+ * timers, so "Approving…" lasted 350ms whether or not an approval was
+ * needed and "Pending" was a 600ms pause after the work was already done.
+ * The hooks know the real answer — an approval that was skipped is never
+ * announced, and `submitted` fires when the transaction has a hash and the
+ * wait for its receipt begins.
+ */
+export type WriteProgress = (
+  event: { stage: "approving" } | { stage: "submitted"; txHash: string },
+) => void;
+
+/**
  * The one place that decides whether the vault write hooks are talking to a
  * chain or to their fixture state.
  *

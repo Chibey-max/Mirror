@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useState } from "react";
+import type { WriteProgress } from "@/hooks/useVaultConnection";
 import { txUrl } from "@/lib/chains";
 
 type Stage = "idle" | "approving" | "depositing" | "success" | "error";
@@ -16,7 +17,12 @@ export function DepositModal({
   onClose: () => void;
   walletBalance: number;
   vaultBalance: number;
-  onDeposit: (amount: number) => Promise<{ txHash: string }>;
+  /** Reports the real stages as they happen — an approval that wasn't
+   *  needed is never announced. */
+  onDeposit: (
+    amount: number,
+    onProgress?: WriteProgress,
+  ) => Promise<{ txHash: string }>;
 }) {
   const [amount, setAmount] = useState("");
   const [stage, setStage] = useState<Stage>("idle");
@@ -51,11 +57,16 @@ export function DepositModal({
     amount === "" || Number.isNaN(parsed) || parsed <= 0 || overWallet;
 
   async function handleDeposit() {
-    setStage("approving");
+    setStage("depositing");
     try {
-      await new Promise((resolve) => setTimeout(resolve, 350));
-      setStage("depositing");
-      const { txHash: hash } = await onDeposit(parsed);
+      const { txHash: hash } = await onDeposit(parsed, (event) => {
+        if (event.stage === "approving") {
+          setStage("approving");
+          return;
+        }
+        setTxHash(event.txHash);
+        setStage("depositing");
+      });
       setTxHash(hash);
       setStage("success");
     } catch {
