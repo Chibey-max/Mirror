@@ -1,5 +1,7 @@
 import { WalletConnectButton } from "@/components/WalletConnectButton";
+import { LoopSteps, type LoopStep } from "@/components/LoopSteps";
 import { Reveal } from "@/components/Reveal";
+import { Starfield } from "@/components/Starfield";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SingularityHorizon } from "@/components/SingularityHorizon";
@@ -58,29 +60,35 @@ const claims = [
  * turned into the landing page's own walkthrough — the same sequence the
  * demo runs, in the order a first-time visitor would actually hit it.
  */
-const loopSteps = [
+const loopSteps: LoopStep[] = [
   {
     title: "Connect",
+    short: "Connect",
     body: "RainbowKit, switch to Robinhood Chain testnet. Browsing the tape itself never needs a wallet at all.",
   },
   {
     title: "Deposit",
+    short: "Deposit",
     body: "USDG into the vault — approve, then deposit, both re-read from chain once they land, never assumed.",
   },
   {
     title: "Follow, with a cap",
+    short: "Follow",
     body: "A daily notional cap per agent, enforced on-chain. Not a setting in a modal — a number PolicyModule actually checks.",
   },
   {
     title: "Fills land",
+    short: "Fills land",
     body: "Every fill mirrors into your vault, gets blocked with the exact cause, or never touches you at all. Never a guess about which.",
   },
   {
     title: "Kill, any time",
+    short: "Kill",
     body: "An unlock, not a stop. Unfollow always returns exactly the principal you put in — never a mark-to-market.",
   },
   {
     title: "Withdraw",
+    short: "Withdraw",
     body: "Free balance back to your wallet, on your own schedule.",
   },
 ];
@@ -111,6 +119,7 @@ const contrasts = [
 export default function Home() {
   return (
     <div className="relative flex min-h-dvh flex-col overflow-x-clip">
+      <Starfield />
       {/*
         The body sits in the top-left corner with its top edge 20px below the
         top of the page. The camera always looks at the origin, so the body
@@ -279,30 +288,7 @@ export default function Home() {
             </div>
           </Reveal>
 
-          <ol className="relative mx-auto mt-10 flex max-w-2xl flex-col gap-0">
-            {loopSteps.map((step, index) => (
-              <Reveal key={step.title} delayMs={index * 80}>
-                <li className="relative flex gap-5 pb-10 last:pb-0">
-                  {/* The connecting rule — a ledger's running line, not a decoration. */}
-                  {index < loopSteps.length - 1 && (
-                    <span
-                      aria-hidden="true"
-                      className="absolute left-[19px] top-10 h-[calc(100%-1.5rem)] w-px bg-border"
-                    />
-                  )}
-                  <span className="tabular relative z-10 flex h-10 w-10 flex-none items-center justify-center rounded-full border border-border bg-surface font-mono text-sm text-chrome">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <div className="pt-1.5">
-                    <h3 className="font-display text-xl">{step.title}</h3>
-                    <p className="mt-1.5 max-w-md text-sm leading-relaxed text-muted">
-                      {step.body}
-                    </p>
-                  </div>
-                </li>
-              </Reveal>
-            ))}
-          </ol>
+          <LoopSteps steps={loopSteps} />
         </section>
 
         {/*

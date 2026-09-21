@@ -144,6 +144,20 @@ body {
   }
 }
 
+/* A star's own breathing room, between the two brightnesses Starfield
+   picks for it — never full off, so nothing "disappears", and never
+   perfectly synced with its neighbours, since every star's --star-duration
+   and animation-delay differ. */
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: var(--star-min);
+  }
+  50% {
+    opacity: var(--star-max);
+  }
+}
+
 /*
  * There is deliberately no ambient background layer. An earlier version had a
  * fixed, full-viewport opaque black div at z-index -1 here, which painted over
