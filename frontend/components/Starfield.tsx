@@ -95,7 +95,6 @@ export function Starfield() {
   const reduced = useReducedMotion();
   const [stars, setStars] = useState<Star[] | null>(null);
   const starRefs = useRef<(HTMLSpanElement | null)[]>([]);
-  const glowRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
   const visibleProgressRef = useRef(0);
 
@@ -149,13 +148,6 @@ export function Starfield() {
         el.style.transform = `scale(${0.15 + eased * 0.85})`;
       });
 
-      if (glowRef.current) {
-        // The ring's own aura growing to reach further down the page as
-        // more of the field has flowed out of it.
-        glowRef.current.style.transform = `scale(${1 + progress * 1.6})`;
-        glowRef.current.style.opacity = `${0.06 + progress * 0.05}`;
-      }
-
       rafRef.current = requestAnimationFrame(frame);
     }
 
@@ -172,17 +164,6 @@ export function Starfield() {
       aria-hidden="true"
       className="pointer-events-none fixed inset-0 -z-20 overflow-hidden"
     >
-      {/*
-        The ring's own trail: a soft arc of light continuing the hero's
-        gradient down past the fold, at a fraction of the hero's opacity —
-        presence, not a second copy of the ring. Grows with scroll when
-        motion is allowed; a fixed, generous size when it isn't.
-      */}
-      <div
-        ref={glowRef}
-        className="absolute left-1/2 top-0 h-[140vh] w-[220vw] origin-top -translate-x-1/2 opacity-[0.1] [background:radial-gradient(ellipse_60%_35%_at_50%_0%,var(--color-chrome)_0%,var(--color-accent)_38%,transparent_70%)]"
-      />
-
       {stars.map((star, i) => (
         <span
           key={i}
