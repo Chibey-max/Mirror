@@ -2,7 +2,7 @@
 
 Foundry workspace for the Mirror core primitive. Current spec: **PRD v2.2**, with
 unchanged requirements inherited from earlier versions (`../docs/`). Migration is
-incremental: TrackRecord and PolicyModule still contain earlier scaffold interfaces/bodies.
+incremental: TrackRecord is implemented; PolicyModule still contains its earlier scaffold.
 
 ## CopyVault foundation (not deployment-ready)
 
@@ -14,10 +14,11 @@ Unfollow returns only that principal, removes membership, clears virtual positio
 and calls `kill`. Both operations are non-reentrant and roll back on policy failure.
 Follower removal uses swap-and-pop, so list ordering is not stable across removals.
 Zero-cap follows are allowed (no zero-cap rejection is specified); membership is tracked
-independently of principal. No agent-existence or slippage-range validation is added in this slice.
-Mirror and `isMirrored` still explicitly revert `NotImplemented`.
-The CopyVault interface now reflects v2.2; frontend ABI regeneration and full policy/
-track-record integration are still pending. Do not use the foundation for real funds.
+independently of principal. At most 50 followers may follow each agent. A follow requires
+an existing, active agent; later deactivation never blocks unfollow. Slippage is not enforced.
+Mirror still reverts `NotImplemented`; `isMirrored` returns false until mirror writes exist.
+The frontend ABI includes the new errors and capacity getter. Full policy integration
+and mirroring remain pending. Do not use the foundation for real funds.
 
 `VaultFoundation.t.sol` covers exact transfers/events, user isolation, failed-transfer
 rollback, reentrancy with a funded attacker, and multi-user accounting fuzzing.
@@ -26,8 +27,9 @@ These tests use code-bearing dependency placeholders, not policy/track-record in
 sequences. `VaultLifecycle.t.sol` adds principal/membership tests, policy failures and
 callbacks, and 48-action follow/unfollow sequences with final full withdrawal.
 The lifecycle policy is a test double: the real PolicyModule remains a stub and follow
-against it still fails. This is explicitly tested, not hidden by a passing mock test.
-The original acceptance skeletons remain skipped until their full scenarios are implemented.
+against it still fails. No test asserts that this dependency must remain unimplemented.
+Jason will add real integration tests when incorporating PolicyModule PR #15.
+The three withdrawal acceptance tests now run; policy and drain-beyond-cap tests remain pending.
 
 ### Lifecycle decision (Jason, 20 September 2026)
 
@@ -38,7 +40,10 @@ Re-follow must preserve the same day's policy spend. CopyVault never clears spen
 the real PolicyModule's `setPolicy` and `kill` must preserve its daily buckets. Changing
 the cap below already-spent notional must not forgive that spend. Actual enforcement
 and day rollover require Isaac's implementation and integration tests.
-Delayed-fill eligibility remains unresolved; do not implement mirroring until it is specified.
+Each follow snapshots the global fill count. Only strictly later fill IDs are eligible;
+re-follow captures a fresh boundary. This avoids timestamp ties within one block.
+See [review decisions](../docs/decisions/0003-copyvault-lifecycle-review.md) for the additive
+ABI amendment and follower-limit tradeoff. Worst-case mirror gas remains to be measured.
 
 The mock tokens expose unrestricted testnet minting (USDG: 6 decimals; stocks: 18).
 The mock oracle uses 8 decimals and owner-only positive price updates. Every update
@@ -66,6 +71,8 @@ contracts/
 ```
 
 ## Setup
+
+Use Foundry **v1.7.1**, also pinned in CI, to keep formatter behavior consistent.
 
 ```bash
 git submodule update --init --recursive   # forge-std v1.16.2, openzeppelin-contracts v5.7.0
@@ -96,13 +103,13 @@ the probe.
 
 ## Required test suite (PRD Section 7)
 
-All four must be green before the **Wed 24 Sep integration checkpoint**:
+All four must be green before the **Thu 24 Sep integration checkpoint**:
 
 | # | Test | File | Status |
 |---|---|---|---|
-| 1 | Append-only enforcement | `AppendOnly.t.sol` | Surface tests pass; recorded-fill behavior still skipped |
+| 1 | Append-only enforcement | `AppendOnly.t.sol` | Surface and recorded-fill tests pass |
 | 2 | Over-cap revert | `PolicyCap.t.sol` | ⏳ skipped — needs PolicyModule bodies (Day 5) |
-| 3 | Withdraw | `VaultWithdraw.t.sol` | Full acceptance skipped; custody covered in `VaultFoundation.t.sol` |
+| 3 | Withdraw | `VaultWithdraw.t.sol` | All 3 pass; allocation setup uses a policy double |
 | 4 | Drain-beyond-cap | `DrainBeyondCap.t.sol` | Full acceptance skipped; custody reentrancy/fuzz tests implemented separately |
 
 Skeletons call `vm.skip(true)` on purpose. A test that asserts nothing but reports green is

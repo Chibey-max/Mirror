@@ -6,6 +6,12 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {ICopyVault} from "./interfaces/ICopyVault.sol";
 import {ITrackRecord} from "./interfaces/ITrackRecord.sol";
 import {IPolicyModule} from "./interfaces/IPolicyModule.sol";
+import {IAgentRegistry} from "./interfaces/IAgentRegistry.sol";
+
+/// @dev Typed access to TrackRecord's existing immutable getter, without changing its interface.
+interface ITrackRecordRegistryReference {
+    function registry() external view returns (IAgentRegistry);
+}
 
 /// @notice PRD v2.2 custody and principal lifecycle. Mirroring is NOT implemented yet.
 /// @dev Not ERC-4626: no shares; balanceOf reports free USDG, principal is tracked separately.
@@ -14,6 +20,7 @@ import {IPolicyModule} from "./interfaces/IPolicyModule.sol";
 contract CopyVault is ICopyVault, ReentrancyGuard {
     using SafeERC20 for IERC20;
     error NotImplemented();
+    uint256 public constant MAX_FOLLOWERS_PER_AGENT = 50;
     ITrackRecord public immutable trackRecord;
     IPolicyModule public immutable policyModule;
     IERC20 public immutable usdg;
@@ -23,6 +30,8 @@ contract CopyVault is ICopyVault, ReentrancyGuard {
     mapping(uint256 => address[]) private _followers;
     // One-based index is also membership: a zero-cap follow is still a follow.
     mapping(uint256 => mapping(address => uint256)) private _followerIndex;
+    // Only fills strictly greater than this ID are eligible for the current follow.
+    mapping(address => mapping(uint256 => uint256)) internal _followFillBoundary;
     // Logical clearing in O(1): every unfollow ends its position epoch. A later follow
     // cannot inherit old positions, and exit never loops over an unbounded token list.
     mapping(address => mapping(uint256 => uint256)) internal _positionEpoch;
@@ -30,9 +39,9 @@ contract CopyVault is ICopyVault, ReentrancyGuard {
 
     constructor(address trackRecord_, address policyModule_, address usdg_, address runner_) {
         if (runner_ == address(0)) revert ZeroRunner();
-        require(trackRecord_.code.length != 0, "CopyVault: invalid TrackRecord");
-        require(policyModule_.code.length != 0, "CopyVault: invalid PolicyModule");
-        require(usdg_.code.length != 0, "CopyVault: invalid USDG");
+        if (trackRecord_.code.length == 0) revert ZeroTrackRecord();
+        if (policyModule_.code.length == 0) revert ZeroPolicyModule();
+        if (usdg_.code.length == 0) revert ZeroUsdg();
         trackRecord = ITrackRecord(trackRecord_);
         policyModule = IPolicyModule(policyModule_);
         usdg = IERC20(usdg_);
@@ -59,7 +68,14 @@ contract CopyVault is ICopyVault, ReentrancyGuard {
     function follow(uint256 agentId, uint256 capAmount, uint256 maxSlippageBps) external nonReentrant {
         if (_followerIndex[agentId][msg.sender] != 0) revert AlreadyFollowing();
         if (capAmount > _free[msg.sender]) revert InsufficientBalance();
+        if (_followers[agentId].length >= MAX_FOLLOWERS_PER_AGENT) revert FollowerLimitReached(agentId);
+        IAgentRegistry.Agent memory agent =
+            ITrackRecordRegistryReference(address(trackRecord)).registry().getAgent(agentId);
+        if (agent.owner == address(0)) revert AgentNotFound(agentId);
+        if (!agent.active) revert AgentInactive(agentId);
+        uint256 boundary = trackRecord.fillCount();
         _free[msg.sender] -= capAmount;
+        _followFillBoundary[msg.sender][agentId] = boundary;
         _principal[msg.sender][agentId] = capAmount;
         _followers[agentId].push(msg.sender);
         _followerIndex[agentId][msg.sender] = _followers[agentId].length;
@@ -78,6 +94,7 @@ contract CopyVault is ICopyVault, ReentrancyGuard {
         if (index == 0) revert NotFollowing();
         uint256 principal = _principal[msg.sender][agentId];
         delete _principal[msg.sender][agentId];
+        delete _followFillBoundary[msg.sender][agentId];
         ++_positionEpoch[msg.sender][agentId];
         _free[msg.sender] += principal;
         // Constant-time removal; followersOf ordering is not stable across removals.
@@ -113,6 +130,7 @@ contract CopyVault is ICopyVault, ReentrancyGuard {
     }
 
     function isMirrored(uint256) external pure returns (bool) {
-        revert NotImplemented();
+        // No fill can be processed until mirrorFill is implemented.
+        return false;
     }
 }

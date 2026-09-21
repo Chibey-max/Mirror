@@ -16,14 +16,22 @@ contract CustodyReturnToken is MockUSDG {
     function transfer(address to, uint256 amount) public override returns (bool) {
         super.transfer(to, amount);
         if (mode == 1) return false;
-        if (mode == 2) assembly { return(0, 0) }
+        if (mode == 2) {
+            assembly {
+                return(0, 0)
+            }
+        }
         return true;
     }
 
     function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
         super.transferFrom(from, to, amount);
         if (mode == 1) return false;
-        if (mode == 2) assembly { return(0, 0) }
+        if (mode == 2) {
+            assembly {
+                return(0, 0)
+            }
+        }
         return true;
     }
 }

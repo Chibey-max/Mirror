@@ -5,7 +5,8 @@ import {Test} from "forge-std/Test.sol";
 import {CopyVault} from "../src/CopyVault.sol";
 import {ICopyVault} from "../src/interfaces/ICopyVault.sol";
 import {IPolicyModule} from "../src/interfaces/IPolicyModule.sol";
-import {PolicyModule} from "../src/PolicyModule.sol";
+import {AgentRegistry} from "../src/AgentRegistry.sol";
+import {TrackRecord} from "../src/TrackRecord.sol";
 import {MockUSDG} from "../src/mocks/MockUSDG.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
@@ -61,7 +62,11 @@ contract LifecyclePolicyDouble {
 }
 
 contract LifecycleVaultHarness is CopyVault {
-    constructor(address policy, address token) CopyVault(policy, policy, token, msg.sender) {}
+    constructor(address record, address policy, address token) CopyVault(record, policy, token, msg.sender) {}
+
+    function boundaryOf(address user, uint256 agent) external view returns (uint256) {
+        return _followFillBoundary[user][agent];
+    }
 
     // Test-only injection of virtual holdings; production vault has no such setter.
     function seedPosition(address user, uint256 agent, address token, uint256 size) external {
@@ -73,6 +78,8 @@ contract VaultLifecycleTest is Test {
     MockUSDG token;
     CopyVault vault;
     LifecyclePolicyDouble policy;
+    AgentRegistry registry;
+    TrackRecord record;
     address alice = address(101);
     address bob = address(102);
     address carol = address(103);
@@ -80,7 +87,12 @@ contract VaultLifecycleTest is Test {
     function setUp() public {
         token = new MockUSDG();
         policy = new LifecyclePolicyDouble();
-        vault = new LifecycleVaultHarness(address(policy), address(token));
+        registry = new AgentRegistry();
+        record = new TrackRecord(address(registry), address(this));
+        for (uint256 i; i < 7; i++) {
+            registry.registerAgent("agent", bytes32(i), "v1");
+        }
+        vault = new LifecycleVaultHarness(address(record), address(policy), address(token));
         policy.configure(address(vault), false, false);
         address[3] memory users = [alice, bob, carol];
         for (uint256 i; i < users.length; i++) {
@@ -247,14 +259,90 @@ contract VaultLifecycleTest is Test {
         vault.unfollow(7);
     }
 
-    function test_ActualPolicyStubRemainsAnIntegrationBlocker() public {
-        PolicyModule stub =
-            new PolicyModule(vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1), address(this));
-        CopyVault target = new CopyVault(address(policy), address(stub), address(token), address(this));
-        assertEq(stub.vault(), address(target));
-        vm.expectRevert(PolicyModule.NotImplemented.selector);
-        target.follow(7, 0, 0);
-        assertEq(target.followerCountOf(7), 0);
+    function test_CapacityBoundaryAndSlotReuse() public {
+        assertEq(vault.MAX_FOLLOWERS_PER_AGENT(), 50);
+        for (uint256 i; i < 50; i++) {
+            vm.prank(address(uint160(1000 + i)));
+            vault.follow(7, 0, 0);
+        }
+        assertEq(vault.followerCountOf(7), 50);
+        vm.expectRevert(abi.encodeWithSelector(ICopyVault.FollowerLimitReached.selector, 7));
+        vm.prank(alice);
+        vault.follow(7, 60e6, 0);
+        assertEq(vault.balanceOf(alice), 100e6);
+        assertEq(vault.allocationOf(alice, 7), 0);
+        assertFalse(policy.getPolicy(alice, 7).active);
+        vm.prank(alice);
+        vault.follow(1, 0, 0);
+        assertEq(vault.followerCountOf(1), 1);
+        vm.prank(address(1025));
+        vault.unfollow(7);
+        vm.prank(alice);
+        vault.follow(7, 60e6, 0);
+        assertEq(vault.followerCountOf(7), 50);
+        assertEq(vault.allocationOf(alice, 7), 60e6);
+    }
+
+    function test_InvalidAgentRejectedAndDeactivationNeverBlocksExit() public {
+        vm.expectRevert(abi.encodeWithSelector(ICopyVault.AgentNotFound.selector, 0));
+        vm.prank(alice);
+        vault.follow(0, 1, 0);
+        vm.expectRevert(abi.encodeWithSelector(ICopyVault.AgentNotFound.selector, 8));
+        vm.prank(alice);
+        vault.follow(8, 1, 0);
+        vm.prank(alice);
+        vault.follow(7, 60e6, 0);
+        registry.deactivateAgent(7);
+        vm.expectRevert(abi.encodeWithSelector(ICopyVault.AgentInactive.selector, 7));
+        vm.prank(bob);
+        vault.follow(7, 1, 0);
+        assertEq(vault.balanceOf(bob), 100e6);
+        vm.prank(alice);
+        vault.unfollow(7);
+        vm.prank(alice);
+        vault.withdraw(100e6);
+        assertEq(token.balanceOf(alice), 100e6);
+    }
+
+    function test_FillBoundaryUsesOrderingWithinSameBlockAndResetsOnRefollow() public {
+        LifecycleVaultHarness h = LifecycleVaultHarness(address(vault));
+        vm.warp(100);
+        record.recordFill(7, address(token), true, 1, 1, bytes32(uint256(1)));
+        vm.prank(alice);
+        vault.follow(7, 1, 0);
+        assertEq(h.boundaryOf(alice, 7), 1);
+        uint256 later = record.recordFill(7, address(token), true, 1, 1, bytes32(uint256(2)));
+        assertGt(later, h.boundaryOf(alice, 7));
+        assertEq(record.getFill(1).timestamp, record.getFill(later).timestamp);
+        vm.prank(bob);
+        vault.follow(7, 1, 0);
+        assertEq(h.boundaryOf(bob, 7), 2);
+        vm.prank(alice);
+        vault.unfollow(7);
+        assertEq(h.boundaryOf(alice, 7), 0);
+        record.recordFill(1, address(token), true, 1, 1, bytes32(uint256(3)));
+        vm.prank(alice);
+        vault.follow(7, 1, 0);
+        assertEq(h.boundaryOf(alice, 7), 3); // global count, including other agents
+    }
+
+    function test_PolicyFailureRollsBackBoundaryAndPositionEpoch() public {
+        LifecycleVaultHarness h = LifecycleVaultHarness(address(vault));
+        record.recordFill(7, address(token), true, 1, 1, bytes32(0));
+        policy.configure(address(vault), true, false);
+        vm.expectRevert(bytes("set failed"));
+        vm.prank(alice);
+        vault.follow(7, 1, 0);
+        assertEq(h.boundaryOf(alice, 7), 0);
+        policy.configure(address(vault), false, true);
+        vm.prank(alice);
+        vault.follow(7, 1, 0);
+        h.seedPosition(alice, 7, address(token), 42);
+        vm.expectRevert(bytes("kill failed"));
+        vm.prank(alice);
+        vault.unfollow(7);
+        assertEq(h.boundaryOf(alice, 7), 1);
+        assertEq(vault.positionOf(alice, 7, address(token)), 42);
     }
 
     function testFuzz_LifecycleSequencePreservesPrincipal(uint256 seed) public {
@@ -268,14 +356,14 @@ contract VaultLifecycleTest is Test {
             uint256 a = (seed >> 8) % 2;
             if (active[u][a]) {
                 vm.prank(users[u]);
-                vault.unfollow(a);
+                vault.unfollow(a + 1);
                 free[u] += principal[u][a];
                 principal[u][a] = 0;
                 active[u][a] = false;
             } else {
                 uint256 amount = (seed >> 16) % (free[u] + 1);
                 vm.prank(users[u]);
-                vault.follow(a, amount, 100);
+                vault.follow(a + 1, amount, 100);
                 free[u] -= amount;
                 principal[u][a] = amount;
                 active[u][a] = true;
@@ -285,7 +373,7 @@ contract VaultLifecycleTest is Test {
                 assertEq(vault.balanceOf(users[i]), free[i]);
                 liabilities += free[i];
                 for (uint256 j; j < 2; j++) {
-                    assertEq(vault.allocationOf(users[i], j), principal[i][j]);
+                    assertEq(vault.allocationOf(users[i], j + 1), principal[i][j]);
                     liabilities += principal[i][j];
                 }
             }
@@ -295,7 +383,7 @@ contract VaultLifecycleTest is Test {
             for (uint256 j; j < 2; j++) {
                 if (active[i][j]) {
                     vm.prank(users[i]);
-                    vault.unfollow(j);
+                    vault.unfollow(j + 1);
                 }
             }
             vm.prank(users[i]);

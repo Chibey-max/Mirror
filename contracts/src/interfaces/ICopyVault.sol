@@ -18,6 +18,13 @@ interface ICopyVault {
     error AlreadyFollowing();
     error NotFollowing();
     error ZeroRunner();
+    /// @notice Dependency address is zero or has no contract code.
+    error ZeroTrackRecord();
+    error ZeroPolicyModule();
+    error ZeroUsdg();
+    error FollowerLimitReached(uint256 agentId);
+    error AgentNotFound(uint256 agentId);
+    error AgentInactive(uint256 agentId);
     error FillNotFound(uint256 fillId);
     error FillAlreadyMirrored(uint256 fillId);
 

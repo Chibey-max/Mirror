@@ -160,11 +160,11 @@ contract VaultFoundationTest is Test {
     }
 
     function test_ConstructorRejectsCodelessDependencies() public {
-        vm.expectRevert(bytes("CopyVault: invalid TrackRecord"));
+        vm.expectRevert(ICopyVault.ZeroTrackRecord.selector);
         new CopyVault(alice, address(dependency), address(token), bob);
-        vm.expectRevert(bytes("CopyVault: invalid PolicyModule"));
+        vm.expectRevert(ICopyVault.ZeroPolicyModule.selector);
         new CopyVault(address(dependency), alice, address(token), bob);
-        vm.expectRevert(bytes("CopyVault: invalid USDG"));
+        vm.expectRevert(ICopyVault.ZeroUsdg.selector);
         new CopyVault(address(dependency), address(dependency), alice, bob);
     }
 
@@ -172,7 +172,17 @@ contract VaultFoundationTest is Test {
         vm.expectRevert(CopyVault.NotImplemented.selector);
         vault.mirrorFill(1);
         assertEq(vault.positionOf(alice, 1, address(token)), 0);
-        vm.expectRevert(CopyVault.NotImplemented.selector);
-        vault.isMirrored(1);
+        assertFalse(vault.isMirrored(1));
+        assertFalse(vault.isMirrored(0));
+        assertFalse(vault.isMirrored(type(uint256).max));
+    }
+
+    function test_ConstructorRejectsZeroDependencies() public {
+        vm.expectRevert(ICopyVault.ZeroTrackRecord.selector);
+        new CopyVault(address(0), address(dependency), address(token), bob);
+        vm.expectRevert(ICopyVault.ZeroPolicyModule.selector);
+        new CopyVault(address(dependency), address(0), address(token), bob);
+        vm.expectRevert(ICopyVault.ZeroUsdg.selector);
+        new CopyVault(address(dependency), address(dependency), address(0), bob);
     }
 }
