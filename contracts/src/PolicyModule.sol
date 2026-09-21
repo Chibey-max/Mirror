@@ -5,20 +5,25 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IPolicyModule} from "./interfaces/IPolicyModule.sol";
 
 /// @title PolicyModule
-/// @notice Per-follower spend caps, token allowlist, and kill switch — PRD Section 4.3.
+/// @notice Per-follower daily spend caps, a token allowlist, and the kill switch — PRD v2.2 §7.8.
 ///
-/// @dev STUB (Day 2). Storage layout and access control are in place; bodies land Day 5.
+/// @dev What this contract is for: PRD claim 2, capital safety. A follower never gives an agent
+///      custody beyond a cap they set themselves, and holds a kill switch nobody can override.
+///      It decides only whether a copied trade may happen; CopyVault holds and moves the USDG.
 ///
-/// @dev FREEZE QUESTION for Sat 13 Sep 09:00 SGT — Section 4.3 defines `onlyVault` modifiers
-///      but publishes no way to set the vault address. CopyVault is deployed AFTER PolicyModule
-///      (it takes PolicyModule in its constructor), so the vault address cannot be a plain
-///      constructor argument without precomputing it. Three options, pick one at the freeze:
-///        (a) add a one-time `setVault(address)` behind onlyOwner  -> changes the frozen ABI
-///        (b) precompute the CopyVault address (CREATE2) and pass it in the constructor
-///        (c) deploy PolicyModule after CopyVault and pass PolicyModule in via a setter there
-///      This stub assumes (b) so the ABI in Section 4.3 stays byte-for-byte as written.
+/// @dev Trust model, stated here and not only in the README:
+///      - `vault` is the only address that may set, consume or kill a policy. It is immutable and
+///        set at construction to the address CopyVault will occupy — plain nonce-based CREATE
+///        prediction, v2.2 §6, verified on-chain after the deploy. There is no setter, no
+///        upgrade path and no `delegatecall`.
+///      - The owner's only power is the token allowlist, plus OpenZeppelin's ownership transfer
+///        and renouncement. No owner path can change a cap, today's spend or a follow's `active`
+///        flag, and this contract never holds funds.
+///      - Removing a token from the allowlist stops mirrors of it in both directions. It cannot
+///        strand principal: CopyVault returns principal only (v2.2 §7.3).
+///      - The follower's kill switch reaches `kill` through `CopyVault.unfollow`, which is the
+///        exit path for their principal, so `kill` never reverts for the vault.
 contract PolicyModule is IPolicyModule, Ownable {
-    error NotImplemented();
     error ZeroVault();
 
     /// @dev The CopyVault permitted to set, consume, and kill policies.
@@ -44,52 +49,93 @@ contract PolicyModule is IPolicyModule, Ownable {
     }
 
     /// @inheritdoc IPolicyModule
+    /// @dev Called by CopyVault.follow. A plain overwrite: CopyVault rejects a second follow with
+    ///      AlreadyFollowing, so the only way here twice is a re-follow after unfollow.
+    ///
+    ///      Today's spend is deliberately NOT cleared (D4). It is keyed by (user, agent, day), not
+    ///      by follow, so unfollowing and following again on the same UTC day cannot hand the agent
+    ///      a fresh cap, and lowering the cap cannot forgive what has already been spent.
+    ///
+    ///      No validation: the vault is the only caller, and the numbers are the follower's own.
+    ///      A zero cap rejects every buy CopyVault can actually send, and maxSlippageBps is not
+    ///      enforced at all (§9).
+    ///
+    ///      "Can actually send" is exact rather than loose. A zero-notional buy would pass a zero
+    ///      cap here, because the test is `spent + notional > cap` and `0 > 0` is false. Nothing
+    ///      can reach that state: CopyVault rounds buy notional up with Math.Rounding.Ceil (D1,
+    ///      §8), so a real fill is always at least 1. The dust rule is deliberately owned there and
+    ///      not duplicated here — but if that rounding is ever dropped, a zero-cap follow starts
+    ///      accepting zero-notional buys, and this comment is the trail back to why.
     function setPolicy(address user, uint256 agentId, uint256 maxNotionalPerDay, uint256 maxSlippageBps)
         external
         onlyVault
     {
-        // TODO(Day 5): persist Policy{..., active: true}; emit PolicySet.
-        user;
-        agentId;
-        maxNotionalPerDay;
-        maxSlippageBps;
-        revert NotImplemented();
+        _policies[user][agentId] = Policy(maxNotionalPerDay, maxSlippageBps, true);
+        emit PolicySet(user, agentId, maxNotionalPerDay, maxSlippageBps);
     }
 
     /// @inheritdoc IPolicyModule
-    function checkAndConsume(address user, uint256 agentId, address token, uint256 notional)
+    /// @dev The gate CopyVault runs once per follower per fill, inside a try/catch. Rejection is a
+    ///      revert, never a return value: CopyVault catches it and logs MirrorRejected(reason)
+    ///      (§7.1), and the frontend decodes the selector out of those bytes. Every path below
+    ///      therefore ends in one of the four declared errors — never a Panic, which would reach
+    ///      the banner as undecodable bytes.
+    ///
+    ///      Order matters. `active` is checked first so a killed follow is told it is dead rather
+    ///      than blamed on the token, and it rejects sells as well as buys (§7.5). Only buys reach
+    ///      the cap: the cap exists to limit risk added, not to block a follower from getting out.
+    function checkAndConsume(address user, uint256 agentId, address token, uint256 notional, bool isBuy)
         external
         onlyVault
-        returns (bool)
     {
-        // TODO(Day 5): revert PolicyInactive if !active; revert TokenNotAllowed(token) if not
-        // allowlisted; revert CapExceeded(spent + notional, cap) if over the daily cap; else
-        // consume against today's bucket and return true.
-        //
-        // CRITICAL: the cap check must revert, not return false. Patrick's PolicyRejectBanner
-        // decodes the custom error from a reverted tx (PRD Section 5.3) — a silent `false`
-        // gives the demo nothing to show and no explorer link to point at.
-        user;
-        agentId;
-        token;
-        notional;
-        revert NotImplemented();
+        Policy storage p = _policies[user][agentId];
+        if (!p.active) revert PolicyInactive();
+        if (!_tokenAllowlist[token]) revert TokenNotAllowed(token);
+        if (!isBuy) return;
+
+        uint256 cap = p.maxNotionalPerDay;
+        uint256 day = block.timestamp / 1 days; // 00:00 UTC, 08:00 SGT (§7.6)
+        uint256 spent = _spentOnDay[user][agentId][day];
+
+        // Compare against the headroom rather than adding first. `spent + notional` can only
+        // overflow with absurd values, but an overflow here would be Panic(0x11), and the vault
+        // would log bytes the banner cannot read. Saturating keeps the answer a real rejection.
+        if (notional > type(uint256).max - spent) revert CapExceeded(type(uint256).max, cap);
+
+        uint256 attempted = spent + notional; // the running total the banner quotes (§7.6)
+        if (attempted > cap) revert CapExceeded(attempted, cap);
+
+        _spentOnDay[user][agentId][day] = attempted;
     }
 
     /// @inheritdoc IPolicyModule
+    /// @dev The follower's kill switch, reached through CopyVault.unfollow. That function credits
+    ///      their principal back and then calls this without swallowing failures, so a revert here
+    ///      would strand their money — which is why this never reverts for the vault, whatever
+    ///      state the follow is in (D2). It is the one function on the exit path.
+    ///
+    ///      A follow that is already inactive is left exactly as it is, with no second
+    ///      PolicyKilled: the event is the kill switch's on-chain receipt, and a receipt for
+    ///      something that did not happen would be a lie to anyone reading the log.
+    ///
+    ///      The cap, the slippage and today's spend all survive, so the UI can still show what the
+    ///      follow was, and a re-follow on the same day cannot reclaim the spent cap.
     function kill(address user, uint256 agentId) external onlyVault {
-        // TODO(Day 5): set active = false; emit PolicyKilled.
-        user;
-        agentId;
-        revert NotImplemented();
+        Policy storage p = _policies[user][agentId];
+        if (!p.active) return;
+
+        p.active = false;
+        emit PolicyKilled(user, agentId);
     }
 
     /// @inheritdoc IPolicyModule
+    /// @dev The owner's only power. Removing a token stops mirrors of it in both directions from
+    ///      the next call onward; it cannot touch a cap, today's spend, an active flag or anyone's
+    ///      principal, which CopyVault returns in full regardless (§7.3). Every call is logged, so the
+    ///      one thing the admin can do leaves a trail anyone can read in the explorer.
     function setTokenAllowlist(address token, bool allowed) external onlyOwner {
-        // TODO(Day 5): _tokenAllowlist[token] = allowed;
-        token;
-        allowed;
-        revert NotImplemented();
+        _tokenAllowlist[token] = allowed;
+        emit TokenAllowlisted(token, allowed);
     }
 
     /// @inheritdoc IPolicyModule
