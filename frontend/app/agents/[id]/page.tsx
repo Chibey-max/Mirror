@@ -5,6 +5,7 @@ import { AgentTapeTable } from "@/components/AgentTapeTable";
 import { Badge } from "@/components/Badge";
 import { CopyableHash } from "@/components/Copyable";
 import { PageHeader, SectionHeader } from "@/components/PageHeader";
+import { PnlChart } from "@/components/PnlChart";
 import { RetryBanner } from "@/components/RetryBanner";
 import { Reveal } from "@/components/Reveal";
 import { PageAtmosphere } from "@/components/PageAtmosphere";
@@ -20,6 +21,7 @@ import {
   PolicyRejectBanner,
   type PolicyRejectReason,
 } from "@/components/PolicyRejectBanner";
+import { useAgentPnlHistory } from "@/hooks/useAgentPnlHistory";
 import { useFillEvents } from "@/hooks/useFillEvents";
 import { useKillVerification } from "@/hooks/useKillVerification";
 import { useMirrorOutcomes } from "@/hooks/useMirrorOutcomes";
@@ -45,6 +47,7 @@ export default function AgentDetailPage({
   const { id } = use(params);
   const agentId = Number(id);
   const { agent, fills: tapeFills, isLoading, error, refetch } = useAgent(agentId);
+  const { points: pnlHistory } = useAgentPnlHistory(agentId);
   const { fills, totalCount, hasMore, loadMore } = useFillEvents(agent?.id);
   const { decode, simulate } = usePolicyError();
   // Proves the kill from chain state rather than trusting the write (§10).
@@ -197,6 +200,41 @@ export default function AgentDetailPage({
             </div>
           </div>
         </div>
+      )}
+
+      {/*
+        The big PnL figure plus a ranged chart (design prompt §5) — the page
+        had neither before this, only the number buried in a card elsewhere.
+        Same pnlPct/pnlUsd as the leaderboard and the agent cards; the chart
+        is the evidence behind that one number, not a second computation.
+      */}
+      {agent && (
+        <Reveal>
+          <section className="mt-8 panel rounded-3xl p-5 sm:p-6">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+              <div>
+                <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">
+                  Realised PnL
+                </p>
+                <p
+                  className={`tabular mt-1 text-3xl font-semibold ${
+                    agent.pnlPct < 0 ? "text-loss" : "text-profit"
+                  }`}
+                >
+                  {agent.pnlPct > 0 ? "+" : ""}
+                  {agent.pnlPct.toFixed(1)}%
+                  <span className="ml-2 text-base text-muted">
+                    {agent.pnlUsd > 0 ? "+" : ""}
+                    {agent.pnlUsd.toFixed(2)} USDG
+                  </span>
+                </p>
+              </div>
+            </div>
+            <div className="mt-5">
+              <PnlChart points={pnlHistory} />
+            </div>
+          </section>
+        </Reveal>
       )}
 
       {!isLoading && !error && !agent && (

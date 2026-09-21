@@ -22,6 +22,9 @@ export type MirroredTrade = {
   size: number;
   /** The fill's recorded price, USDG per token unit. */
   price: number;
+  /** When the fill happened — optional because the small sparklines never
+   *  needed it; the ranged chart does, to filter by 1D/7D/30D. */
+  timestampSeconds?: number;
 };
 
 export type AgentPnl = {
@@ -99,6 +102,31 @@ export function pnlPctSeries(trades: MirroredTrade[]): number[] {
     series.push(computeAgentPnl(trades.slice(0, i)).get(agentId)?.pnlPct ?? 0);
   }
   return series;
+}
+
+/** One point on the ranged PnL chart: realised PnL% as of this moment. */
+export type TimedPnlPoint = { timestampSeconds: number; pnlPct: number };
+
+/**
+ * The same realised-PnL walk as `pnlPctSeries`, keeping each point's
+ * timestamp instead of discarding it — what the agent-detail chart's range
+ * pills filter against. Trades missing a `timestampSeconds` are skipped
+ * rather than plotted at a guessed position; a point with no real time
+ * would make 1D/7D/30D filtering silently wrong instead of just sparser.
+ */
+export function pnlPctSeriesTimed(trades: MirroredTrade[]): TimedPnlPoint[] {
+  const timed = trades.filter(
+    (t): t is MirroredTrade & { timestampSeconds: number } =>
+      typeof t.timestampSeconds === "number",
+  );
+  if (timed.length === 0) return [];
+  const agentId = timed[0].agentId;
+  const points: TimedPnlPoint[] = [];
+  for (let i = 1; i <= timed.length; i++) {
+    const pnlPct = computeAgentPnl(timed.slice(0, i)).get(agentId)?.pnlPct ?? 0;
+    points.push({ timestampSeconds: timed[i - 1].timestampSeconds, pnlPct });
+  }
+  return points;
 }
 
 /**
