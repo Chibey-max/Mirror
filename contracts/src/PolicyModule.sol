@@ -104,12 +104,23 @@ contract PolicyModule is IPolicyModule, Ownable {
     }
 
     /// @inheritdoc IPolicyModule
+    /// @dev The follower's kill switch, reached through CopyVault.unfollow. That function credits
+    ///      their principal back and then calls this without swallowing failures, so a revert here
+    ///      would strand their money — which is why this never reverts for the vault, whatever
+    ///      state the follow is in (D2). It is the one function on the exit path.
+    ///
+    ///      A follow that is already inactive is left exactly as it is, with no second
+    ///      PolicyKilled: the event is the kill switch's on-chain receipt, and a receipt for
+    ///      something that did not happen would be a lie to anyone reading the log.
+    ///
+    ///      The cap, the slippage and today's spend all survive, so the UI can still show what the
+    ///      follow was, and a re-follow on the same day cannot reclaim the spent cap.
     function kill(address user, uint256 agentId) external onlyVault {
-        // TODO: set active = false and emit PolicyKilled, but only when the follow is active;
-        // never revert for the vault (D2) — this call sits on the follower's exit path.
-        user;
-        agentId;
-        revert NotImplemented();
+        Policy storage p = _policies[user][agentId];
+        if (!p.active) return;
+
+        p.active = false;
+        emit PolicyKilled(user, agentId);
     }
 
     /// @inheritdoc IPolicyModule

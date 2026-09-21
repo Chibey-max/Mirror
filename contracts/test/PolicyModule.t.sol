@@ -389,4 +389,150 @@ contract PolicyModuleTest is Test {
             assertLe(policy.spentToday(alice, AGENT), CAP, "spend passed the cap");
         }
     }
+
+    // --- kill ---------------------------------------------------------------
+
+    function test_Kill_DeactivatesAnActiveFollowAndEmitsExactlyOnce() public {
+        _setPolicy(CAP);
+
+        vm.recordLogs();
+        vm.prank(vault);
+        policy.kill(alice, AGENT);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        assertEq(logs.length, 1, "expected exactly one event");
+        assertEq(logs[0].topics[0], keccak256("PolicyKilled(address,uint256)"), "wrong event");
+        assertEq(logs[0].topics[1], bytes32(uint256(uint160(alice))), "user is not indexed as alice");
+        assertEq(logs[0].topics[2], bytes32(AGENT), "agentId is not indexed as the agent");
+
+        IPolicyModule.Policy memory p = policy.getPolicy(alice, AGENT);
+        assertFalse(p.active, "follow still active after kill");
+        assertEq(p.maxNotionalPerDay, CAP, "kill changed the cap");
+        assertEq(p.maxSlippageBps, SLIPPAGE, "kill changed the slippage");
+    }
+
+    /// @dev D2. CopyVault.unfollow credits the follower's principal and then calls kill without
+    ///      swallowing failures, so a revert here would strand their money. A second kill can only
+    ///      happen if the vault's view of "following" and this contract's active flag ever part
+    ///      company — and if that happens, the exit must still work.
+    function test_Kill_OnAnAlreadyKilledFollowDoesNothing() public {
+        _setPolicy(CAP);
+        vm.prank(vault);
+        policy.kill(alice, AGENT);
+
+        vm.recordLogs();
+        vm.prank(vault);
+        policy.kill(alice, AGENT);
+
+        assertEq(vm.getRecordedLogs().length, 0, "a second kill logged a second receipt");
+        assertFalse(policy.getPolicy(alice, AGENT).active, "the follow came back to life");
+    }
+
+    function test_Kill_OnAFollowThatWasNeverSetDoesNothing() public {
+        vm.recordLogs();
+        vm.prank(vault);
+        policy.kill(alice, AGENT);
+
+        assertEq(vm.getRecordedLogs().length, 0, "killing an unknown follow logged a receipt");
+        assertFalse(policy.getPolicy(alice, AGENT).active, "an unknown follow became active");
+    }
+
+    /// @dev The liveness half of D2: whatever the vault asks, for whoever, kill answers.
+    function testFuzz_Kill_NeverRevertsForTheVault(address user, uint256 agentId, bool follows) public {
+        if (follows) {
+            vm.prank(vault);
+            policy.setPolicy(user, agentId, CAP, SLIPPAGE);
+        }
+
+        vm.prank(vault);
+        policy.kill(user, agentId);
+        assertFalse(policy.getPolicy(user, agentId).active, "the follow survived its kill");
+
+        vm.prank(vault);
+        policy.kill(user, agentId); // and again, still no revert
+    }
+
+    function testFuzz_Kill_OnlyTheVaultCanCall(address caller) public {
+        vm.assume(caller != vault);
+        _setPolicy(CAP);
+
+        vm.prank(caller);
+        vm.expectRevert(IPolicyModule.OnlyVault.selector);
+        policy.kill(alice, AGENT);
+
+        assertTrue(policy.getPolicy(alice, AGENT).active, "a rejected kill still deactivated the follow");
+    }
+
+    /// @dev What KillButton's badge claims, proved on-chain: after the kill this agent can move
+    ///      nothing of the follower's, in either direction.
+    function test_Kill_StopsBuysAndSells() public {
+        _allow(mNVDA);
+        _setPolicy(CAP);
+        _buy(10e6);
+
+        vm.prank(vault);
+        policy.kill(alice, AGENT);
+
+        vm.prank(vault);
+        vm.expectRevert(IPolicyModule.PolicyInactive.selector);
+        policy.checkAndConsume(alice, AGENT, mNVDA, 1, true);
+
+        vm.prank(vault);
+        vm.expectRevert(IPolicyModule.PolicyInactive.selector);
+        policy.checkAndConsume(alice, AGENT, mNVDA, 1, false);
+
+        assertEq(policy.spentToday(alice, AGENT), 10e6, "kill rewrote the day's spend");
+    }
+
+    // --- what the owner cannot do (D3) -------------------------------------
+
+    /// @dev The "no admin backdoors" criterion, as a test. The owner holds the allowlist and
+    ///      nothing else: every policy write is the vault's, owner included.
+    function test_Owner_CannotSetConsumeOrKill() public {
+        _allow(mNVDA);
+        _setPolicy(CAP);
+
+        vm.prank(admin);
+        vm.expectRevert(IPolicyModule.OnlyVault.selector);
+        policy.setPolicy(alice, AGENT, 1_000_000e6, SLIPPAGE);
+
+        vm.prank(admin);
+        vm.expectRevert(IPolicyModule.OnlyVault.selector);
+        policy.checkAndConsume(alice, AGENT, mNVDA, 1, true);
+
+        vm.prank(admin);
+        vm.expectRevert(IPolicyModule.OnlyVault.selector);
+        policy.kill(alice, AGENT);
+    }
+
+    function test_Owner_CannotMoveACapOrTodaysSpend() public {
+        _allow(mNVDA);
+        _setPolicy(CAP);
+        _buy(10e6);
+
+        vm.startPrank(admin);
+        policy.setTokenAllowlist(mNVDA, false);
+        policy.setTokenAllowlist(mNVDA, true);
+        policy.transferOwnership(address(0xDAD));
+        vm.stopPrank();
+
+        IPolicyModule.Policy memory p = policy.getPolicy(alice, AGENT);
+        assertEq(p.maxNotionalPerDay, CAP, "an owner action moved the cap");
+        assertTrue(p.active, "an owner action changed the active flag");
+        assertEq(policy.spentToday(alice, AGENT), 10e6, "an owner action moved the day's spend");
+    }
+
+    function test_RenouncedOwner_KeepsTheAllowlistButCanNoLongerChangeIt() public {
+        _allow(mNVDA);
+
+        vm.prank(admin);
+        policy.renounceOwnership();
+
+        assertTrue(policy.isTokenAllowed(mNVDA), "renouncing emptied the allowlist");
+        assertEq(policy.owner(), address(0), "ownership was not renounced");
+
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, admin));
+        policy.setTokenAllowlist(mNVDA, false);
+    }
 }
