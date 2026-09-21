@@ -114,7 +114,7 @@ export function LoopSteps({ steps }: { steps: LoopStep[] }) {
                 aria-label={`Step ${index + 1}: ${step.title}`}
                 className={`tabular relative z-10 flex h-9 w-9 flex-none items-center justify-center rounded-full border font-mono text-xs outline-none transition-all duration-500 ease-out focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent/60 focus-visible:outline-offset-4 sm:h-10 sm:w-10 sm:text-sm ${
                   isActive
-                    ? "scale-[1.15] border-accent bg-accent/15 text-accent shadow-[0_0_18px_-2px_var(--color-accent)]"
+                    ? "scale-[1.15] border-accent bg-accent/15 text-accent"
                     : lit
                       ? "border-chrome-dim bg-surface text-chrome"
                       : "border-border bg-surface text-muted"
