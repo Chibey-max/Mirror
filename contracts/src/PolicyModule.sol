@@ -26,7 +26,6 @@ import {IPolicyModule} from "./interfaces/IPolicyModule.sol";
 ///
 /// @dev STUB: the surface below is v2.2's, the bodies land in the commits that follow.
 contract PolicyModule is IPolicyModule, Ownable {
-    error NotImplemented();
     error ZeroVault();
 
     /// @dev The CopyVault permitted to set, consume, and kill policies.
