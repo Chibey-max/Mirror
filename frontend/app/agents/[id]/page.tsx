@@ -3,6 +3,7 @@
 import { use, useState } from "react";
 import { AgentTapeTable } from "@/components/AgentTapeTable";
 import { Badge } from "@/components/Badge";
+import { CopyableHash } from "@/components/Copyable";
 import { PageHeader, SectionHeader } from "@/components/PageHeader";
 import { RetryBanner } from "@/components/RetryBanner";
 import { Reveal } from "@/components/Reveal";
@@ -44,7 +45,7 @@ export default function AgentDetailPage({
   const { id } = use(params);
   const agentId = Number(id);
   const { agent, fills: tapeFills, isLoading, error, refetch } = useAgent(agentId);
-  const { fills } = useFillEvents(agent?.id);
+  const { fills, totalCount, hasMore, loadMore } = useFillEvents(agent?.id);
   const { decode, simulate } = usePolicyError();
   // Proves the kill from chain state rather than trusting the write (§10).
   const { verify: verifyKill } = useKillVerification(agentId);
@@ -177,8 +178,11 @@ export default function AgentDetailPage({
                 </div>
                 <div className="flex min-w-0 gap-2">
                   <dt className="uppercase tracking-[0.08em]">Strategy hash</dt>
-                  <dd className="truncate text-text">
-                    {agent.strategyHash.slice(0, 10)}…{agent.strategyHash.slice(-6)}
+                  <dd className="min-w-0 text-text">
+                    <CopyableHash
+                      value={agent.strategyHash}
+                      label="Copy the full strategy hash"
+                    />
                   </dd>
                 </div>
                 <div className="flex gap-2">
@@ -219,7 +223,13 @@ export default function AgentDetailPage({
                   label="Live activity"
                   description="Fills as the runner mirrors them into your vault."
                 />
-                <FillFeed fills={fills} outcomes={mirrorOutcomes} />
+                <FillFeed
+                  fills={fills}
+                  outcomes={mirrorOutcomes}
+                  totalCount={totalCount}
+                  hasMore={hasMore}
+                  onLoadMore={loadMore}
+                />
 
                 {/*
                   Demo controls, boxed and labelled so nobody watching the

@@ -126,6 +126,16 @@ export const trackRecordAbi = [
     outputs: [{ name: "", type: "uint256" }],
   },
   {
+    // The real total for one agent — what "Showing 50 of {N}" needs.
+    // fillCount() is global; useAgents' own fill counts are capped at
+    // whatever sample it read, not this.
+    type: "function",
+    name: "fillCountByAgent",
+    stateMutability: "view",
+    inputs: [{ name: "agentId", type: "uint256" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
     type: "event",
     name: "FillRecorded",
     inputs: [

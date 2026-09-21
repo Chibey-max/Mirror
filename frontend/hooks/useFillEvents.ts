@@ -84,9 +84,9 @@ export function fillFromOnChain(
   };
 }
 
-/** How far back the feed reaches on load. The tape's own page does the
- *  deep history; this is the "live activity" panel. */
-const BACKFILL_LIMIT = 50;
+/** How far back the feed reaches on load, and how much each "Load
+ *  earlier fills" click adds. */
+const PAGE_SIZE = 50;
 
 /**
  * Fills for one agent (or all, if agentId is omitted), newest first.
@@ -109,6 +109,14 @@ export function useFillEvents(agentId?: number): {
   fills: FixtureFill[];
   isLoading: boolean;
   refetch: () => void;
+  /** How many fills this agent actually has, per TrackRecord itself — not
+   *  how many have been fetched. Undefined against fixtures, where the
+   *  tape is exactly what it is with nothing left to page in. */
+  totalCount?: number;
+  /** True once every fill has been fetched — hides "Load earlier fills"
+   *  rather than offering a button that would fetch nothing new. */
+  hasMore: boolean;
+  loadMore: () => void;
 } {
   const { chainId } = useAccount();
   const trackRecord = chainId ? addressesFor(chainId)?.trackRecord : undefined;
@@ -117,6 +125,7 @@ export function useFillEvents(agentId?: number): {
   /** A watched fill knows the transaction it arrived in; a backfilled one
    *  does not — getFillsByAgent returns fills, not receipts. */
   const [watched, setWatched] = useState<IndexedFill[]>([]);
+  const [limit, setLimit] = useState(PAGE_SIZE);
 
   const backfill = useReadContract({
     address: trackRecord,
@@ -124,9 +133,19 @@ export function useFillEvents(agentId?: number): {
     functionName: "getFillsByAgent",
     args: agentId === undefined
       ? undefined
-      : [BigInt(agentId), BigInt(0), BigInt(BACKFILL_LIMIT)],
+      : [BigInt(agentId), BigInt(0), BigInt(limit)],
     query: { enabled: live },
   });
+
+  const countRead = useReadContract({
+    address: trackRecord,
+    abi: trackRecordAbi,
+    functionName: "fillCountByAgent",
+    args: agentId === undefined ? undefined : [BigInt(agentId)],
+    query: { enabled: live },
+  });
+  const totalCount =
+    live && typeof countRead.data === "bigint" ? Number(countRead.data) : undefined;
 
   useWatchContractEvent({
     address: trackRecord,
@@ -155,19 +174,37 @@ export function useFillEvents(agentId?: number): {
   const metadata = useTokenMetadata(tokens, live);
 
   const refetch = () => void backfill.refetch();
+  const loadMore = () => setLimit((current) => current + PAGE_SIZE);
 
   if (!live) {
     const fills = agentId
       ? fixtureFills.filter((f) => f.agentId === agentId)
       : fixtureFills;
-    return { fills, isLoading: false, refetch };
+    return { fills, isLoading: false, refetch, hasMore: false, loadMore };
   }
 
   const fills = [...unique.values()]
     .sort((a, b) => Number(b.timestamp - a.timestamp))
     .map((fill) => toDisplayFill(fill, metadata.get(fill.token)));
 
-  return { fills, isLoading: backfill.isLoading, refetch };
+  // The backfill read itself, not the de-duplicated+watched total, is what
+  // "have we fetched everything" has to compare against `limit` — a fill
+  // that arrived live via the watcher was never subject to the offset/limit
+  // window and shouldn't make the button disappear early.
+  const backfillCount = backfill.data?.length ?? 0;
+  const hasMore =
+    totalCount === undefined
+      ? backfillCount >= limit
+      : backfillCount < totalCount;
+
+  return {
+    fills,
+    isLoading: backfill.isLoading,
+    refetch,
+    totalCount,
+    hasMore,
+    loadMore,
+  };
 }
 
 type IndexedFill = OnChainFill & { txHash?: `0x${string}` };
