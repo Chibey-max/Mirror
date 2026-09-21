@@ -139,7 +139,7 @@ function OutcomeTag({ outcome }: { outcome?: MirrorOutcome }) {
  * sentence for the one rejection that just happened; a feed row is a log
  * line and needs the cause, not the explanation.
  */
-function reasonClause(reason: PolicyRejectReason): string {
+export function reasonClause(reason: PolicyRejectReason): string {
   switch (reason.type) {
     case "CapExceeded":
       return `would take today's total to $${reason.attempted}, over your $${reason.cap} cap`;

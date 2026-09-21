@@ -13,9 +13,11 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { useTrackedWrite } from "@/components/TransactionToasts";
 import { useRequireConnection } from "@/hooks/useRequireConnection";
 import { WithdrawModal } from "@/components/WithdrawModal";
+import { YourMirrors } from "@/components/YourMirrors";
 import { useAgents } from "@/hooks/useAgents";
 import { useDeposit } from "@/hooks/useDeposit";
 import { useFollow } from "@/hooks/useFollow";
+import { useMyMirrors } from "@/hooks/useMyMirrors";
 import { useSpentToday } from "@/hooks/useSpentToday";
 import { useWithdraw } from "@/hooks/useWithdraw";
 import { spentTodayTier } from "@/lib/format";
@@ -51,6 +53,9 @@ export default function VaultPage() {
     (sum, id) => sum + (allocatedByAgent[id] ?? 0),
     0,
   );
+
+  const agentNames = Object.fromEntries(agents.map((a) => [a.id, a.name]));
+  const { rows: mirrorRows } = useMyMirrors(followedIds, agentNames);
 
   const [depositOpen, setDepositOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
@@ -164,6 +169,22 @@ export default function VaultPage() {
               })}
             </ul>
           )}
+        </section>
+
+        {/*
+          The personal view of the public log (briefing §09.C): every fill
+          from every followed agent, with whatever happened to THIS vault —
+          mirrored, blocked with cause, or neither. Below the per-follow
+          rows, not a fifth marketing page.
+        */}
+        <section className="mt-10">
+          <SectionHeader
+            label="Your mirrors"
+            description="Every fill from every agent you follow, and what it did to your vault."
+          />
+          <Reveal>
+            <YourMirrors rows={mirrorRows} />
+          </Reveal>
         </section>
       </main>
 
