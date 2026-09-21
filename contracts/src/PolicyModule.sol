@@ -125,9 +125,11 @@ contract PolicyModule is IPolicyModule, Ownable {
     /// @inheritdoc IPolicyModule
     /// @dev The owner's only power. Removing a token stops mirrors of it in both directions from
     ///      the next call onward; it cannot touch a cap, today's spend, an active flag or anyone's
-    ///      principal, which CopyVault returns in full regardless (§7.3).
+    ///      principal, which CopyVault returns in full regardless (§7.3). Every call is logged, so the
+    ///      one thing the admin can do leaves a trail anyone can read in the explorer.
     function setTokenAllowlist(address token, bool allowed) external onlyOwner {
         _tokenAllowlist[token] = allowed;
+        emit TokenAllowlisted(token, allowed);
     }
 
     /// @inheritdoc IPolicyModule

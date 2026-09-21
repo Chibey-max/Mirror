@@ -139,10 +139,11 @@ contract PolicyModuleSurfaceTest is Test {
     ///      what stops an additive ABI change — an allowlist event, say — landing without sign-off.
     function test_EventsAndErrorsAreExactlyTheFrozenSet() public view {
         string[] memory events = _abiNamesOfType("event");
-        string[] memory frozenEvents = new string[](3);
+        string[] memory frozenEvents = new string[](4);
         frozenEvents[0] = "PolicySet";
         frozenEvents[1] = "PolicyKilled";
-        frozenEvents[2] = "OwnershipTransferred";
+        frozenEvents[2] = "TokenAllowlisted";
+        frozenEvents[3] = "OwnershipTransferred";
         _assertSameSet(events, frozenEvents, "event");
 
         string[] memory errors = _abiNamesOfType("error");

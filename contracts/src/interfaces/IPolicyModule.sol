@@ -17,6 +17,10 @@ interface IPolicyModule {
 
     event PolicySet(address indexed user, uint256 indexed agentId, uint256 maxNotionalPerDay, uint256 maxSlippageBps);
     event PolicyKilled(address indexed user, uint256 indexed agentId);
+    /// @notice The owner's one power, on the record: which token, allowed or not. Emitted on every
+    ///         `setTokenAllowlist` call, including one that changes nothing, because the log is a
+    ///         trail of what the admin did rather than of what changed.
+    event TokenAllowlisted(address indexed token, bool allowed);
 
     /// @notice `attempted` is the running total — today's spend plus this trade — not the trade on its own,
     ///         and the cap is only exceeded when `attempted > cap`, so landing exactly on it is allowed (v2.2 §7.6).

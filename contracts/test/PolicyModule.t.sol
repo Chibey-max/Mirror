@@ -167,6 +167,38 @@ contract PolicyModuleTest is Test {
         assertFalse(policy.isTokenAllowed(mNVDA), "owner could not remove a token");
     }
 
+    /// @dev The owner's only power leaves a trail. Judges are told the admin can do nothing but this;
+    ///      without a log, "the admin quietly de-listed a token mid-demo" leaves no on-chain trace.
+    function test_SetTokenAllowlist_EmitsExactlyOneTokenAllowlistedWithExactArguments() public {
+        vm.recordLogs();
+        _allow(mNVDA);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        assertEq(logs.length, 1, "expected exactly one event");
+        assertEq(logs[0].topics[0], keccak256("TokenAllowlisted(address,bool)"), "wrong event");
+        assertEq(logs[0].topics[1], bytes32(uint256(uint160(mNVDA))), "token is not indexed as mNVDA");
+        assertTrue(abi.decode(logs[0].data, (bool)), "event says the token was not allowed");
+
+        vm.recordLogs();
+        vm.prank(admin);
+        policy.setTokenAllowlist(mNVDA, false);
+        logs = vm.getRecordedLogs();
+
+        assertEq(logs.length, 1, "removing a token logged nothing");
+        assertFalse(abi.decode(logs[0].data, (bool)), "event says the token is still allowed");
+    }
+
+    /// @dev Unlike kill, this logs even when the value does not change. The event records that the
+    ///      owner acted, which is the point of having it: an audit trail of the one admin power.
+    function test_SetTokenAllowlist_LogsEvenWhenNothingChanges() public {
+        _allow(mNVDA);
+
+        vm.recordLogs();
+        _allow(mNVDA);
+        assertEq(vm.getRecordedLogs().length, 1, "a repeated allowlist call logged nothing");
+        assertTrue(policy.isTokenAllowed(mNVDA), "the token stopped being allowed");
+    }
+
     /// @dev D3: the allowlist is the owner's ONLY power. The vault is not the owner either.
     function testFuzz_SetTokenAllowlist_OnlyTheOwnerCanCall(address caller) public {
         vm.assume(caller != admin);
