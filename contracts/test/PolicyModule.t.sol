@@ -283,6 +283,27 @@ contract PolicyModuleTest is Test {
         assertEq(policy.spentToday(alice, AGENT), CAP, "an exact-cap buy did not consume exactly the cap");
     }
 
+    /// @dev The one buy a zero cap does NOT reject: a zero notional, because the test is
+    ///      `spent + notional > cap` and `0 > 0` is false. This is not a hole — CopyVault rounds
+    ///      buy notional up with Math.Rounding.Ceil (D1, §8), so no real fill is ever zero — but
+    ///      the safety lives in that rounding, not here. Pinned so the dependency is a decision
+    ///      someone has to revisit deliberately rather than a comment that quietly goes stale.
+    ///      Raised by Jason in the PR #15 review.
+    function test_CheckAndConsume_AZeroNotionalBuyPassesAZeroCap() public {
+        _allow(mNVDA);
+        _setPolicy(0);
+
+        vm.prank(vault);
+        policy.checkAndConsume(alice, AGENT, mNVDA, 0, true);
+
+        assertEq(policy.spentToday(alice, AGENT), 0, "a zero-notional buy moved the day's spend");
+
+        // Every non-zero buy, which is all CopyVault can actually send, is still refused.
+        vm.prank(vault);
+        vm.expectRevert(abi.encodeWithSelector(IPolicyModule.CapExceeded.selector, 1, 0));
+        policy.checkAndConsume(alice, AGENT, mNVDA, 1, true);
+    }
+
     /// @dev §7.6: the check is strict, so one raw unit over is the first rejection (§13 test 5).
     function test_CheckAndConsume_OneUnitOverTheCapIsRejected() public {
         _allow(mNVDA);

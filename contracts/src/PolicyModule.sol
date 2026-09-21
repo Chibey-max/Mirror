@@ -23,8 +23,6 @@ import {IPolicyModule} from "./interfaces/IPolicyModule.sol";
 ///        strand principal: CopyVault returns principal only (v2.2 §7.3).
 ///      - The follower's kill switch reaches `kill` through `CopyVault.unfollow`, which is the
 ///        exit path for their principal, so `kill` never reverts for the vault.
-///
-/// @dev STUB: the surface below is v2.2's, the bodies land in the commits that follow.
 contract PolicyModule is IPolicyModule, Ownable {
     error ZeroVault();
 
@@ -59,7 +57,15 @@ contract PolicyModule is IPolicyModule, Ownable {
     ///      a fresh cap, and lowering the cap cannot forgive what has already been spent.
     ///
     ///      No validation: the vault is the only caller, and the numbers are the follower's own.
-    ///      A zero cap simply rejects every buy, and maxSlippageBps is not enforced at all (§9).
+    ///      A zero cap rejects every buy CopyVault can actually send, and maxSlippageBps is not
+    ///      enforced at all (§9).
+    ///
+    ///      "Can actually send" is exact rather than loose. A zero-notional buy would pass a zero
+    ///      cap here, because the test is `spent + notional > cap` and `0 > 0` is false. Nothing
+    ///      can reach that state: CopyVault rounds buy notional up with Math.Rounding.Ceil (D1,
+    ///      §8), so a real fill is always at least 1. The dust rule is deliberately owned there and
+    ///      not duplicated here — but if that rounding is ever dropped, a zero-cap follow starts
+    ///      accepting zero-notional buys, and this comment is the trail back to why.
     function setPolicy(address user, uint256 agentId, uint256 maxNotionalPerDay, uint256 maxSlippageBps)
         external
         onlyVault
