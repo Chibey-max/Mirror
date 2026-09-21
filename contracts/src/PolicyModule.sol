@@ -52,17 +52,21 @@ contract PolicyModule is IPolicyModule, Ownable {
     }
 
     /// @inheritdoc IPolicyModule
+    /// @dev Called by CopyVault.follow. A plain overwrite: CopyVault rejects a second follow with
+    ///      AlreadyFollowing, so the only way here twice is a re-follow after unfollow.
+    ///
+    ///      Today's spend is deliberately NOT cleared (D4). It is keyed by (user, agent, day), not
+    ///      by follow, so unfollowing and following again on the same UTC day cannot hand the agent
+    ///      a fresh cap, and lowering the cap cannot forgive what has already been spent.
+    ///
+    ///      No validation: the vault is the only caller, and the numbers are the follower's own.
+    ///      A zero cap simply rejects every buy, and maxSlippageBps is not enforced at all (§9).
     function setPolicy(address user, uint256 agentId, uint256 maxNotionalPerDay, uint256 maxSlippageBps)
         external
         onlyVault
     {
-        // TODO: persist Policy{..., active: true}; emit PolicySet. Today's spend is keyed by day,
-        // not by follow, so it is deliberately untouched here (D4).
-        user;
-        agentId;
-        maxNotionalPerDay;
-        maxSlippageBps;
-        revert NotImplemented();
+        _policies[user][agentId] = Policy(maxNotionalPerDay, maxSlippageBps, true);
+        emit PolicySet(user, agentId, maxNotionalPerDay, maxSlippageBps);
     }
 
     /// @inheritdoc IPolicyModule
