@@ -174,8 +174,13 @@ contract PolicyModuleHandler is Test {
         return "";
     }
 
-    /// @dev CopyVault.unfollow. A revert here would strand a follower's principal, so an
-    ///      unhandled revert failing the whole run is exactly the alarm we want (D2).
+    /// @dev CopyVault.unfollow. A revert here would strand a follower's principal, so this call is
+    ///      deliberately NOT wrapped in try/catch: an unhandled revert must fail the whole run (D2).
+    ///
+    ///      That alarm only exists because every invariant below sets `fail_on_revert = true`.
+    ///      Without it Foundry discards a reverting handler call and moves on, and this suite
+    ///      passed all seven invariants against a `kill` that reverted 2,368 times — found by
+    ///      Jason in PR #15. Do not drop that config line, and do not add a catch here.
     function kill(uint256 userSeed, uint256 agentSeed) external {
         (address user, uint256 agentId) = _pick(userSeed, agentSeed);
 
@@ -324,6 +329,7 @@ contract PolicyModuleInvariantTest is Test {
     ///      exact error — including which error, since the frontend renders a sentence per error.
     /// forge-config: default.invariant.runs = 128
     /// forge-config: default.invariant.depth = 128
+    /// forge-config: default.invariant.fail_on_revert = true
     function invariant_EveryDecisionMatchesThePolicy() public view {
         assertEq(handler.unexpectedOutcomes(), 0, "a call was allowed or refused against the policy");
     }
@@ -332,6 +338,7 @@ contract PolicyModuleInvariantTest is Test {
     ///      calls never add, and yesterday never carries over.
     /// forge-config: default.invariant.runs = 128
     /// forge-config: default.invariant.depth = 128
+    /// forge-config: default.invariant.fail_on_revert = true
     function invariant_SpentTodayIsExactlyTheAcceptedBuys() public view {
         uint256 day = block.timestamp / 1 days;
         for (uint256 i = 0; i < handler.userCount(); i++) {
@@ -347,6 +354,7 @@ contract PolicyModuleInvariantTest is Test {
 
     /// forge-config: default.invariant.runs = 128
     /// forge-config: default.invariant.depth = 128
+    /// forge-config: default.invariant.fail_on_revert = true
     function invariant_ACapAndItsActiveFlagOnlyMoveWhenTheVaultSaysSo() public view {
         for (uint256 i = 0; i < handler.userCount(); i++) {
             for (uint256 j = 0; j < handler.agentCount(); j++) {
@@ -361,12 +369,14 @@ contract PolicyModuleInvariantTest is Test {
 
     /// forge-config: default.invariant.runs = 128
     /// forge-config: default.invariant.depth = 128
+    /// forge-config: default.invariant.fail_on_revert = true
     function invariant_ARejectedCallMovesNothing() public view {
         assertEq(handler.rejectionsThatMovedSpend(), 0, "a rejected call still moved the day's spend");
     }
 
     /// forge-config: default.invariant.runs = 128
     /// forge-config: default.invariant.depth = 128
+    /// forge-config: default.invariant.fail_on_revert = true
     function invariant_NoOneButTheVaultEverWrites() public view {
         assertEq(handler.unauthorisedWritesThatLanded(), 0, "a non-vault caller wrote to a policy");
     }
@@ -374,6 +384,7 @@ contract PolicyModuleInvariantTest is Test {
     /// @dev The "no admin backdoors" claim, over random sequences rather than one scripted case.
     /// forge-config: default.invariant.runs = 128
     /// forge-config: default.invariant.depth = 128
+    /// forge-config: default.invariant.fail_on_revert = true
     function invariant_TheOwnerNeverMovesAPolicy() public view {
         assertEq(handler.ownerActionsThatMovedState(), 0, "an owner action moved a policy or a spend");
     }
@@ -382,6 +393,7 @@ contract PolicyModuleInvariantTest is Test {
     ///      has already used, which is the cap silently getting bigger.
     /// forge-config: default.invariant.runs = 128
     /// forge-config: default.invariant.depth = 128
+    /// forge-config: default.invariant.fail_on_revert = true
     function invariant_SpendNeverFallsWithinADay() public view {
         assertEq(handler.spendDecreases(), 0, "the day's spend went down");
     }
