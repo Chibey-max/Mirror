@@ -65,20 +65,31 @@ function easeOutCubic(t: number): number {
 
 /**
  * The ring's own field, flowing out past the fold as you scroll — and
- * flowing back in as you scroll back up, since it's driven directly by
- * scroll position rather than triggered once. Built separately from
+ * flowing back in as you scroll back up. Built separately from
  * SingularityHorizon rather than by extending its canvas: that component's
  * camera math is tuned to one exact on-screen invariant (§ its own
  * comments), and growing it to page height would mean re-deriving that math
  * for a shot nobody asked for. This is a much cheaper, second layer, fixed
  * behind everything.
  *
- * Position and scale are pushed straight to each star's DOM node from a
- * single rAF-throttled scroll listener, not through React state — 140
- * elements updating on every scroll tick is exactly the case React's own
- * render cycle is too slow for; the twinkle itself stays a plain CSS
- * animation, untouched by any of this, so the two never fight over the
- * same property.
+ * The first version of this only chased scroll position — a `scroll` event
+ * listener that jumped every star straight to wherever the raw scrollY math
+ * said it should be. That tracks correctly, but it isn't motion: a native
+ * scroll event fires however often the browser and input device feel like
+ * (choppy on a fast trackpad flick, dense on a slow one), and with nothing
+ * smoothing between updates, each jump just snaps — which reads as "it
+ * appeared," not "it flowed."
+ *
+ * This version runs a persistent requestAnimationFrame loop instead of
+ * reacting to scroll events at all. Every frame it computes a target
+ * progress from the current scrollY, and eases a separate, visible
+ * progress value toward that target by a fixed fraction of the remaining
+ * distance — the standard "critically damped follow" used for exactly this
+ * kind of trailing motion. The visible value is what actually drives every
+ * star's position, so it moves at a smooth, bounded rate every single frame
+ * regardless of how scroll events happen to be batched, and it keeps
+ * easing for a few frames after the scroll gesture itself has stopped,
+ * which is the difference between "tracking scroll" and "flowing."
  */
 export function Starfield() {
   const reduced = useReducedMotion();
@@ -86,6 +97,7 @@ export function Starfield() {
   const starRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const glowRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
+  const visibleProgressRef = useRef(0);
 
   useEffect(() => {
     // Deferred into a callback, not called synchronously in the effect body
@@ -96,15 +108,28 @@ export function Starfield() {
   }, []);
 
   useEffect(() => {
-    if (!stars || reduced) return;
+    if (!stars) return;
+
+    if (reduced) {
+      // No loop at all — every star already sits at rest in its final
+      // spot (set in the JSX below), so there's nothing to animate toward.
+      return;
+    }
 
     // How much scrolling it takes to fully emerge — a little more than one
     // viewport, so the flow is still happening as the hero itself scrolls
     // out of view rather than finishing instantly.
     const range = Math.max(1, window.innerHeight * 1.15);
 
-    function apply() {
-      const progress = Math.min(1, Math.max(0, window.scrollY / range));
+    function frame() {
+      const target = Math.min(1, Math.max(0, window.scrollY / range));
+      // Ease the visible value toward the target rather than snapping to
+      // it — a fixed 12% of the remaining gap per frame, which at 60fps
+      // settles in a few hundred milliseconds but never teleports.
+      const current = visibleProgressRef.current;
+      const next = current + (target - current) * 0.12;
+      visibleProgressRef.current = Math.abs(next - target) < 0.0005 ? target : next;
+      const progress = visibleProgressRef.current;
 
       stars!.forEach((star, i) => {
         const el = starRefs.current[i];
@@ -130,22 +155,12 @@ export function Starfield() {
         glowRef.current.style.transform = `scale(${1 + progress * 1.6})`;
         glowRef.current.style.opacity = `${0.06 + progress * 0.05}`;
       }
+
+      rafRef.current = requestAnimationFrame(frame);
     }
 
-    function onScroll() {
-      if (rafRef.current != null) return;
-      rafRef.current = requestAnimationFrame(() => {
-        apply();
-        rafRef.current = null;
-      });
-    }
-
-    apply();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll, { passive: true });
+    rafRef.current = requestAnimationFrame(frame);
     return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     };
   }, [stars, reduced]);
@@ -179,8 +194,8 @@ export function Starfield() {
             {
               // Reduced motion: sit at rest in the final scattered position,
               // full-grown, from the very first frame — nothing to scroll
-              // for. Otherwise start at the ring; the scroll effect above
-              // takes over from there.
+              // for. Otherwise start at the ring; the rAF loop above takes
+              // over from there, every frame, not just on scroll events.
               left: `${reduced ? star.x : star.originX}%`,
               top: `${reduced ? star.y : star.originY}%`,
               transform: reduced ? undefined : "scale(0.15)",
