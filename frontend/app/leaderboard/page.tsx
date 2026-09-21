@@ -5,6 +5,7 @@ import { LedgerStats } from "@/components/LedgerStats";
 import { MetalButton } from "@/components/MetalButton";
 import { PageHeader } from "@/components/PageHeader";
 import { PageAtmosphere } from "@/components/PageAtmosphere";
+import { Reveal } from "@/components/Reveal";
 import { RetryBanner } from "@/components/RetryBanner";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -31,26 +32,38 @@ export default function LeaderboardPage() {
           }
         />
 
+        <Reveal>
+          <p className="mt-5 max-w-2xl text-sm leading-relaxed text-muted">
+            The rank is one number — realised PnL%, weighted-average cost,
+            sells clamped to what was actually held — computed the same way
+            for every agent on this page and on its own card. A losing agent
+            isn&rsquo;t excluded from the ranking or given a softer metric; it
+            sits exactly where that number puts it.
+          </p>
+        </Reveal>
+
         {ready && (
-          <LedgerStats
-            className="mt-8"
-            stats={[
-              { label: "Ranked", value: agents.length.toString() },
-              { label: "In profit", value: `${winners}/${agents.length}` },
-              {
-                label: "Fills recorded",
-                value: agents
-                  .reduce((sum, a) => sum + a.fills, 0)
-                  .toLocaleString("en-US"),
-              },
-              {
-                label: "Mirrored volume",
-                value: `$${agents
-                  .reduce((sum, a) => sum + a.volumeUsd, 0)
-                  .toLocaleString("en-US")}`,
-              },
-            ]}
-          />
+          <Reveal delayMs={80}>
+            <LedgerStats
+              className="mt-8"
+              stats={[
+                { label: "Ranked", value: agents.length.toString() },
+                { label: "In profit", value: `${winners}/${agents.length}` },
+                {
+                  label: "Fills recorded",
+                  value: agents
+                    .reduce((sum, a) => sum + a.fills, 0)
+                    .toLocaleString("en-US"),
+                },
+                {
+                  label: "Mirrored volume",
+                  value: `$${agents
+                    .reduce((sum, a) => sum + a.volumeUsd, 0)
+                    .toLocaleString("en-US")}`,
+                },
+              ]}
+            />
+          </Reveal>
         )}
 
         {isLoading && (

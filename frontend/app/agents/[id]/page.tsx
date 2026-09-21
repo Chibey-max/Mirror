@@ -5,6 +5,7 @@ import { AgentTapeTable } from "@/components/AgentTapeTable";
 import { Badge } from "@/components/Badge";
 import { PageHeader, SectionHeader } from "@/components/PageHeader";
 import { RetryBanner } from "@/components/RetryBanner";
+import { Reveal } from "@/components/Reveal";
 import { PageAtmosphere } from "@/components/PageAtmosphere";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -30,6 +31,7 @@ import { useWithdraw } from "@/hooks/useWithdraw";
 import { MetalButton } from "@/components/MetalButton";
 import { useTrackedWrite } from "@/components/TransactionToasts";
 import { useRequireConnection } from "@/hooks/useRequireConnection";
+import { spentTodayTier } from "@/lib/format";
 
 // Day 3–4 (David, PRD §5.2): tape table, deposit, follow. This file also
 // carries the consequences-flow pieces (Patrick, PRD §5.3) below the
@@ -203,7 +205,7 @@ export default function AgentDetailPage({
       {agent && (
         <>
           <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_20rem]">
-            <div className="min-w-0">
+            <Reveal className="min-w-0">
               <section>
                 <SectionHeader
                   label="Verified tape"
@@ -263,7 +265,7 @@ export default function AgentDetailPage({
                   </div>
                 )}
               </section>
-            </div>
+            </Reveal>
 
             {/*
               Balances and the actions that change them travel together, and
@@ -310,8 +312,14 @@ export default function AgentDetailPage({
                       <div className="flex items-baseline justify-between gap-3">
                         <p className="text-sm text-muted">Spent today</p>
                         <p className="tabular text-sm font-semibold">
-                          ${spent.toFixed(2)}
-                          <span className="text-muted"> / ${allocated.toFixed(2)}</span>
+                          {pct >= 100 ? (
+                            <span className="text-loss">Cap reached</span>
+                          ) : (
+                            <>
+                              ${spent.toFixed(2)}
+                              <span className="text-muted"> / ${allocated.toFixed(2)}</span>
+                            </>
+                          )}
                         </p>
                       </div>
                       <div
@@ -323,12 +331,16 @@ export default function AgentDetailPage({
                         className="mt-2 h-1.5 overflow-hidden rounded-full bg-border"
                       >
                         <div
-                          className={`h-full rounded-full transition-[width] ${
-                            pct >= 100 ? "bg-loss" : "bg-accent"
-                          }`}
+                          className={`h-full rounded-full transition-[width] ${spentTodayTier(pct)}`}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
+                      {pct >= 100 && (
+                        <p className="mt-1.5 text-xs text-muted">
+                          Buys will reject until the cap resets; sells still
+                          pass.
+                        </p>
+                      )}
                     </div>
                   );
                 })()}

@@ -130,6 +130,20 @@ body {
   }
 }
 
+/* A row (a fill, a leaderboard rank) arriving — the same fade-and-lift
+   Reveal uses for whole sections, in keyframe form for elements Reveal's
+   div wrapper can't legally wrap (a <tr> stays a table's direct child). */
+@keyframes rowIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /*
  * There is deliberately no ambient background layer. An earlier version had a
  * fixed, full-viewport opaque black div at z-index -1 here, which painted over

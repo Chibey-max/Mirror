@@ -1,4 +1,5 @@
 import { Badge } from "@/components/Badge";
+import { Sparkline } from "@/components/Sparkline";
 import type { FixtureAgent } from "@/lib/fixtures";
 
 /**
@@ -37,6 +38,7 @@ export function LeaderboardTable({ agents }: { agents: FixtureAgent[] }) {
             <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
               <th className="px-4 py-3 font-medium">#</th>
               <th className="px-4 py-3 font-medium">Agent</th>
+              <th className="px-4 py-3 font-medium">Trend</th>
               <th className="px-4 py-3 font-medium">PnL %</th>
               <th className="px-4 py-3 font-medium">PnL USDG</th>
               <th className="px-4 py-3 font-medium">Fills</th>
@@ -46,7 +48,11 @@ export function LeaderboardTable({ agents }: { agents: FixtureAgent[] }) {
           </thead>
           <tbody>
             {ranked.map((agent, i) => (
-              <tr key={agent.id} className="border-b border-border last:border-0">
+              <tr
+                key={agent.id}
+                style={{ animationDelay: `${i * 60}ms` }}
+                className="motion-reduce:animate-none animate-[rowIn_0.4s_ease-out_backwards] border-b border-border last:border-0"
+              >
                 <td className="px-4 py-3 tabular text-muted">{i + 1}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
@@ -54,6 +60,14 @@ export function LeaderboardTable({ agents }: { agents: FixtureAgent[] }) {
                     {agent.isLosing && <Badge variant="losing">Losing agent</Badge>}
                   </div>
                   <span className="text-xs text-muted">{agent.strategy}</span>
+                </td>
+                <td className="px-4 py-3">
+                  <Sparkline
+                    id={`board-rank-${agent.id}`}
+                    series={agent.pnlSeries}
+                    width={88}
+                    height={28}
+                  />
                 </td>
                 <td
                   className={`tabular px-4 py-3 font-semibold ${agent.pnlPct >= 0 ? "text-profit" : "text-loss"}`}
@@ -79,7 +93,11 @@ export function LeaderboardTable({ agents }: { agents: FixtureAgent[] }) {
       {/* Mobile cards */}
       <div className="flex flex-col gap-2 sm:hidden">
         {ranked.map((agent, i) => (
-          <div key={agent.id} className="panel rounded-2xl p-4">
+          <div
+            key={agent.id}
+            style={{ animationDelay: `${i * 60}ms` }}
+            className="motion-reduce:animate-none animate-[rowIn_0.4s_ease-out_backwards] panel rounded-2xl p-4"
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="tabular text-muted">#{i + 1}</span>
@@ -93,10 +111,18 @@ export function LeaderboardTable({ agents }: { agents: FixtureAgent[] }) {
                 {agent.pnlPct.toFixed(1)}%
               </span>
             </div>
-            <p className="mt-1 text-xs text-muted">
-              {agent.strategy} · {agent.fills} fills · {agent.followers}{" "}
-              followers · ${agent.volumeUsd.toLocaleString()} vol
-            </p>
+            <div className="mt-2 flex items-end justify-between gap-3">
+              <p className="text-xs text-muted">
+                {agent.strategy} · {agent.fills} fills · {agent.followers}{" "}
+                followers · ${agent.volumeUsd.toLocaleString()} vol
+              </p>
+              <Sparkline
+                id={`board-rank-mobile-${agent.id}`}
+                series={agent.pnlSeries}
+                width={72}
+                height={24}
+              />
+            </div>
           </div>
         ))}
       </div>
