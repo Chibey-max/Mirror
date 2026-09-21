@@ -138,4 +138,255 @@ contract PolicyModuleTest is Test {
         assertEq(p.maxSlippageBps, 999, "slippage not replaced");
         assertTrue(p.active, "follow not active after re-follow");
     }
+
+    function _allow(address token) internal {
+        vm.prank(admin);
+        policy.setTokenAllowlist(token, true);
+    }
+
+    function _buy(uint256 notional) internal {
+        vm.prank(vault);
+        policy.checkAndConsume(alice, AGENT, mNVDA, notional, true);
+    }
+
+    function _sell(uint256 notional) internal {
+        vm.prank(vault);
+        policy.checkAndConsume(alice, AGENT, mNVDA, notional, false);
+    }
+
+    // --- the token allowlist ----------------------------------------------
+
+    function test_SetTokenAllowlist_OwnerCanAddAndRemove() public {
+        assertFalse(policy.isTokenAllowed(mNVDA), "allowlisted before anyone said so");
+
+        _allow(mNVDA);
+        assertTrue(policy.isTokenAllowed(mNVDA), "owner could not add a token");
+
+        vm.prank(admin);
+        policy.setTokenAllowlist(mNVDA, false);
+        assertFalse(policy.isTokenAllowed(mNVDA), "owner could not remove a token");
+    }
+
+    /// @dev D3: the allowlist is the owner's ONLY power. The vault is not the owner either.
+    function testFuzz_SetTokenAllowlist_OnlyTheOwnerCanCall(address caller) public {
+        vm.assume(caller != admin);
+
+        vm.prank(caller);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, caller));
+        policy.setTokenAllowlist(mNVDA, true);
+
+        assertFalse(policy.isTokenAllowed(mNVDA), "a rejected call still allowlisted the token");
+    }
+
+    // --- checkAndConsume: access and gates ---------------------------------
+
+    function testFuzz_CheckAndConsume_OnlyTheVaultCanCall(address caller) public {
+        vm.assume(caller != vault);
+        _allow(mNVDA);
+        _setPolicy(CAP);
+
+        vm.prank(caller);
+        vm.expectRevert(IPolicyModule.OnlyVault.selector);
+        policy.checkAndConsume(alice, AGENT, mNVDA, 1e6, true);
+
+        assertEq(policy.spentToday(alice, AGENT), 0, "a rejected call still consumed the cap");
+    }
+
+    /// @dev A follow that was never set is inactive, so it allows nothing in either direction.
+    function test_CheckAndConsume_AnUnsetFollowRejectsBuysAndSells() public {
+        _allow(mNVDA);
+
+        vm.prank(vault);
+        vm.expectRevert(IPolicyModule.PolicyInactive.selector);
+        policy.checkAndConsume(alice, AGENT, mNVDA, 1e6, true);
+
+        vm.prank(vault);
+        vm.expectRevert(IPolicyModule.PolicyInactive.selector);
+        policy.checkAndConsume(alice, AGENT, mNVDA, 1e6, false);
+    }
+
+    /// @dev §7.5: active is checked first. With both wrong, the follower must be told the follow
+    ///      is dead rather than blaming the token — the banner shows exactly this sentence.
+    function test_CheckAndConsume_ChecksActiveBeforeTheAllowlist() public {
+        vm.prank(vault);
+        vm.expectRevert(IPolicyModule.PolicyInactive.selector);
+        policy.checkAndConsume(alice, AGENT, mNVDA, 1e6, true);
+    }
+
+    function test_CheckAndConsume_RejectsATokenOutsideTheAllowlist() public {
+        _setPolicy(CAP);
+
+        vm.prank(vault);
+        vm.expectRevert(abi.encodeWithSelector(IPolicyModule.TokenNotAllowed.selector, mNVDA));
+        policy.checkAndConsume(alice, AGENT, mNVDA, 1e6, true);
+
+        vm.prank(vault);
+        vm.expectRevert(abi.encodeWithSelector(IPolicyModule.TokenNotAllowed.selector, mNVDA));
+        policy.checkAndConsume(alice, AGENT, mNVDA, 1e6, false);
+    }
+
+    /// @dev The owner can stop mirroring by removing a token mid-day. Documented power (D3),
+    ///      and it can never strand principal, because CopyVault returns principal only.
+    function test_CheckAndConsume_RemovingATokenStopsFurtherMirrors() public {
+        _allow(mNVDA);
+        _setPolicy(CAP);
+        _buy(10e6);
+
+        vm.prank(admin);
+        policy.setTokenAllowlist(mNVDA, false);
+
+        vm.prank(vault);
+        vm.expectRevert(abi.encodeWithSelector(IPolicyModule.TokenNotAllowed.selector, mNVDA));
+        policy.checkAndConsume(alice, AGENT, mNVDA, 1e6, true);
+        assertEq(policy.spentToday(alice, AGENT), 10e6, "the rejected buy moved the day's spend");
+    }
+
+    // --- checkAndConsume: the cap ------------------------------------------
+
+    function test_CheckAndConsume_ABuyExactlyAtTheCapIsAllowed() public {
+        _allow(mNVDA);
+        _setPolicy(CAP);
+
+        _buy(CAP);
+        assertEq(policy.spentToday(alice, AGENT), CAP, "an exact-cap buy did not consume exactly the cap");
+    }
+
+    /// @dev §7.6: the check is strict, so one raw unit over is the first rejection (§13 test 5).
+    function test_CheckAndConsume_OneUnitOverTheCapIsRejected() public {
+        _allow(mNVDA);
+        _setPolicy(CAP);
+
+        vm.prank(vault);
+        vm.expectRevert(abi.encodeWithSelector(IPolicyModule.CapExceeded.selector, CAP + 1, CAP));
+        policy.checkAndConsume(alice, AGENT, mNVDA, CAP + 1, true);
+
+        assertEq(policy.spentToday(alice, AGENT), 0, "a rejected buy still consumed the cap");
+    }
+
+    /// @dev The PRD's own worked example (§8): 0.42 mNVDA at $128.41 is 53.9322 USDG. It fits a
+    ///      $60 cap; a $10 buy after it does not, and `attempted` is the running total (§7.6).
+    function test_CheckAndConsume_SpendAccumulatesWithinTheDay() public {
+        _allow(mNVDA);
+        _setPolicy(CAP);
+
+        _buy(53_932_200);
+        assertEq(policy.spentToday(alice, AGENT), 53_932_200, "first buy did not consume its notional");
+
+        vm.prank(vault);
+        vm.expectRevert(abi.encodeWithSelector(IPolicyModule.CapExceeded.selector, 63_932_200, CAP));
+        policy.checkAndConsume(alice, AGENT, mNVDA, 10e6, true);
+    }
+
+    /// @dev §7.6: the day is block.timestamp / 1 days — 00:00 UTC, 08:00 SGT.
+    function test_CheckAndConsume_TheNextDayStartsFromZero() public {
+        _allow(mNVDA);
+        _setPolicy(CAP);
+        _buy(CAP);
+
+        vm.warp(block.timestamp + 1 days);
+        assertEq(policy.spentToday(alice, AGENT), 0, "the new day did not start empty");
+
+        _buy(CAP);
+        assertEq(policy.spentToday(alice, AGENT), CAP, "the full cap was not available again");
+    }
+
+    /// @dev §7.5: the cap limits risk added, not risk removed. A follower whose cap is used up
+    ///      must still be able to get out, or the cap traps them in the position.
+    function test_CheckAndConsume_SellsNeverConsumeTheCap() public {
+        _allow(mNVDA);
+        _setPolicy(CAP);
+        _buy(CAP);
+
+        _sell(type(uint256).max);
+        assertEq(policy.spentToday(alice, AGENT), CAP, "a sell moved the day's spend");
+    }
+
+    function testFuzz_CheckAndConsume_ARejectedBuyMovesNothing(uint256 over) public {
+        over = bound(over, 1, type(uint256).max - CAP);
+        _allow(mNVDA);
+        _setPolicy(CAP);
+
+        vm.prank(vault);
+        vm.expectRevert(abi.encodeWithSelector(IPolicyModule.CapExceeded.selector, CAP + over, CAP));
+        policy.checkAndConsume(alice, AGENT, mNVDA, CAP + over, true);
+
+        assertEq(policy.spentToday(alice, AGENT), 0, "a rejected buy moved the day's spend");
+    }
+
+    /// @dev CopyVault catches this revert and hands the bytes to the banner, so the reason must
+    ///      always be a declared error. An unchecked `spent + notional` would surface as
+    ///      Panic(0x11) here, which the decoder cannot turn into a sentence.
+    function test_CheckAndConsume_AnOverflowingTotalIsCapExceededNotPanic() public {
+        _allow(mNVDA);
+        _setPolicy(type(uint256).max);
+        _buy(type(uint256).max);
+
+        vm.prank(vault);
+        vm.expectRevert(
+            abi.encodeWithSelector(IPolicyModule.CapExceeded.selector, type(uint256).max, type(uint256).max)
+        );
+        policy.checkAndConsume(alice, AGENT, mNVDA, 1, true);
+    }
+
+    /// @dev PolicyModule logs nothing on a consume: Mirrored and MirrorRejected are CopyVault's,
+    ///      and a second source of "this was mirrored" would be a second truth to keep in sync.
+    function test_CheckAndConsume_EmitsNothing() public {
+        _allow(mNVDA);
+        _setPolicy(CAP);
+
+        vm.recordLogs();
+        _buy(1e6);
+        assertEq(vm.getRecordedLogs().length, 0, "checkAndConsume emitted an event");
+    }
+
+    // --- checkAndConsume: D4, spend survives a re-follow --------------------
+
+    function test_CheckAndConsume_SpendSurvivesARefollowOnTheSameDay() public {
+        _allow(mNVDA);
+        _setPolicy(CAP);
+        _buy(53_932_200);
+
+        _setPolicy(CAP); // unfollow then follow again, same UTC day
+        assertEq(policy.spentToday(alice, AGENT), 53_932_200, "re-following handed back a fresh cap");
+
+        vm.prank(vault);
+        vm.expectRevert(abi.encodeWithSelector(IPolicyModule.CapExceeded.selector, 63_932_200, CAP));
+        policy.checkAndConsume(alice, AGENT, mNVDA, 10e6, true);
+    }
+
+    function test_CheckAndConsume_ALowerCapDoesNotForgiveSpend() public {
+        _allow(mNVDA);
+        _setPolicy(CAP);
+        _buy(53_932_200);
+
+        _setPolicy(25e6); // re-follow with a cap below what today already spent
+
+        vm.prank(vault);
+        vm.expectRevert(abi.encodeWithSelector(IPolicyModule.CapExceeded.selector, 53_932_201, 25e6));
+        policy.checkAndConsume(alice, AGENT, mNVDA, 1, true);
+
+        _sell(1e6); // the exit is still open
+        assertEq(policy.spentToday(alice, AGENT), 53_932_200, "spend moved when it should not have");
+    }
+
+    function testFuzz_CheckAndConsume_SpentTodayIsTheSumOfAcceptedBuys(uint64 a, uint64 b, uint64 c) public {
+        _allow(mNVDA);
+        _setPolicy(CAP);
+
+        uint256 expected;
+        uint64[3] memory buys = [a, b, c];
+        for (uint256 i = 0; i < buys.length; i++) {
+            uint256 notional = buys[i];
+            if (expected + notional > CAP) {
+                vm.prank(vault);
+                vm.expectRevert(abi.encodeWithSelector(IPolicyModule.CapExceeded.selector, expected + notional, CAP));
+                policy.checkAndConsume(alice, AGENT, mNVDA, notional, true);
+            } else {
+                _buy(notional);
+                expected += notional;
+            }
+            assertEq(policy.spentToday(alice, AGENT), expected, "spend diverged from the accepted buys");
+            assertLe(policy.spentToday(alice, AGENT), CAP, "spend passed the cap");
+        }
+    }
 }

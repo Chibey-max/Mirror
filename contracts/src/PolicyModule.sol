@@ -70,23 +70,37 @@ contract PolicyModule is IPolicyModule, Ownable {
     }
 
     /// @inheritdoc IPolicyModule
+    /// @dev The gate CopyVault runs once per follower per fill, inside a try/catch. Rejection is a
+    ///      revert, never a return value: CopyVault catches it and logs MirrorRejected(reason)
+    ///      (§7.1), and the frontend decodes the selector out of those bytes. Every path below
+    ///      therefore ends in one of the four declared errors — never a Panic, which would reach
+    ///      the banner as undecodable bytes.
+    ///
+    ///      Order matters. `active` is checked first so a killed follow is told it is dead rather
+    ///      than blamed on the token, and it rejects sells as well as buys (§7.5). Only buys reach
+    ///      the cap: the cap exists to limit risk added, not to block a follower from getting out.
     function checkAndConsume(address user, uint256 agentId, address token, uint256 notional, bool isBuy)
         external
         onlyVault
     {
-        // TODO: revert PolicyInactive if !active, then TokenNotAllowed(token) if not allowlisted,
-        // then — buys only — CapExceeded(spentToday + notional, cap) when that total exceeds the
-        // cap; otherwise consume against today's bucket.
-        //
-        // CRITICAL: rejection is a revert, never a return value. CopyVault catches it and logs
-        // MirrorRejected(reason) (v2.2 §7.1), and Patrick's banner decodes the selector out of
-        // those bytes. A silent success would leave the demo nothing to show.
-        user;
-        agentId;
-        token;
-        notional;
-        isBuy;
-        revert NotImplemented();
+        Policy storage p = _policies[user][agentId];
+        if (!p.active) revert PolicyInactive();
+        if (!_tokenAllowlist[token]) revert TokenNotAllowed(token);
+        if (!isBuy) return;
+
+        uint256 cap = p.maxNotionalPerDay;
+        uint256 day = block.timestamp / 1 days; // 00:00 UTC, 08:00 SGT (§7.6)
+        uint256 spent = _spentOnDay[user][agentId][day];
+
+        // Compare against the headroom rather than adding first. `spent + notional` can only
+        // overflow with absurd values, but an overflow here would be Panic(0x11), and the vault
+        // would log bytes the banner cannot read. Saturating keeps the answer a real rejection.
+        if (notional > type(uint256).max - spent) revert CapExceeded(type(uint256).max, cap);
+
+        uint256 attempted = spent + notional; // the running total the banner quotes (§7.6)
+        if (attempted > cap) revert CapExceeded(attempted, cap);
+
+        _spentOnDay[user][agentId][day] = attempted;
     }
 
     /// @inheritdoc IPolicyModule
@@ -99,11 +113,11 @@ contract PolicyModule is IPolicyModule, Ownable {
     }
 
     /// @inheritdoc IPolicyModule
+    /// @dev The owner's only power. Removing a token stops mirrors of it in both directions from
+    ///      the next call onward; it cannot touch a cap, today's spend, an active flag or anyone's
+    ///      principal, which CopyVault returns in full regardless (§7.3).
     function setTokenAllowlist(address token, bool allowed) external onlyOwner {
-        // TODO: _tokenAllowlist[token] = allowed;
-        token;
-        allowed;
-        revert NotImplemented();
+        _tokenAllowlist[token] = allowed;
     }
 
     /// @inheritdoc IPolicyModule
