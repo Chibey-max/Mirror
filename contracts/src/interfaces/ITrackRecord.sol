@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {IAgentRegistry} from "./IAgentRegistry.sol";
+
 /// @title ITrackRecord
 /// @notice Frozen ABI — PRD v2.2 Section 5.2. Owner: Isaac.
 ///
@@ -65,4 +67,15 @@ interface ITrackRecord {
     function fillCount() external view returns (uint256);
 
     function fillCountByAgent(uint256 agentId) external view returns (uint256);
+
+    /// @notice The AgentRegistry this TrackRecord validates fills against.
+    /// @dev NOT a new function. `TrackRecord.registry` has always been `IAgentRegistry public immutable`, so this
+    ///      getter is already in the deployed ABI — the interface simply never declared it. Declaring it changes no
+    ///      bytecode, no selector and no ABI entry; it only lets a caller holding an `ITrackRecord` read the registry
+    ///      without casting through a locally declared shim interface.
+    ///
+    ///      Added 21 Sep 2026 for CopyVault, which needs the registry to reject follows of unknown or deactivated
+    ///      agents (Jason's PR #14). Deliberately read-only: there is no setter here and none on the implementation,
+    ///      because the registry is immutable and the deploy script reads it back after broadcast.
+    function registry() external view returns (IAgentRegistry);
 }
