@@ -129,3 +129,7 @@ worse than no test — it makes the Section 7 gate look satisfied when it is not
 `evm_version` is pinned to `paris` in `foundry.toml` so the mirrored deploy cannot diverge on
 opcode support between the two chains. Both `deployments/*.json` files are owned by Jason and
 consumed by the frontend.
+
+Deployment uses four non-zero, pairwise-distinct testnet identities: deployer, PolicyModule
+admin, runner, and agent registrar/owner. Their exact authority boundaries and environment
+variables are fixed in [decision 0004](../docs/decisions/0004-deployment-identities.md).
