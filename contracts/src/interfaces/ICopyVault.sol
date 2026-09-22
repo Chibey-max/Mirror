@@ -17,6 +17,7 @@ interface ICopyVault {
     error InsufficientBalance();
     error AlreadyFollowing();
     error NotFollowing();
+    error NotRunner();
     error ZeroRunner();
     /// @notice Dependency address is zero or has no contract code.
     error ZeroTrackRecord();
@@ -27,6 +28,8 @@ interface ICopyVault {
     error AgentInactive(uint256 agentId);
     error FillNotFound(uint256 fillId);
     error FillAlreadyMirrored(uint256 fillId);
+    error NotionalOverflow(uint256 fillId);
+    error PositionOverflow();
 
     /// @dev nonReentrant, SafeERC20.safeTransferFrom
     function deposit(uint256 amount) external;
@@ -52,6 +55,9 @@ interface ICopyVault {
     function followersOf(uint256 agentId) external view returns (address[] memory);
 
     function followerCountOf(uint256 agentId) external view returns (uint256);
+
+    /// @notice The global TrackRecord fill count captured when this follow began.
+    function followFillBoundaryOf(address user, uint256 agentId) external view returns (uint256);
 
     function isMirrored(uint256 fillId) external view returns (bool);
 }

@@ -16,7 +16,8 @@ Follower removal uses swap-and-pop, so list ordering is not stable across remova
 Zero-cap follows are allowed (no zero-cap rejection is specified); membership is tracked
 independently of principal. At most 50 followers may follow each agent. A follow requires
 an existing, active agent; later deactivation never blocks unfollow. Slippage is not enforced.
-Mirror still reverts `NotImplemented`; `isMirrored` returns false until mirror writes exist.
+`mirrorFill` is runner-only and processes each TrackRecord fill at most once. It isolates per-follower
+policy rejections as `MirrorRejected` logs, while `isMirrored` reports whether the fill was processed.
 The frontend ABI includes the new errors and capacity getter. Full policy integration
 and mirroring remain pending. Do not use the foundation for real funds.
 
