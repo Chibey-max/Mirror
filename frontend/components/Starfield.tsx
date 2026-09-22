@@ -18,6 +18,10 @@ type Star = {
   /** Where in the 0–1 scroll range this star leaves the ring — staggered so
    *  the field peels off in a stream rather than all on one frame. */
   startAt: number;
+  /** Seconds this star takes to catch up with the scroll — different per
+   *  star, so a single flick sends them out as a drifting cloud rather than
+   *  a rigid pattern moving in lockstep. */
+  glide: number;
 };
 
 const STAR_COUNT = 200;
@@ -86,13 +90,27 @@ function generateStars(count: number): Star[] {
       duration: 2.4 + Math.random() * 4.5,
       delay: -Math.random() * 6,
       startAt: Math.random() * 0.45,
+      glide: 0.35 + Math.random() * 0.6,
     };
   });
 }
 
-function easeOutCubic(t: number): number {
-  return 1 - (1 - t) ** 3;
+/** Zero speed at both ends: stars lift off the rim and settle, never launch. */
+function easeInOutSine(t: number): number {
+  return 0.5 - 0.5 * Math.cos(Math.PI * t);
 }
+
+function smoothstep(t: number): number {
+  const c = Math.min(1, Math.max(0, t));
+  return c * c * (3 - 2 * c);
+}
+
+/**
+ * Extra swirl on each path, in radians — zero at launch and at landing, most
+ * in between, so paths bow gently instead of running straight. One direction
+ * for every star, so the field swirls together.
+ */
+const CURL = 0.6;
 
 /**
  * The ring's own field, spreading out of the hero as you scroll and gathering
@@ -101,26 +119,25 @@ function easeOutCubic(t: number): number {
  * tuned to one exact on-screen invariant, and growing it to page height would
  * mean re-deriving that math.
  *
- * Every star moves along a single ray — from the ring's centre, out through
- * the point it settles at. It starts on the rim and slides outward along that
- * ray as scroll progresses, which is what makes the field read as coming out
- * of the ring instead of merely appearing over the page. The ray is recomputed
- * from the ring's live position each frame, so it stays aimed correctly while
- * the hero scrolls away, and the end of the ray is a fixed viewport point, so
- * the settled field stays put instead of scrolling off with the hero.
+ * Every star travels out from the ring's centre toward the point it settles
+ * at, starting on the rim — which is what makes the field read as coming out
+ * of the ring instead of merely appearing over the page. The path starts
+ * slightly curled and straightens as it lands. It is recomputed from the
+ * ring's live position each frame, so it stays aimed correctly while the hero
+ * scrolls away, and it ends at a fixed viewport point, so the settled field
+ * stays put instead of scrolling off with the hero.
  *
- * Positions come from a persistent requestAnimationFrame loop that eases a
- * visible progress value toward the scroll-derived target, rather than from a
- * scroll event listener writing raw positions: scroll events arrive in bursts
- * the input device decides on, so writing straight from them snaps between
- * sparse samples instead of flowing.
+ * Positions come from a persistent requestAnimationFrame loop in which each
+ * star glides toward its scroll-derived target on its own time constant,
+ * rather than from a scroll event listener writing raw positions: scroll
+ * events arrive in bursts the input device decides on, so writing straight
+ * from them snaps between sparse samples instead of flowing.
  */
 export function Starfield() {
   const reduced = useReducedMotion();
   const [stars, setStars] = useState<Star[] | null>(null);
   const starRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const rafRef = useRef<number | null>(null);
-  const visibleProgressRef = useRef(0);
 
   useEffect(() => {
     // Deferred into a callback, not called synchronously in the effect body,
@@ -138,20 +155,23 @@ export function Starfield() {
     // so most of the travel happens while the ring is still on screen to be
     // seen leaving.
     const range = Math.max(1, window.innerHeight * 1.1);
-    // Each star's distance from the ring on the previous frame, so its speed
-    // this frame is known. NaN until the first frame has placed it.
-    const lastAlong = new Float32Array(stars.length).fill(Number.NaN);
+    const count = stars.length;
+    // Per-star state carried between frames: how far along its path it is
+    // showing (NaN until the first frame), where it was drawn, and its
+    // smoothed on-screen velocity.
+    const shown = new Float32Array(count).fill(Number.NaN);
+    const lastX = new Float32Array(count).fill(Number.NaN);
+    const lastY = new Float32Array(count);
+    const velX = new Float32Array(count);
+    const velY = new Float32Array(count);
+    let lastTime: number | null = null;
 
-    function frame() {
-      const target = Math.min(1, Math.max(0, window.scrollY / range));
-      // Ease toward the target rather than snapping to it — 12% of the
-      // remaining gap per frame, which settles in a few hundred milliseconds
-      // at 60fps but never teleports.
-      const current = visibleProgressRef.current;
-      const next = current + (target - current) * 0.12;
-      visibleProgressRef.current =
-        Math.abs(next - target) < 0.0005 ? target : next;
-      const progress = visibleProgressRef.current;
+    function frame(now: number) {
+      // Real elapsed time, so the glide is the same speed at 60Hz and 120Hz;
+      // capped so returning to a background tab doesn't jump a whole second.
+      const dt = lastTime == null ? 1 / 60 : Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+      const progress = Math.min(1, Math.max(0, window.scrollY / range));
 
       // One layout read for the whole frame, before any writes; everything
       // written below is transform and opacity, which the compositor handles
@@ -159,50 +179,87 @@ export function Starfield() {
       const ring = ringGeometry();
       const vw = window.innerWidth;
       const vh = window.innerHeight;
+      const velocityFollow = 1 - Math.exp(-dt / 0.12);
 
       const field = stars!;
-      for (let i = 0; i < field.length; i++) {
+      for (let i = 0; i < count; i++) {
         const el = starRefs.current[i];
         if (!el) continue;
         const star = field[i];
-        const local = Math.min(
+
+        // Each star chases its own point on the scroll with its own lag, so
+        // the scroll wheel's bursts are absorbed rather than passed through,
+        // and the field fans out unevenly the way a real cloud would.
+        const target = Math.min(
           1,
           Math.max(0, (progress - star.startAt) / (1 - star.startAt)),
         );
-        const eased = easeOutCubic(local);
+        const previous = shown[i];
+        const current = Number.isNaN(previous)
+          ? target
+          : previous + (target - previous) * (1 - Math.exp(-dt / star.glide));
+        shown[i] = current;
+        const eased = easeInOutSine(current);
 
-        const dx = star.x * vw - ring.cx;
-        const dy = star.y * vh - ring.cy;
-        const distance = Math.hypot(dx, dy) || 1;
-        // A star settling close to the centre would have no room to travel if
-        // it started out on the rim, so it starts proportionally further in
-        // and rises through the ring instead. Either way it only ever moves
-        // outward, and never starts past its own destination.
-        const from = Math.min(ring.radius * star.band, distance * 0.55);
-        const along = from + (distance - from) * eased;
-        const x = ring.cx + (dx / distance) * along;
-        const y = ring.cy + (dy / distance) * along;
+        // Launch point: fixed to the ring itself, in the direction of where
+        // the star lands as seen from the top of the page. Measured in page
+        // coordinates, so it doesn't change as you scroll — until it lifts
+        // off, a star rides with the ring exactly, instead of sliding around
+        // the rim as the ring scrolls past a destination pinned to the screen.
+        const pageCy = ring.cy + window.scrollY;
+        const launchDx = star.x * vw - ring.cx;
+        const launchDy = star.y * vh - pageCy;
+        const launchAngle = Math.atan2(launchDy, launchDx);
+        // A star landing close to the centre would have no room to travel if
+        // it launched out on the rim, so it starts proportionally further in
+        // and rises through the ring instead.
+        const launchRadius = Math.min(
+          ring.radius * star.band,
+          Math.hypot(launchDx, launchDy) * 0.55,
+        );
 
-        // A moving star stretches into a streak along its own ray, tail
-        // pointing back at the ring — so even a single frame of the motion
-        // says where the field is coming from. At rest it's a round dot again.
-        const previous = lastAlong[i];
-        const speed = Number.isNaN(previous) ? 0 : along - previous;
-        lastAlong[i] = along;
-        const stretch = 1 + Math.min(Math.abs(speed) * 0.5, 8);
-        const heading =
-          Math.atan2(dy, dx) + (speed < 0 ? Math.PI : 0);
+        // Landing point: fixed to the screen, seen from where the ring is now.
+        const landDx = star.x * vw - ring.cx;
+        const landDy = star.y * vh - ring.cy;
+        const landAngle = Math.atan2(landDy, landDx);
+        const landRadius = Math.hypot(landDx, landDy);
 
-        el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) rotate(${heading.toFixed(3)}rad) scaleX(${stretch.toFixed(2)})`;
+        // Travel in polar coordinates around the ring's centre — radius and
+        // angle each blend from launch to landing — so the path arcs out and
+        // around the ring rather than cutting across it, with a slight extra
+        // curl that unwinds as it lands.
+        let turn = landAngle - launchAngle;
+        turn -= 2 * Math.PI * Math.round(turn / (2 * Math.PI));
+        const angle =
+          launchAngle + turn * eased + CURL * (1 - eased) ** 2 * eased;
+        const along = launchRadius + (landRadius - launchRadius) * eased;
+        const x = ring.cx + Math.cos(angle) * along;
+        const y = ring.cy + Math.sin(angle) * along;
+
+        // Streak length follows a smoothed velocity rather than this frame's
+        // raw step, so it grows and relaxes gradually instead of flickering
+        // with every notch of the wheel — and it points wherever the star is
+        // actually heading, curve included.
+        if (!Number.isNaN(lastX[i])) {
+          velX[i] += (x - lastX[i] - velX[i]) * velocityFollow;
+          velY[i] += (y - lastY[i] - velY[i]) * velocityFollow;
+        }
+        lastX[i] = x;
+        lastY[i] = y;
+        const speed = Math.hypot(velX[i], velY[i]) / (dt * 60);
+        const stretch = 1 + Math.min(speed * 0.3, 3.5);
+        const heading = Math.atan2(velY[i], velX[i]);
+
         // Visibility is a function of where the star is, not how far along it
-        // is: nothing shows while it is still within the body's silhouette,
-        // and it comes up quickly once it clears the rim. So every star is
-        // first seen leaving the ring's edge, and scrolling back up puts them
-        // out again as they sink into it.
-        el.style.opacity = Math.min(
-          1,
-          Math.max(0, (along - ring.radius) / (ring.radius * 0.15)),
-        ).toFixed(3);
+        // is: nothing shows inside the body's silhouette, and it fades up
+        // softly over the next half-radius as it clears the rim, growing into
+        // its full size as it does — so each star is first seen as a faint
+        // speck leaving the ring's edge, and sinks back in on the way up.
+        const visible = smoothstep((along - ring.radius) / (ring.radius * 0.5));
+        const size = 0.5 + 0.5 * visible;
+
+        el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) rotate(${heading.toFixed(3)}rad) scale(${(stretch * size).toFixed(3)}, ${size.toFixed(3)})`;
+        el.style.opacity = visible.toFixed(3);
       }
 
       rafRef.current = requestAnimationFrame(frame);
