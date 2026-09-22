@@ -168,9 +168,7 @@ contract VaultFoundationTest is Test {
         new CopyVault(address(dependency), address(dependency), alice, bob);
     }
 
-    function test_UnimplementedTradingFailsClosed() public {
-        vm.expectRevert(CopyVault.NotImplemented.selector);
-        vault.mirrorFill(1);
+    function test_MirrorReadStartsFalseForUnprocessedFills() public view {
         assertEq(vault.positionOf(alice, 1, address(token)), 0);
         assertFalse(vault.isMirrored(1));
         assertFalse(vault.isMirrored(0));
