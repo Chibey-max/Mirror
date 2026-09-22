@@ -8,11 +8,6 @@ import {ITrackRecord} from "./interfaces/ITrackRecord.sol";
 import {IPolicyModule} from "./interfaces/IPolicyModule.sol";
 import {IAgentRegistry} from "./interfaces/IAgentRegistry.sol";
 
-/// @dev Typed access to TrackRecord's existing immutable getter, without changing its interface.
-interface ITrackRecordRegistryReference {
-    function registry() external view returns (IAgentRegistry);
-}
-
 /// @notice PRD v2.2 custody and principal lifecycle. Mirroring is NOT implemented yet.
 /// @dev Not ERC-4626: no shares; balanceOf reports free USDG, principal is tracked separately.
 /// @dev Supports the exact-transfer MockUSDG only, not fee-on-transfer or rebasing assets.
@@ -69,8 +64,7 @@ contract CopyVault is ICopyVault, ReentrancyGuard {
         if (_followerIndex[agentId][msg.sender] != 0) revert AlreadyFollowing();
         if (capAmount > _free[msg.sender]) revert InsufficientBalance();
         if (_followers[agentId].length >= MAX_FOLLOWERS_PER_AGENT) revert FollowerLimitReached(agentId);
-        IAgentRegistry.Agent memory agent =
-            ITrackRecordRegistryReference(address(trackRecord)).registry().getAgent(agentId);
+        IAgentRegistry.Agent memory agent = trackRecord.registry().getAgent(agentId);
         if (agent.owner == address(0)) revert AgentNotFound(agentId);
         if (!agent.active) revert AgentInactive(agentId);
         uint256 boundary = trackRecord.fillCount();
