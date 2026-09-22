@@ -5,6 +5,7 @@ import { useAccount, useSwitchChain } from "wagmi";
 import { targetChain } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
 import { CopyableHash } from "@/components/Copyable";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 /**
  * Whether a failed switch was the user saying no, as opposed to the wallet
@@ -60,6 +61,7 @@ export function NetworkGuard({ children }: { children: ReactNode }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   const onWrongChain = isConnected && chain?.id !== targetChain.id;
+  const dialogRef = useFocusTrap<HTMLDivElement>(onWrongChain);
   const cancelled = !!error && isUserCancel(error);
   const failed = !!error && !cancelled;
 
@@ -69,6 +71,7 @@ export function NetworkGuard({ children }: { children: ReactNode }) {
       {onWrongChain && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/90 p-4 backdrop-blur-sm">
           <div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="network-guard-title"

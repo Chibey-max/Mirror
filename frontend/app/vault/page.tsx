@@ -88,7 +88,7 @@ export default function VaultPage() {
     <div className="relative overflow-x-clip">
       <PageAtmosphere />
       <SiteHeader />
-      <main className="mx-auto w-full max-w-6xl px-5 pb-20 sm:px-10">
+      <main id="main-content" tabIndex={-1} className="outline-none mx-auto w-full max-w-6xl px-5 pb-20 sm:px-10">
         <PageHeader
           eyebrow="Your position"
           title="Vault"

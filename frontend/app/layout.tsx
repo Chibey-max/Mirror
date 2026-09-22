@@ -48,6 +48,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         suppressHydrationWarning
         className="min-h-full flex flex-col bg-bg text-text"
       >
+        {/* First stop for a keyboard user: past the header straight to the
+            page. Invisible until focused. Every page's <main> carries the id. */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded-full focus:bg-surface focus:px-4 focus:py-2 focus:text-sm focus:text-text focus:outline focus:outline-1 focus:outline-accent"
+        >
+          Skip to content
+        </a>
         <Providers>
           <NetworkGuard>{children}</NetworkGuard>
         </Providers>

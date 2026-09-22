@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import type { WriteProgress } from "@/hooks/useVaultConnection";
 import { txUrl } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { describeWriteError } from "@/lib/writeErrors";
 import { FAUCET_AMOUNT } from "@/hooks/useDeposit";
 
@@ -35,6 +36,7 @@ export function DepositModal({
   const [stage, setStage] = useState<Stage>("idle");
   const [txHash, setTxHash] = useState<string>();
   const [errorMessage, setErrorMessage] = useState<string>();
+  const dialogRef = useFocusTrap<HTMLDivElement>(open);
   const [minting, setMinting] = useState(false);
   const amountId = useId();
 
@@ -112,6 +114,7 @@ export function DepositModal({
       onClick={handleClose}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="deposit-title"

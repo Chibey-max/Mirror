@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import type { WriteProgress } from "@/hooks/useVaultConnection";
 import { txUrl } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
@@ -35,6 +36,27 @@ export function WithdrawModal({
   const [stage, setStage] = useState<Stage>("idle");
   const [txHash, setTxHash] = useState<string>();
   const [errorMessage, setErrorMessage] = useState<string>();
+  const dialogRef = useFocusTrap<HTMLDivElement>(open);
+
+  const handleClose = useCallback(() => {
+    setAmount("");
+    setStage("idle");
+    setTxHash(undefined);
+    setErrorMessage(undefined);
+    onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(event: KeyboardEvent) {
+      // Not mid-transaction: closing then would hide a write still in flight.
+      if (event.key === "Escape" && stage !== "signing" && stage !== "pending") {
+        handleClose();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleClose, open, stage]);
 
   if (!open) return null;
 
@@ -64,21 +86,19 @@ export function WithdrawModal({
     }
   }
 
-  function handleClose() {
-    setAmount("");
-    setStage("idle");
-    setTxHash(undefined);
-    setErrorMessage(undefined);
-    onClose();
-  }
-
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-bg/80 backdrop-blur-sm sm:items-center">
-      <div className="animate-[sheetUp_0.2s_ease-out] w-full max-w-sm panel rounded-t-3xl p-6 sm:rounded-3xl">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="withdraw-title"
+        className="animate-[sheetUp_0.2s_ease-out] w-full max-w-sm panel rounded-t-3xl p-6 sm:rounded-3xl"
+      >
         {stage === "success" ? (
           <>
             <p className="text-sm font-medium text-accent">Done</p>
-            <h2 className="mt-2 text-lg font-semibold text-text">
+            <h2 id="withdraw-title" className="mt-2 text-lg font-semibold text-text">
               {parsed.toFixed(2)} USDG withdrawn
             </h2>
             {txHash && (
@@ -103,7 +123,9 @@ export function WithdrawModal({
         ) : (
           <>
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-text">Withdraw</h2>
+              <h2 id="withdraw-title" className="text-lg font-semibold text-text">
+                Withdraw
+              </h2>
               <MetalButton
                 tone="quiet"
                 size="icon-sm"

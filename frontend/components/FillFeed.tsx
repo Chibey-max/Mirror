@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Badge } from "@/components/Badge";
 import { MetalButton } from "@/components/MetalButton";
 import type { PolicyRejectReason } from "@/components/PolicyRejectBanner";
@@ -40,9 +41,36 @@ export function FillFeed({
   hasMore?: boolean;
   onLoadMore?: () => void;
 }) {
+  // Announce fills that land while the page is open, never the backlog that
+  // was already there when it loaded, or a screen reader would read out the
+  // whole tape on arrival. `sequence` is the on-chain fill id, so anything
+  // above the highest one seen at first load is genuinely new. Recorded
+  // during render (React's "previous render" pattern), not in an effect.
+  const newestSequence = fills.reduce(
+    (max, fill) => Math.max(max, fill.sequence),
+    -Infinity,
+  );
+  const [baseline, setBaseline] = useState<number | null>(
+    fills.length > 0 ? newestSequence : null,
+  );
+  if (baseline === null && fills.length > 0) setBaseline(newestSequence);
+  const arrived =
+    baseline !== null && newestSequence > baseline
+      ? fills.find((fill) => fill.sequence === newestSequence)
+      : undefined;
+  const announcement = arrived
+    ? `New fill: ${arrived.side === "BUY" ? "bought" : "sold"} ${arrived.size} ${arrived.token} at $${arrived.price}.`
+    : "";
+  const liveRegion = (
+    <p className="sr-only" aria-live="polite" aria-atomic="true">
+      {announcement}
+    </p>
+  );
+
   if (fills.length === 0) {
     return (
       <div className="panel rounded-3xl p-6 text-center">
+        {liveRegion}
         <p className="text-sm text-muted">
           No mirrored activity yet. Follow an agent and its fills will land
           here.
@@ -53,6 +81,7 @@ export function FillFeed({
 
   return (
     <div>
+      {liveRegion}
       <ul className="flex flex-col gap-2">
         {fills.map((fill) => {
           const outcome = outcomes[fill.id];

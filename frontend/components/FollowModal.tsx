@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { txUrl } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { describeWriteError } from "@/lib/writeErrors";
 import type { WriteProgress } from "@/hooks/useVaultConnection";
 
@@ -33,6 +34,7 @@ export function FollowModal({
   const [stage, setStage] = useState<Stage>("idle");
   const [txHash, setTxHash] = useState<string>();
   const [errorMessage, setErrorMessage] = useState<string>();
+  const dialogRef = useFocusTrap<HTMLDivElement>(open);
   const capId = useId();
   const slippageId = useId();
 
@@ -101,6 +103,7 @@ export function FollowModal({
       onClick={handleClose}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="follow-title"
