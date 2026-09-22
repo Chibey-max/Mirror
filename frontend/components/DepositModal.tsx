@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import type { WriteProgress } from "@/hooks/useVaultConnection";
 import { txUrl } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
+import { describeWriteError } from "@/lib/writeErrors";
 
 type Stage = "idle" | "approving" | "depositing" | "success" | "error";
 
@@ -28,6 +29,7 @@ export function DepositModal({
   const [amount, setAmount] = useState("");
   const [stage, setStage] = useState<Stage>("idle");
   const [txHash, setTxHash] = useState<string>();
+  const [errorMessage, setErrorMessage] = useState<string>();
   const amountId = useId();
 
   const handleClose = useCallback(() => {
@@ -70,7 +72,13 @@ export function DepositModal({
       });
       setTxHash(hash);
       setStage("success");
-    } catch {
+    } catch (error) {
+      const failure = describeWriteError(error);
+      if (failure.cancelled) {
+        setStage("idle");
+        return;
+      }
+      setErrorMessage(failure.message);
       setStage("error");
     }
   }
@@ -164,8 +172,8 @@ export function DepositModal({
               </p>
             )}
             {stage === "error" && (
-              <p className="mt-2 text-xs text-loss">
-                Deposit failed. Check your wallet and try again.
+              <p role="alert" className="mt-2 text-xs text-loss">
+                {errorMessage}
               </p>
             )}
 

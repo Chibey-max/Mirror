@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { txUrl } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
+import { describeWriteError } from "@/lib/writeErrors";
 import type { WriteProgress } from "@/hooks/useVaultConnection";
 
 type Stage = "idle" | "signing" | "success" | "error";
@@ -31,6 +32,7 @@ export function FollowModal({
   const [maxSlippageBps, setMaxSlippageBps] = useState("50");
   const [stage, setStage] = useState<Stage>("idle");
   const [txHash, setTxHash] = useState<string>();
+  const [errorMessage, setErrorMessage] = useState<string>();
   const capId = useId();
   const slippageId = useId();
 
@@ -82,7 +84,13 @@ export function FollowModal({
       );
       setTxHash(hash);
       setStage("success");
-    } catch {
+    } catch (error) {
+      const failure = describeWriteError(error);
+      if (failure.cancelled) {
+        setStage("idle");
+        return;
+      }
+      setErrorMessage(failure.message);
       setStage("error");
     }
   }
@@ -221,8 +229,8 @@ export function FollowModal({
               </p>
             )}
             {stage === "error" && (
-              <p className="mt-2 text-xs text-loss">
-                Follow failed. Check your wallet and try again.
+              <p role="alert" className="mt-2 text-xs text-loss">
+                {errorMessage}
               </p>
             )}
 
