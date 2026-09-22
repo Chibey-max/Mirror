@@ -45,8 +45,8 @@ and day rollover require Isaac's implementation and integration tests.
 Each follow snapshots the global fill count. Only strictly later fill IDs are eligible;
 re-follow captures a fresh boundary. This avoids timestamp ties within one block.
 See [review decisions](../docs/decisions/0003-copyvault-lifecycle-review.md) for the additive
-ABI amendment and follower-limit tradeoff. A 50-follower buy measured 2,693,535 gas,
-about 8% of a 30M block.
+ABI amendment and follower-limit tradeoff. Measured with isolated test setup and 50 funded
+followers, a buy costs 3,137,690 gas (about 10.5% of a 30M block) and a sell costs 831,008 gas.
 
 The mock tokens expose unrestricted testnet minting (USDG: 6 decimals; stocks: 18).
 The mock oracle uses 8 decimals and owner-only positive price updates. Every update
