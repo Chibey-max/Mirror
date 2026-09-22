@@ -222,6 +222,31 @@ export const policyModuleAbi = [
 export const copyVaultAbi = [
   {
     type: "function",
+    name: "MAX_FOLLOWERS_PER_AGENT",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  { type: "error", name: "ZeroTrackRecord", inputs: [] },
+  { type: "error", name: "ZeroPolicyModule", inputs: [] },
+  { type: "error", name: "ZeroUsdg", inputs: [] },
+  {
+    type: "error",
+    name: "FollowerLimitReached",
+    inputs: [{ name: "agentId", type: "uint256" }],
+  },
+  {
+    type: "error",
+    name: "AgentNotFound",
+    inputs: [{ name: "agentId", type: "uint256" }],
+  },
+  {
+    type: "error",
+    name: "AgentInactive",
+    inputs: [{ name: "agentId", type: "uint256" }],
+  },
+  {
+    type: "function",
     name: "deposit",
     stateMutability: "nonpayable",
     inputs: [{ name: "amount", type: "uint256" }],
