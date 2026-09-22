@@ -423,6 +423,11 @@ export const copyVaultAbi = [
   },
   {
     type: "error",
+    name: "InvalidTokenDecimals",
+    inputs: [{ name: "token", type: "address" }],
+  },
+  {
+    type: "error",
     name: "NotionalOverflow",
     inputs: [{ name: "fillId", type: "uint256" }],
   },

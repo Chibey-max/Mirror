@@ -28,6 +28,8 @@ interface ICopyVault {
     error AgentInactive(uint256 agentId);
     error FillNotFound(uint256 fillId);
     error FillAlreadyMirrored(uint256 fillId);
+    /// @notice The fill token does not expose valid 18-decimal ERC-20 metadata.
+    error InvalidTokenDecimals(address token);
     error NotionalOverflow(uint256 fillId);
     error PositionOverflow();
 

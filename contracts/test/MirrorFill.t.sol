@@ -10,6 +10,18 @@ import {TrackRecord} from "../src/TrackRecord.sol";
 import {PolicyModule} from "../src/PolicyModule.sol";
 import {MockUSDG} from "../src/mocks/MockUSDG.sol";
 import {MockStock} from "../src/mocks/MockStock.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+
+contract NoDecimalsToken {}
+
+contract MalformedDecimalsToken {
+    fallback() external {
+        assembly {
+            mstore(0, 0x100)
+            return(0, 0x20)
+        }
+    }
+}
 
 contract MirrorVaultHarness is CopyVault {
     constructor(address record, address policy, address token, address runner_)
@@ -62,6 +74,10 @@ contract MirrorFillTest is Test {
 
     function _record(bool isBuy, uint256 size, uint256 price) internal returns (uint256) {
         return record.recordFill(AGENT, address(stock), isBuy, size, price, bytes32("round"));
+    }
+
+    function _recordToken(address token, bool isBuy, uint256 size, uint256 price) internal returns (uint256) {
+        return record.recordFill(AGENT, token, isBuy, size, price, bytes32("round"));
     }
 
     function test_OnlyRunnerCanMirrorAndUnknownFillsRevert() public {
@@ -166,5 +182,44 @@ contract MirrorFillTest is Test {
         vm.expectRevert(abi.encodeWithSelector(ICopyVault.NotionalOverflow.selector, fillId));
         vault.mirrorFill(fillId);
         assertFalse(vault.isMirrored(fillId), "malformed fill was marked processed");
+    }
+
+    function test_SixDecimalTokenRevertsBeforeProcessing() public {
+        uint256 fillId = _recordToken(address(usdg), true, ONE_STOCK, ONE_DOLLAR);
+
+        vm.expectRevert(abi.encodeWithSelector(ICopyVault.InvalidTokenDecimals.selector, address(usdg)));
+        vault.mirrorFill(fillId);
+        assertFalse(vault.isMirrored(fillId), "unsupported token was marked processed");
+    }
+
+    function test_MissingDecimalsRevertsWithNamedError() public {
+        address token = address(new NoDecimalsToken());
+        uint256 fillId = _recordToken(token, false, ONE_STOCK, ONE_DOLLAR);
+
+        vm.expectRevert(abi.encodeWithSelector(ICopyVault.InvalidTokenDecimals.selector, token));
+        vault.mirrorFill(fillId);
+        assertFalse(vault.isMirrored(fillId), "metadata-less token was marked processed");
+    }
+
+    function test_MalformedDecimalsRevertsWithNamedError() public {
+        address token = address(new MalformedDecimalsToken());
+        uint256 fillId = _recordToken(token, true, ONE_STOCK, ONE_DOLLAR);
+
+        vm.expectRevert(abi.encodeWithSelector(ICopyVault.InvalidTokenDecimals.selector, token));
+        vault.mirrorFill(fillId);
+        assertFalse(vault.isMirrored(fillId), "malformed token was marked processed");
+    }
+
+    function test_CeilIncrementOverflowRevertsBeforeProcessing() public {
+        uint256 denominator = 1e20;
+        uint256 price = denominator + 1;
+        uint256 size = type(uint256).max - (type(uint256).max / price);
+        uint256 fillId = _record(true, size, price);
+
+        assertEq(Math.mulDiv(size, price, denominator), type(uint256).max, "floor quotient did not reach max");
+        assertGt(mulmod(size, price, denominator), 0, "constructed product divided exactly");
+        vm.expectRevert(abi.encodeWithSelector(ICopyVault.NotionalOverflow.selector, fillId));
+        vault.mirrorFill(fillId);
+        assertFalse(vault.isMirrored(fillId), "ceil-overflow fill was marked processed");
     }
 }

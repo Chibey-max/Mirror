@@ -2,9 +2,10 @@
 
 Foundry workspace for the Mirror core primitive. Current spec: **PRD v2.2**, with
 unchanged requirements inherited from earlier versions (`../docs/`). Migration is
-incremental: TrackRecord is implemented; PolicyModule still contains its earlier scaffold.
+incremental: AgentRegistry, TrackRecord, PolicyModule and CopyVault's principal lifecycle
+and bounded mirroring path are implemented; deployment and the runner remain pending.
 
-## CopyVault foundation (not deployment-ready)
+## CopyVault lifecycle and mirroring (not deployment-ready)
 
 `CopyVault.sol` implements deposits and withdrawals with SafeERC20 and a shared
 reentrancy guard. It supports exact-transfer, non-rebasing MockUSDG only. Donations
@@ -18,8 +19,9 @@ independently of principal. At most 50 followers may follow each agent. A follow
 an existing, active agent; later deactivation never blocks unfollow. Slippage is not enforced.
 `mirrorFill` is runner-only and processes each TrackRecord fill at most once. It isolates per-follower
 policy rejections as `MirrorRejected` logs, while `isMirrored` reports whether the fill was processed.
-The frontend ABI includes the new errors and capacity getter. Full policy integration
-and mirroring remain pending. Do not use the foundation for real funds.
+Only tokens reporting exactly 18 decimals can be mirrored; invalid token metadata and notional overflow
+are terminal malformed-fill errors that the future runner must alert on rather than retry forever.
+The frontend ABI includes the new errors and capacity getter. Do not use the contracts for real funds.
 
 `VaultFoundation.t.sol` covers exact transfers/events, user isolation, failed-transfer
 rollback, reentrancy with a funded attacker, and multi-user accounting fuzzing.
@@ -27,10 +29,9 @@ These tests use code-bearing dependency placeholders, not policy/track-record in
 `VaultCustodyRegression.t.sol` adds token return-value rollback and 64-action custody
 sequences. `VaultLifecycle.t.sol` adds principal/membership tests, policy failures and
 callbacks, and 48-action follow/unfollow sequences with final full withdrawal.
-The lifecycle policy is a test double: the real PolicyModule remains a stub and follow
-against it still fails. No test asserts that this dependency must remain unimplemented.
-Jason will add real integration tests when incorporating PolicyModule PR #15.
-The three withdrawal acceptance tests now run; policy and drain-beyond-cap tests remain pending.
+The lifecycle unit tests retain a policy double for adversarial callbacks, while mirroring and
+drain-beyond-cap tests exercise the real PolicyModule. All required withdrawal, policy-cap and
+drain-beyond-cap tests now run.
 
 ### Lifecycle decision (Jason, 20 September 2026)
 
@@ -44,7 +45,8 @@ and day rollover require Isaac's implementation and integration tests.
 Each follow snapshots the global fill count. Only strictly later fill IDs are eligible;
 re-follow captures a fresh boundary. This avoids timestamp ties within one block.
 See [review decisions](../docs/decisions/0003-copyvault-lifecycle-review.md) for the additive
-ABI amendment and follower-limit tradeoff. Worst-case mirror gas remains to be measured.
+ABI amendment and follower-limit tradeoff. A 50-follower buy measured 2,693,535 gas,
+about 8% of a 30M block.
 
 The mock tokens expose unrestricted testnet minting (USDG: 6 decimals; stocks: 18).
 The mock oracle uses 8 decimals and owner-only positive price updates. Every update
@@ -61,10 +63,10 @@ contracts/
 │   │   ├── ITrackRecord.sol
 │   │   ├── IPolicyModule.sol
 │   │   └── ICopyVault.sol   # v2.2 interface
-│   ├── CopyVault.sol        # Jason — custody + principal lifecycle; mirroring pending
+│   ├── CopyVault.sol        # Jason — custody + principal lifecycle + bounded mirroring
 │   ├── AgentRegistry.sol    # Isaac
 │   ├── TrackRecord.sol      # Isaac
-│   ├── PolicyModule.sol     # Isaac
+│   ├── PolicyModule.sol     # Isaac — implemented policy enforcement
 │   └── mocks/               # Jason — MockUSDG, MockStock, MockAggregatorV3
 ├── test/
 ├── script/                  # Jason — deploy + verify

@@ -92,6 +92,8 @@ contract CopyVault is ICopyVault, ReentrancyGuard {
         if (fill.fillId == 0) revert FillNotFound(fillId);
         if (_isMirrored[fillId]) revert FillAlreadyMirrored(fillId);
 
+        _require18Decimals(fill.token);
+
         uint256 buyNotional;
         if (fill.isBuy) buyNotional = _ceilBuyNotional(fill.size, fill.price, fillId);
 
@@ -177,6 +179,11 @@ contract CopyVault is ICopyVault, ReentrancyGuard {
 
     function isMirrored(uint256 fillId) external view returns (bool) {
         return _isMirrored[fillId];
+    }
+
+    function _require18Decimals(address token) private view {
+        (bool hasDecimals, uint8 tokenDecimals) = IERC20(token).tryGetDecimals();
+        if (!hasDecimals || tokenDecimals != 18) revert InvalidTokenDecimals(token);
     }
 
     function _ceilBuyNotional(uint256 size, uint256 price, uint256 fillId) private pure returns (uint256) {
