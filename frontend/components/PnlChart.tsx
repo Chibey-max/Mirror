@@ -15,18 +15,18 @@ const CHART_HEIGHT = 176;
 
 /**
  * The line chart design prompt §5 asks for ("a big PnL figure plus a line
- * chart with range pills") and nothing on the agent page rendered at all —
+ * chart with range pills") and nothing on the agent page rendered at all,
  * `AgentCard`'s twelve-point Sparkline is a decoration next to a number;
  * this is the number's own evidence.
  *
  * Pills are the only interaction (briefing §09.D: "no drawing tools, no
- * indicators — this is a tape, not TradingView"), and the y-axis is never
+ * indicators, this is a tape, not TradingView"), and the y-axis is never
  * forced to include zero: a losing agent's line is allowed to sit entirely
  * below it and stay there, which a zero-anchored axis would visually deny.
  */
 export function PnlChart({ points }: { points: TimedPnlPoint[] }) {
   const [range, setRange] = useState<Range>("All");
-  // Date.now() is impure to call during render — frozen once, at mount,
+  // Date.now() is impure to call during render, frozen once, at mount,
   // via the lazy initializer, rather than read fresh on every render.
   const [nowSeconds] = useState(() => Math.floor(Date.now() / 1000));
 
@@ -36,7 +36,7 @@ export function PnlChart({ points }: { points: TimedPnlPoint[] }) {
     const cutoff = nowSeconds - seconds;
     const inRange = points.filter((p) => p.timestampSeconds >= cutoff);
     // A range with nothing in it is a real answer ("no activity in the last
-    // day"), not an error — but a single point can't draw a line, so the
+    // day"), not an error, but a single point can't draw a line, so the
     // chart falls back to the full series rather than rendering nothing.
     return inRange.length >= 2 ? inRange : points;
   }, [points, range, nowSeconds]);
@@ -85,7 +85,7 @@ function Line({ points }: { points: TimedPnlPoint[] }) {
   const values = points.map((p) => p.pnlPct);
   const last = values[values.length - 1];
   const color = last < 0 ? "var(--color-loss)" : "var(--color-profit)";
-  // Deliberately NOT `Math.min(...values, 0)` — a chart that always
+  // Deliberately NOT `Math.min(...values, 0)`, a chart that always
   // includes zero can't show a line that stays below it the whole way,
   // which is exactly the shape a consistently losing agent has to draw.
   const min = Math.min(...values);
@@ -100,7 +100,7 @@ function Line({ points }: { points: TimedPnlPoint[] }) {
     .join(" ");
   const area = `${line} L${width} ${height} L0 ${height} Z`;
 
-  // Only drawn when zero actually falls inside the visible range — a
+  // Only drawn when zero actually falls inside the visible range, a
   // reference a viewer can check against, not an axis the data is forced
   // to include.
   const zeroVisible = min <= 0 && max >= 0;

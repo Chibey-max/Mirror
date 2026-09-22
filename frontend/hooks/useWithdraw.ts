@@ -14,7 +14,7 @@ const MOCK_TX =
  * Withdrawing free vault balance back to the wallet (PRD §5.2/§5.3).
  *
  * Only free balance can leave: what's allocated to an agent is released by
- * unfollowing (§7.3), which is the kill button's job, not this one — so a
+ * unfollowing (§7.3), which is the kill button's job, not this one, so a
  * follower who wants everything out kills first, then withdraws.
  *
  * The two bridge setters do double duty. Against fixtures they move the

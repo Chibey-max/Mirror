@@ -26,7 +26,7 @@ export type AgentFill = FixtureFill;
 
 /**
  * IAgentRegistry.Agent and ITrackRecord.Fill as they come back from a
- * dynamically built multicall, where the result type is `unknown` — the
+ * dynamically built multicall, where the result type is `unknown`, the
  * tuple typing viem gives a single read doesn't survive the array. Both
  * guards check the fields actually used, so a shape change fails to a
  * skipped row rather than to a rendered `undefined`.
@@ -82,11 +82,11 @@ const FILL_SAMPLE = 100;
  * Three of the card's fields aren't in the registry and are assembled here:
  * follower count from CopyVault, fill count and volume from TrackRecord, and
  * PnL from those fills through the same `computeAgentPnl` the leaderboard
- * uses — so the two screens can't disagree.
+ * uses, so the two screens can't disagree.
  *
  * One field has no on-chain source at all. `strategy` is the human label
- * ("Momentum"); the registry stores `strategyHash` — a commitment, not a
- * name — and `modelVersion`. Live agents show their model version rather
+ * ("Momentum"); the registry stores `strategyHash`, a commitment, not a
+ * name, and `modelVersion`. Live agents show their model version rather
  * than a label invented in the frontend.
  *
  * Inert until deployments/46630.json lands, when fixtures stand in.
@@ -96,7 +96,7 @@ export function useAgents(): {
   isLoading: boolean;
   error: Error | null;
   /** Re-runs every read this hook made. For a calm error banner, not a
-   *  spinner — the caller decides when "try again" is worth showing. */
+   *  spinner, the caller decides when "try again" is worth showing. */
   refetch: () => void;
 } {
   const { chainId } = useAccount();
@@ -214,7 +214,7 @@ export function useAgents(): {
     agents.push({
       id,
       name: record.name,
-      // No on-chain label — the model version is the closest true thing.
+      // No on-chain label, the model version is the closest true thing.
       strategy: record.modelVersion,
       modelVersion: record.modelVersion,
       strategyHash: record.strategyHash,

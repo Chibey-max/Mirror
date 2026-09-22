@@ -19,7 +19,7 @@ const MOCK_TX =
  *
  * Live, a deposit is up to two transactions: ERC-20 `approve` so CopyVault
  * can pull the funds, then `deposit` itself. The allowance is read first and
- * the approval skipped when one already covers the amount — a second deposit
+ * the approval skipped when one already covers the amount, a second deposit
  * shouldn't cost the follower a second signature.
  *
  * Both balances are read from chain and re-read after the deposit is mined,
@@ -27,7 +27,7 @@ const MOCK_TX =
  * follow and withdraw also move, so anything kept in React state here would
  * drift the moment another write lands.
  *
- * Until deployments/46630.json lands the fixture path below runs instead —
+ * Until deployments/46630.json lands the fixture path below runs instead,
  * same shape, no chain.
  */
 export function useDeposit() {
@@ -103,12 +103,12 @@ export function useDeposit() {
     await confirm(txHash);
     await Promise.all([walletRead.refetch(), vaultRead.refetch()]);
 
-    // The deposit, not the approval — this is the hash the success state
+    // The deposit, not the approval, this is the hash the success state
     // links to the explorer.
     return { txHash };
   }
 
-  /** Withdraw's counterpart to deposit's implicit wallet debit — credits the
+  /** Withdraw's counterpart to deposit's implicit wallet debit, credits the
    * wallet side when funds leave the vault. Mirrors addFreeBalance in
    * useFollow.ts, which bridges the same two hooks the other direction.
    * Live, the chain already knows; this only asks it again. */

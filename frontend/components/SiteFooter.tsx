@@ -1,5 +1,5 @@
 /**
- * The one footer, on every screen — the trust line from the landing page
+ * The one footer, on every screen, the trust line from the landing page
  * (design prompt §1), generalised so an inner page carries the same
  * "verify this yourself" claim the hero makes.
  */

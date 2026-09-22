@@ -74,12 +74,12 @@ export default function AgentDetailPage({
   const track = useTrackedWrite();
   // A disconnected visitor browses read-only; an action prompts them to
   // connect instead of running against nothing and failing silently at the
-  // wallet layer (§13) — easy to miss, since the fixture path renders a
+  // wallet layer (§13), easy to miss, since the fixture path renders a
   // full "as if following" demo state with nobody connected at all.
   const { isConnected, requireConnection } = useRequireConnection();
   const allocated = agent ? (allocatedByAgent[agent.id] ?? 0) : 0;
   // Only asked live while there's a cap to measure against (design prompt
-  // §5: "spent today, progress bar against the cap") — allocated doubles as
+  // §5: "spent today, progress bar against the cap"), allocated doubles as
   // the cap because follow() sets both from the one capAmount argument.
   const spentToday = useSpentToday(allocated > 0 ? [agentId] : []);
 
@@ -100,7 +100,7 @@ export default function AgentDetailPage({
       : null;
   /*
    * Keeps KillButton mounted across the kill. It renders the "can no longer
-   * move your funds" badge itself, off its own verified state — and the
+   * move your funds" badge itself, off its own verified state, and the
    * allocation it was mounted for is zero by then, so mounting on the
    * allocation alone tears the badge down at the moment it is earned.
    */
@@ -203,7 +203,7 @@ export default function AgentDetailPage({
       )}
 
       {/*
-        The big PnL figure plus a ranged chart (design prompt §5) — the page
+        The big PnL figure plus a ranged chart (design prompt §5), the page
         had neither before this, only the number buried in a card elsewhere.
         Same pnlPct/pnlUsd as the leaderboard and the agent cards; the chart
         is the evidence behind that one number, not a second computation.
@@ -346,13 +346,13 @@ export default function AgentDetailPage({
                 {/*
                   The follow panel design prompt §5 asks for: cap, spent
                   today against it, allocation (above), kill switch (below).
-                  Only shown while following — spending against a cap that
+                  Only shown while following, spending against a cap that
                   doesn't exist isn't a state that means anything.
                 */}
                 {allocated > 0 && (() => {
                   const spent = spentToday[agentId] ?? 0;
                   // Enforcement is on-chain; a fill can still land between
-                  // reads and put this over 100% for a moment — clamped so
+                  // reads and put this over 100% for a moment, clamped so
                   // the bar never draws past its own track.
                   const pct = Math.min(100, (spent / allocated) * 100);
                   return (

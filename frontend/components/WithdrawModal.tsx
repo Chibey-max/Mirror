@@ -10,7 +10,7 @@ type Stage = "idle" | "signing" | "pending" | "success";
 /**
  * Withdraw flow (design prompt §11): amount + Max (free balance only), a
  * disabled button with an inline message once the amount exceeds free
- * balance — never a silent clamp. Free balance only; allocated funds must go
+ * balance, never a silent clamp. Free balance only; allocated funds must go
  * through KillButton first, per CopyVault's design (PRD §4.4).
  *
  */
@@ -44,7 +44,7 @@ export function WithdrawModal({
     setStage("signing");
     try {
       // "Pending" starts when the transaction has a hash, and ends when
-      // onWithdraw resolves — which is when its receipt is in.
+      // onWithdraw resolves, which is when its receipt is in.
       const { txHash: hash } = await onWithdraw(parsed, (event) => {
         if (event.stage !== "submitted") return;
         setTxHash(event.txHash);

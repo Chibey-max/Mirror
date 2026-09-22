@@ -23,14 +23,14 @@ import { useWithdraw } from "@/hooks/useWithdraw";
 import { spentTodayTier } from "@/lib/format";
 
 /**
- * The vault, across every agent followed — not just the one you happen to
+ * The vault, across every agent followed, not just the one you happen to
  * be looking at (design prompt §3: "a persistent vault summary").
  *
  * Before this page, balances existed only on one agent's detail screen:
  * follow two agents and there was nowhere to see the total position, or
  * what any of them had spent against their cap today. This is that screen.
  *
- * `agentIds` is every registered agent — `useFollow`'s allocation reads are
+ * `agentIds` is every registered agent, `useFollow`'s allocation reads are
  * per (user, agent) pair with no "agents I follow" view on-chain, so the
  * caller has to name every pair worth checking. A wallet with two follows
  * out of forty agents still means forty reads; cheap relative to the
@@ -68,13 +68,13 @@ export default function VaultPage() {
         <PageHeader
           eyebrow="Your position"
           title="Vault"
-          description="Every follow, one place. The cap is enforced on-chain per agent — this is where you see what each one has actually used."
+          description="Every follow, one place. The cap is enforced on-chain per agent. This is where you see what each one has actually used."
         />
 
         <Reveal>
           <p className="mt-5 max-w-2xl text-sm leading-relaxed text-muted">
             &ldquo;Allocated&rdquo; is principal locked into a follow, not its
-            current value — Mirror never settles anything, so there&rsquo;s no
+            current value. Mirror never settles anything, so there&rsquo;s no
             mark-to-market to show here. Unfollow always returns this exact
             number to free balance, whatever the tape did while you were
             following.
@@ -111,7 +111,7 @@ export default function VaultPage() {
         <section className="mt-10">
           <SectionHeader
             label="Active follows"
-            description="Spent today is enforced by PolicyModule — this bar can't fall behind what the chain would actually block."
+            description="Spent today is enforced by PolicyModule, so this bar can't fall behind what the chain would actually block."
           />
 
           {followedIds.length === 0 ? (
@@ -129,7 +129,7 @@ export default function VaultPage() {
                 const cap = allocatedByAgent[id] ?? 0;
                 const spent = spentToday[id] ?? 0;
                 // Cap enforcement is server-side (on-chain); a fill can still
-                // land between reads and put this over 100% for a moment —
+                // land between reads and put this over 100% for a moment,
                 // clamped so the bar never draws past its own track.
                 const pct = cap > 0 ? Math.min(100, (spent / cap) * 100) : 0;
                 const bar = spentTodayTier(pct);
@@ -146,7 +146,7 @@ export default function VaultPage() {
                         </Link>
                         <span className="tabular text-xs text-muted">
                           {pct >= 100
-                            ? "Cap reached — buys will reject, sells still pass"
+                            ? "Cap reached: buys will reject, sells still pass"
                             : `$${spent.toFixed(2)} / $${cap.toFixed(2)} today`}
                         </span>
                       </div>
@@ -173,7 +173,7 @@ export default function VaultPage() {
 
         {/*
           The personal view of the public log (briefing §09.C): every fill
-          from every followed agent, with whatever happened to THIS vault —
+          from every followed agent, with whatever happened to THIS vault,
           mirrored, blocked with cause, or neither. Below the per-follow
           rows, not a fifth marketing page.
         */}

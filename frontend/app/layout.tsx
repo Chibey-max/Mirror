@@ -16,9 +16,9 @@ const geistMono = Geist_Mono({
 
 /**
  * Display-only face for headlines and hero-scale numerals. Everything else
- * stays Geist — this isn't a font swap, it's one deliberate accent.
+ * stays Geist, this isn't a font swap, it's one deliberate accent.
  *
- * Was Instrument Serif — swapped after feedback that the hero read as too
+ * Was Instrument Serif, swapped after feedback that the hero read as too
  * thin. Instrument Serif only ships one weight (400); no CSS font-weight
  * makes a single-weight face heavier, the font file itself is thin. Fraunces
  * has a genuine 600-900 range plus an optical-size axis tuned for large
@@ -32,7 +32,7 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Mirror — on-chain agent track records",
+  title: "Mirror: on-chain agent track records",
   description:
     "A tamper-proof on-chain performance ledger for trading agents, with a hard-capped copy vault.",
 };

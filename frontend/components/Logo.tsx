@@ -6,8 +6,8 @@ import Link from "next/link";
 /**
  * The mark and the wordmark, together.
  *
- * The mark is a distilled version of the hero itself — an open ring with a
- * body caught in its orbit — rather than a generic monogram, so the icon a
+ * The mark is a distilled version of the hero itself, an open ring with a
+ * body caught in its orbit, rather than a generic monogram, so the icon a
  * tab shows and the thing the landing page spends a WebGL scene on are
  * recognisably the same object. Traced with the same chrome-into-copper
  * gradient the nav underline and the buttons' liquid rim use, so the three
@@ -15,11 +15,11 @@ import Link from "next/link";
  *
  * The wordmark's italic second half echoes the hero's own emphasis
  * ("Every follow *capped*.") instead of inventing a fourth typographic
- * idea — the same Fraunces italic the app already uses for the one word
+ * idea, the same Fraunces italic the app already uses for the one word
  * per sentence that matters most.
  */
 export function LogoMark({ size = 24 }: { size?: number }) {
-  // A page-unique gradient id — two instances (header + footer, say) would
+  // A page-unique gradient id, two instances (header + footer, say) would
   // otherwise collide and both resolve to whichever <defs> paints last.
   const gradientId = `logo-mark-gradient-${useId()}`;
 

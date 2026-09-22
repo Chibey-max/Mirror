@@ -6,10 +6,10 @@ import { useReducedMotion } from "@/components/MetalButton";
 /**
  * Fades and lifts a section in once it's actually on screen, instead of
  * animating everything at once on page load. One IntersectionObserver per
- * instance rather than a scroll listener — cheaper, and it fires once and
+ * instance rather than a scroll listener, cheaper, and it fires once and
  * disconnects rather than tracking position on every frame.
  *
- * Reduced motion shows the content immediately, fully visible — the
+ * Reduced motion shows the content immediately, fully visible, the
  * animation is a flourish on the way in, never a gate on reading it.
  */
 export function Reveal({
@@ -24,7 +24,7 @@ export function Reveal({
   const ref = useRef<HTMLDivElement>(null);
   const [observed, setObserved] = useState(false);
   const reduced = useReducedMotion();
-  // Reduced motion needs no observer at all — derived here rather than set
+  // Reduced motion needs no observer at all, derived here rather than set
   // from inside the effect, so the effect only ever calls setState from the
   // observer's own callback, never synchronously in its body.
   const visible = reduced || observed;

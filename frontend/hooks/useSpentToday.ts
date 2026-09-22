@@ -5,14 +5,14 @@ import { addressesFor, isDeployed, policyModuleAbi } from "@/lib/contracts";
 import { fromUsdg } from "@/lib/usdg";
 
 /**
- * How much of each agent's daily cap this wallet has already used —
+ * How much of each agent's daily cap this wallet has already used,
  * `PolicyModule.spentToday`, the same number `CapExceeded.attempted` builds
  * on (§7.6). This is the read the design prompt's "spent today" progress
  * bar needs and nothing in the app reads yet: the cap is the whole product,
  * and until this exists a follower sets one and never sees it again.
  *
  * Keyed by agent id, matching the shape `useFollow`'s `allocatedByAgent`
- * already uses — the same number doubles as the cap `follow()` sets on
+ * already uses, the same number doubles as the cap `follow()` sets on
  * PolicyModule, so a progress bar is `spentToday / allocatedByAgent[id]`
  * with no second read needed for the denominator.
  *

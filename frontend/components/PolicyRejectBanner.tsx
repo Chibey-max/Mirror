@@ -5,7 +5,7 @@ import { MetalButton } from "@/components/MetalButton";
 
 /**
  * The demo centerpiece (PRD §5.3, design prompt §9). Never a generic
- * "transaction failed" toast, never a raw revert string — always the exact
+ * "transaction failed" toast, never a raw revert string, always the exact
  * copy below, framed as the system *protecting* the user, with an inline
  * explorer link. Renders one of the four PolicyModule custom errors
  * (PRD §4.6):
@@ -16,7 +16,7 @@ import { MetalButton } from "@/components/MetalButton";
  * The link points at a SUCCESSFUL transaction, not a failed one: under PRD
  * v2.2 §7.1 the vault catches a policy rejection and logs MirrorRejected, so
  * the mirrorFill that carried it went through for everyone else. Hence
- * "rejected", never "reverted" — the tx is the evidence, not the failure.
+ * "rejected", never "reverted", the tx is the evidence, not the failure.
  */
 export type PolicyRejectReason =
   | { type: "CapExceeded"; attempted: number; cap: number }
@@ -27,7 +27,7 @@ export type PolicyRejectReason =
 function copyFor(reason: PolicyRejectReason): string {
   switch (reason.type) {
     case "CapExceeded":
-      // `attempted` is spentToday + this trade, a running total — not the
+      // `attempted` is spentToday + this trade, a running total, not the
       // trade's own size (PRD v2.2 §7.6). The old copy read it as the size,
       // which made a $30 trade blocked at "$70" impossible to understand.
       return `Blocked: this trade would take today's total for this agent to $${reason.attempted}, over your $${reason.cap} daily cap.`;
@@ -59,7 +59,7 @@ export function PolicyRejectBanner({
           aria-hidden
           className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full bg-loss/20 text-loss"
         >
-          {/* shield icon — protecting, not failing */}
+          {/* shield icon, protecting, not failing */}
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M12 2 4 5v6c0 5 3.4 8.7 8 9 4.6-.3 8-4 8-9V5l-8-3Z" />
           </svg>

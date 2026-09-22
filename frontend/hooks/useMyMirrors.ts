@@ -24,7 +24,7 @@ export type MirrorRow = {
   size: string;
   price: string;
   time: string;
-  /** Full ISO string for the hover title — the row shows relative time,
+  /** Full ISO string for the hover title, the row shows relative time,
    *  a judge checking the tape wants the absolute one on demand. */
   timeAbsolute: string;
   outcome: MirrorOutcome | undefined;
@@ -67,8 +67,8 @@ function trimZeros(value: string): string {
 /**
  * "Your mirrors" (briefing §09.C): the personal, per-follower view of the
  * public Mirrored/MirrorRejected log. `useMirrorOutcomes` is per-agent by
- * design — mirroring is a per-follower fact, so it needs the caller to name
- * the pairs — this fans that same lookup out across every agent followed,
+ * design, mirroring is a per-follower fact, so it needs the caller to name
+ * the pairs, this fans that same lookup out across every agent followed,
  * called with no agentId so it watches every outcome for this wallet.
  */
 export function useMyMirrors(
@@ -117,8 +117,8 @@ export function useMyMirrors(
         agentId: Number(fill.agentId),
         agentName: agentNames[Number(fill.agentId)] ?? `Agent #${fill.agentId}`,
         side: fill.isBuy ? "BUY" : "SELL",
-        token: token?.symbol ?? "—",
-        size: token ? trimZeros(formatUnits(fill.size, token.decimals)) : "—",
+        token: token?.symbol ?? "n/a",
+        size: token ? trimZeros(formatUnits(fill.size, token.decimals)) : "n/a",
         price: formatUnits(fill.price, ORACLE_PRICE_DECIMALS),
         time: relativeTime(Number(fill.timestamp)),
         timeAbsolute: date.toISOString(),

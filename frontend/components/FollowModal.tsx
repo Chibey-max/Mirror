@@ -228,7 +228,7 @@ export function FollowModal({
 
             {/*
               Design prompt §7 / briefing §09.A: the plain-language safety
-              summary is the product, not a disclaimer — same body-copy size
+              summary is the product, not a disclaimer, same body-copy size
               as everything else in the modal, placed where it's read right
               before signing rather than buried above the inputs. Renders
               even with an empty/invalid cap, with a placeholder, so the

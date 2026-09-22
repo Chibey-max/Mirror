@@ -95,7 +95,7 @@ export function AgentCard({
 
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-4">
         {/*
-          The card itself is a Link — a button nested in an anchor is
+          The card itself is a Link, a button nested in an anchor is
           invalid content, and without stopping the click it would copy the
           hash AND navigate. Stopped here, not inside CopyableHash itself,
           since that's a fact about this one placement, not about copying.

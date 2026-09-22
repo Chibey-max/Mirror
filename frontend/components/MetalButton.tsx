@@ -9,7 +9,7 @@ import { LiquidMetal } from "@paper-design/shaders-react";
  * liquid chrome.
  *
  * Structure, from the reference (21st.dev liquid-metal-button):
- *   1. A chrome layer filling the whole pill — Paper Shaders' LiquidMetal.
+ *   1. A chrome layer filling the whole pill, Paper Shaders' LiquidMetal.
  *   2. A dark gradient face inset 2px, so only a 2px rim of chrome shows.
  *   3. The label on top.
  * Hover speeds the chrome up, a press kicks it faster for 300ms and sinks the
@@ -18,8 +18,8 @@ import { LiquidMetal } from "@paper-design/shaders-react";
  * Every LiquidMetal is its own WebGL context, and browsers cap live contexts
  * per page (Chrome at 16, dropping the oldest). An agent page with a modal
  * open reaches that. So real shaders are handed out from a shared budget, and
- * any button past it — plus the small chips, where 2px of chrome is too thin
- * to tell apart — draws a CSS conic-gradient rim instead. When a shader
+ * any button past it, plus the small chips, where 2px of chrome is too thin
+ * to tell apart, draws a CSS conic-gradient rim instead. When a shader
  * button unmounts, the next waiting button is promoted to a real one.
  */
 
@@ -262,7 +262,7 @@ export function MetalButton({
     <>
       {quiet ? (
         /*
-         * A flat pill on a hairline — no chrome. Chrome everywhere turned
+         * A flat pill on a hairline, no chrome. Chrome everywhere turned
          * every control into a primary action; one metal button per view is
          * the rule, and this is everything else.
          */

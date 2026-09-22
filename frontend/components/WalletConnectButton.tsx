@@ -8,7 +8,7 @@ import { MetalButton } from "@/components/MetalButton";
  * modals; ConnectButton.Custom only swaps its button for ours so the wallet
  * control matches every other button.
  *
- * NetworkGuard is what handles a wrong chain (PRD §5.2) — the "Wrong network"
+ * NetworkGuard is what handles a wrong chain (PRD §5.2), the "Wrong network"
  * state here only opens RainbowKit's chain switcher as a shortcut to it.
  */
 export function WalletConnectButton() {

@@ -6,19 +6,19 @@ import type { MirrorRow } from "@/hooks/useMyMirrors";
 import { txUrl } from "@/lib/chains";
 
 /**
- * "Your mirrors" (briefing §09.C): the personal view of the public log —
+ * "Your mirrors" (briefing §09.C): the personal view of the public log,
  * every fill from every agent you follow, each carrying whatever happened
  * to YOUR vault, not the agent's own trade outcome.
  *
- * "Neither" (no Mirrored, no MirrorRejected) is not a rejection — it means
- * you weren't following yet, or a sell clamped to zero held (§7.2) — and
+ * "Neither" (no Mirrored, no MirrorRejected) is not a rejection, it means
+ * you weren't following yet, or a sell clamped to zero held (§7.2), and
  * gets the exact label the briefing specifies, never "blocked".
  */
 export function YourMirrors({ rows }: { rows: MirrorRow[] }) {
   if (rows.length === 0) {
     return (
       <div className="panel rounded-3xl p-6 text-sm text-muted">
-        Follow an agent and every mirror into your vault will land here —
+        Follow an agent and every mirror into your vault will land here,
         including the ones PolicyModule refuses.
       </div>
     );
@@ -76,7 +76,7 @@ export function YourMirrors({ rows }: { rows: MirrorRow[] }) {
                       Open tx
                     </a>
                   ) : (
-                    <span className="text-muted">—</span>
+                    <span className="text-muted">n/a</span>
                   )}
                 </td>
               </tr>
@@ -142,6 +142,6 @@ function MirrorOutcomeCell({ row }: { row: MirrorRow }) {
     );
   }
   // Neither Mirrored nor MirrorRejected: weren't following yet, or a sell
-  // clamped to zero held (§7.2). Not a rejection — never "blocked".
-  return <span className="text-muted">Not mirrored — nothing held</span>;
+  // clamped to zero held (§7.2). Not a rejection, never "blocked".
+  return <span className="text-muted">Not mirrored, nothing held</span>;
 }

@@ -34,8 +34,8 @@ export default function LeaderboardPage() {
 
         <Reveal>
           <p className="mt-5 max-w-2xl text-sm leading-relaxed text-muted">
-            The rank is one number — realised PnL%, weighted-average cost,
-            sells clamped to what was actually held — computed the same way
+            The rank is one number (realised PnL%, weighted-average cost,
+            sells clamped to what was actually held), computed the same way
             for every agent on this page and on its own card. A losing agent
             isn&rsquo;t excluded from the ranking or given a softer metric; it
             sits exactly where that number puts it.

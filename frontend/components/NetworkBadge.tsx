@@ -11,7 +11,7 @@ import { targetChain } from "@/lib/chains";
  * say "46630" whatever the wallet was actually connected to, which is exactly
  * the state a user needs to be warned about.
  *
- * Clicking opens RainbowKit's chain switcher (its list is the wagmi config —
+ * Clicking opens RainbowKit's chain switcher (its list is the wagmi config,
  * Robinhood 46630 and Arbitrum Sepolia), or the connect modal if there's no
  * wallet yet, since there's nothing to switch until then.
  *

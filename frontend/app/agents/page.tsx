@@ -26,7 +26,7 @@ function sortAgents(agents: Agent[], key: SortKey): Agent[] {
   if (key === "pnl") return sorted.sort((a, b) => b.pnlPct - a.pnlPct);
   if (key === "fills") return sorted.sort((a, b) => b.fills - a.fills);
   // "Newest": registeredAt is an ISO date string, so lexical order is
-  // chronological order — no Date parsing needed.
+  // chronological order, no Date parsing needed.
   return sorted.sort((a, b) => (a.registeredAt < b.registeredAt ? 1 : -1));
 }
 
@@ -53,13 +53,13 @@ export default function AgentsPage() {
 
         {/*
           The two badges AgentCard can show, explained once here rather than
-          left for a visitor to infer — the trust claim only lands if the
+          left for a visitor to infer, the trust claim only lands if the
           reader knows what "Verified" is actually checking.
         */}
         <Reveal>
           <p className="mt-5 max-w-2xl text-sm leading-relaxed text-muted">
             <span className="font-medium text-chrome">Verified</span> means
-            every fill on that agent&rsquo;s tape traces to an on-chain event —
+            every fill on that agent&rsquo;s tape traces to an on-chain event,
             not that it&rsquo;s winning.{" "}
             <span className="font-medium text-loss">Losing agent</span> is the
             same ledger saying so plainly: a negative PnL is exactly as

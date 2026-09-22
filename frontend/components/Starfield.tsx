@@ -15,10 +15,10 @@ type Star = {
   maxOpacity: number;
   duration: number;
   delay: number;
-  /** Where in the 0–1 scroll range this star leaves the ring — staggered so
+  /** Where in the 0–1 scroll range this star leaves the ring, staggered so
    *  the field peels off in a stream rather than all on one frame. */
   startAt: number;
-  /** Seconds this star takes to catch up with the scroll — different per
+  /** Seconds this star takes to catch up with the scroll, different per
    *  star, so a single flick sends them out as a drifting cloud rather than
    *  a rigid pattern moving in lockstep. */
   glide: number;
@@ -51,7 +51,7 @@ type Ring = { cx: number; cy: number; radius: number };
  * in page.tsx: the camera looks at the origin, so the body always lands dead
  * centre of that box, and reading the live rect keeps this layer pointing at
  * the ring even if the hero is repositioned. It also gives the scroll offset
- * for free — the box sits in page flow, so its rect rises as the page scrolls
+ * for free, the box sits in page flow, so its rect rises as the page scrolls
  * and the emission point rises with the ring it belongs to.
  */
 function ringGeometry(): Ring {
@@ -106,7 +106,7 @@ function smoothstep(t: number): number {
 }
 
 /**
- * Extra swirl on each path, in radians — zero at launch and at landing, most
+ * Extra swirl on each path, in radians, zero at launch and at landing, most
  * in between, so paths bow gently instead of running straight. One direction
  * for every star, so the field swirls together.
  */
@@ -120,7 +120,7 @@ const CURL = 0.6;
  * mean re-deriving that math.
  *
  * Every star travels out from the ring's centre toward the point it settles
- * at, starting on the rim — which is what makes the field read as coming out
+ * at, starting on the rim, which is what makes the field read as coming out
  * of the ring instead of merely appearing over the page. The path starts
  * slightly curled and straightens as it lands. It is recomputed from the
  * ring's live position each frame, so it stays aimed correctly while the hero
@@ -147,7 +147,7 @@ export function Starfield() {
   }, []);
 
   useEffect(() => {
-    // Reduced motion runs no loop at all — every star is already at rest in
+    // Reduced motion runs no loop at all, every star is already at rest in
     // its final spot, placed in the JSX below.
     if (!stars || reduced) return;
 
@@ -203,7 +203,7 @@ export function Starfield() {
 
         // Launch point: fixed to the ring itself, in the direction of where
         // the star lands as seen from the top of the page. Measured in page
-        // coordinates, so it doesn't change as you scroll — until it lifts
+        // coordinates, so it doesn't change as you scroll, until it lifts
         // off, a star rides with the ring exactly, instead of sliding around
         // the rim as the ring scrolls past a destination pinned to the screen.
         const pageCy = ring.cy + window.scrollY;
@@ -224,8 +224,8 @@ export function Starfield() {
         const landAngle = Math.atan2(landDy, landDx);
         const landRadius = Math.hypot(landDx, landDy);
 
-        // Travel in polar coordinates around the ring's centre — radius and
-        // angle each blend from launch to landing — so the path arcs out and
+        // Travel in polar coordinates around the ring's centre, radius and
+        // angle each blend from launch to landing, so the path arcs out and
         // around the ring rather than cutting across it, with a slight extra
         // curl that unwinds as it lands.
         let turn = landAngle - launchAngle;
@@ -238,7 +238,7 @@ export function Starfield() {
 
         // Streak length follows a smoothed velocity rather than this frame's
         // raw step, so it grows and relaxes gradually instead of flickering
-        // with every notch of the wheel — and it points wherever the star is
+        // with every notch of the wheel, and it points wherever the star is
         // actually heading, curve included.
         if (!Number.isNaN(lastX[i])) {
           velX[i] += (x - lastX[i] - velX[i]) * velocityFollow;
@@ -253,7 +253,7 @@ export function Starfield() {
         // Visibility is a function of where the star is, not how far along it
         // is: nothing shows inside the body's silhouette, and it fades up
         // softly over the next half-radius as it clears the rim, growing into
-        // its full size as it does — so each star is first seen as a faint
+        // its full size as it does, so each star is first seen as a faint
         // speck leaving the ring's edge, and sinks back in on the way up.
         const visible = smoothstep((along - ring.radius) / (ring.radius * 0.5));
         const size = 0.5 + 0.5 * visible;

@@ -6,7 +6,7 @@ import type { FixtureFill } from "@/lib/fixtures";
  * PRD v2.2 §7.3/§10 is explicit about where this may NOT come from:
  * `allocationOf` is principal committed and returned unchanged at unfollow,
  * so reading it as value would show every agent at exactly break-even.
- * Mirror never settles anything either, so there is no mark-to-market — the
+ * Mirror never settles anything either, so there is no mark-to-market, the
  * only honest number is realised PnL from what was actually mirrored, priced
  * at each fill.
  *
@@ -18,11 +18,11 @@ export type MirroredTrade = {
   agentId: number;
   token: string;
   isBuy: boolean;
-  /** Token units actually mirrored — Mirrored.size, not the agent's own fill. */
+  /** Token units actually mirrored, Mirrored.size, not the agent's own fill. */
   size: number;
   /** The fill's recorded price, USDG per token unit. */
   price: number;
-  /** When the fill happened — optional because the small sparklines never
+  /** When the fill happened, optional because the small sparklines never
    *  needed it; the ranged chart does, to filter by 1D/7D/30D. */
   timestampSeconds?: number;
 };
@@ -32,7 +32,7 @@ export type AgentPnl = {
   pnlUsd: number;
   /** Realised PnL over the cost of what was closed. 0 when nothing closed. */
   pnlPct: number;
-  /** Cost basis of the closed portion — the denominator above. */
+  /** Cost basis of the closed portion, the denominator above. */
   closedCost: number;
   /** Cost still on the books, i.e. open exposure. */
   openCost: number;
@@ -86,7 +86,7 @@ export function computeAgentPnl(
 }
 
 /**
- * Realised PnL% after each trade, oldest first — what the sparkline draws.
+ * Realised PnL% after each trade, oldest first, what the sparkline draws.
  *
  * Recomputed from scratch at each prefix rather than tracked incrementally,
  * because `computeAgentPnl` is already the single source of truth for the
@@ -109,7 +109,7 @@ export type TimedPnlPoint = { timestampSeconds: number; pnlPct: number };
 
 /**
  * The same realised-PnL walk as `pnlPctSeries`, keeping each point's
- * timestamp instead of discarding it — what the agent-detail chart's range
+ * timestamp instead of discarding it, what the agent-detail chart's range
  * pills filter against. Trades missing a `timestampSeconds` are skipped
  * rather than plotted at a guessed position; a point with no real time
  * would make 1D/7D/30D filtering silently wrong instead of just sparser.

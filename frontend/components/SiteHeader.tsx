@@ -22,13 +22,13 @@ const NAV = [
 /**
  * Underline every nav link carries: a hairline that scales in from the
  * centre on hover or keyboard focus, in the same chrome-to-copper-to-chrome
- * gradient the buttons' liquid rim uses — the nav's own, much cheaper,
+ * gradient the buttons' liquid rim uses, the nav's own, much cheaper,
  * answer to the same material. A real WebGL shader per link would blow the
  * page's shared shader-slot budget on decoration; this is CSS.
  *
  * The active page keeps its underline lit without the hover/focus scale-in,
  * so "you're here" reads as settled and "you're about to click" reads as
- * responsive — the same distinction MetalButton draws between idle and
+ * responsive, the same distinction MetalButton draws between idle and
  * pressed.
  */
 function NavLink({
@@ -75,12 +75,12 @@ function NavLink({
  * The one header, on every screen.
  *
  * A pill that hugs its contents rather than a bar spanning the page, wearing
- * the same liquid rim as the buttons — `strip`, because the button settings
+ * the same liquid rim as the buttons, `strip`, because the button settings
  * bunch every highlight into the middle of something this long and thin.
  *
- * Sticky, and in flow, so the hero's canvas — positioned against the page
- * wrapper — is unaffected. Hides on scroll-down past a small threshold and
- * reappears on scroll-up (or near the top) — a long agent tape or the
+ * Sticky, and in flow, so the hero's canvas, positioned against the page
+ * wrapper, is unaffected. Hides on scroll-down past a small threshold and
+ * reappears on scroll-up (or near the top), a long agent tape or the
  * leaderboard table shouldn't spend a sticky header's worth of vertical
  * space the whole way down.
  *
@@ -101,7 +101,7 @@ export function SiteHeader() {
     function onScroll() {
       const y = window.scrollY;
       const goingDown = y > lastY.current;
-      // Never hide near the top — there's nothing to reclaim yet, and a
+      // Never hide near the top, there's nothing to reclaim yet, and a
       // header that vanishes on the first pixel of scroll reads as broken.
       setHidden(goingDown && y > 96);
       lastY.current = y;
@@ -146,7 +146,7 @@ export function SiteHeader() {
 
       {/*
         The links don't fit in the pill beside the wallet button on a phone, so
-        they sit under it rather than disappearing — without this there is no
+        they sit under it rather than disappearing, without this there is no
         way off the landing page on mobile at all.
       */}
       <nav className="mt-2 flex items-center gap-4 sm:hidden">

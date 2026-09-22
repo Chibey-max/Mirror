@@ -42,16 +42,16 @@ function asRawFills(value: unknown): RawFill[] {
 }
 
 /**
- * The ranged chart's own series — design prompt §5's "big PnL figure plus a
+ * The ranged chart's own series, design prompt §5's "big PnL figure plus a
  * line chart with range pills," which nothing on the agent page rendered at
  * all before this. A dedicated read rather than reusing useAgents' own
  * multi-agent multicall: that one is built to answer "every agent, once,"
  * this needs one agent's fills WITH their timestamps and a deeper sample
  * than a card's sparkline ever did.
  *
- * Fixture path doesn't replay the three fixture fills — they're too few and
+ * Fixture path doesn't replay the three fixture fills, they're too few and
  * too recent to demonstrate range filtering at all. It spreads the agent's
- * own curated `pnlSeries` (already twelve points of real narrative — Red's
+ * own curated `pnlSeries` (already twelve points of real narrative, Red's
  * decline, Pulse's climb) evenly across the last 30 days instead, so 1D/7D
  * both show something and "All" shows the full shape the fixtures were
  * written to tell.
@@ -63,7 +63,7 @@ export function useAgentPnlHistory(agentId: number): {
   const { chainId } = useAccount();
   const trackRecord = chainId ? addressesFor(chainId)?.trackRecord : undefined;
   const live = isDeployed(trackRecord);
-  // Date.now() is impure to call during render — frozen once, at mount, so
+  // Date.now() is impure to call during render, frozen once, at mount, so
   // the fixture path's synthetic timestamps don't shift on every render.
   const [nowSeconds] = useState(() => Math.floor(Date.now() / 1000));
 

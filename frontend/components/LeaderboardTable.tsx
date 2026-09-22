@@ -4,7 +4,7 @@ import type { FixtureAgent } from "@/lib/fixtures";
 
 /**
  * Leaderboard (design prompt §12): "Computed live from on-chain TrackRecord
- * and CopyVault events. No spreadsheets." Red sits visibly in the red —
+ * and CopyVault events. No spreadsheets." Red sits visibly in the red,
  * don't soften it, that honesty is the whole point (PRD §11).
  *
  * `agents` comes from hooks/useLeaderboard, which aggregates PnL
@@ -18,7 +18,7 @@ export function LeaderboardTable({ agents }: { agents: FixtureAgent[] }) {
       <div className="panel rounded-3xl p-6 text-center">
         <p className="text-sm text-muted">
           No agents registered yet. Once AgentRegistry has an entry, it
-          ranks here — nothing is seeded by hand.
+          ranks here. Nothing is seeded by hand.
         </p>
       </div>
     );

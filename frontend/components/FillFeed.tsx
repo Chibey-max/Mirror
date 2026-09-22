@@ -11,7 +11,7 @@ import type { FixtureFill } from "@/lib/fixtures";
  * Live activity panel (design prompt §8): "Pulse bought 0.42 mNVDA @
  * $128.41 · mirrored to your vault", each row linking straight to the
  * explorer. Balance updates driven by the same events live in the vault
- * summary, not here — this component only renders the feed.
+ * summary, not here, this component only renders the feed.
  *
  * What a row says about YOUR vault comes from `outcomes`, never from the
  * fill: one fill can be mirrored for one follower, rejected for the next and
@@ -21,7 +21,7 @@ import type { FixtureFill } from "@/lib/fixtures";
  * `fills` comes from hooks/useFillEvents, which backfills from TrackRecord
  * and watches FillRecorded; `outcomes` from hooks/useMirrorOutcomes.
  *
- * Pagination (briefing §09.E): a button, not infinite scroll — a panel with
+ * Pagination (briefing §09.E): a button, not infinite scroll, a panel with
  * a sticky follow column beside it can't afford to have the kill switch
  * pushed off-screen by an autoloading feed.
  */
@@ -34,7 +34,7 @@ export function FillFeed({
 }: {
   fills: FixtureFill[];
   outcomes?: MirrorOutcomes;
-  /** The agent's real fill count, from TrackRecord.fillCountByAgent —
+  /** The agent's real fill count, from TrackRecord.fillCountByAgent,
    *  undefined against fixtures, where there's nothing left to page in. */
   totalCount?: number;
   hasMore?: boolean;
@@ -122,7 +122,7 @@ export function FillFeed({
 
 function OutcomeTag({ outcome }: { outcome?: MirrorOutcome }) {
   // No outcome: the agent traded, but nothing is known to have happened in
-  // your vault — so claim nothing.
+  // your vault, so claim nothing.
   if (!outcome) return null;
 
   if (outcome.status === "mirrored") {

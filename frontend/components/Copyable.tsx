@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
  * has exactly one implementation (briefing §09.F: "TrustBadge already has a
  * toggle; extract that, do not grow a second pattern").
  *
- * Click toggles it open; losing focus closes it — no hover state, so it
+ * Click toggles it open; losing focus closes it, no hover state, so it
  * works the same on a phone as a desktop.
  */
 export function InfoTooltip({
@@ -46,13 +46,13 @@ export function InfoTooltip({
 const COPIED_RESET_MS = 1600;
 
 /**
- * A hash or address, truncated for reading, click-to-copy for verifying —
+ * A hash or address, truncated for reading, click-to-copy for verifying,
  * design prompt §5's "full strategy hash, copyable" and briefing §09.F,
  * which asks for one component covering the strategy hash, the oracle round
  * id, and any other truncated address rather than a bespoke click handler
  * wherever one shows up.
  *
- * Copies the FULL value, never the truncated display string — the point is
+ * Copies the FULL value, never the truncated display string, the point is
  * pasting something a judge can look up, and a truncated hash isn't that.
  */
 export function CopyableHash({
@@ -62,7 +62,7 @@ export function CopyableHash({
 }: {
   /** The complete value copied to the clipboard. */
   value: string;
-  /** What's shown before copying — defaults to first 6 / last 4 of `value`. */
+  /** What's shown before copying, defaults to first 6 / last 4 of `value`. */
   display?: string;
   label?: string;
 }) {
@@ -79,7 +79,7 @@ export function CopyableHash({
       await navigator.clipboard.writeText(value);
       setCopied(true);
     } catch {
-      // Clipboard access can be denied (permissions, insecure context) —
+      // Clipboard access can be denied (permissions, insecure context),
       // fails quietly rather than showing a confirmation that didn't happen.
     }
   }

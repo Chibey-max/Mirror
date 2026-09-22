@@ -19,7 +19,7 @@ export type MirrorAddresses = {
 const ZERO = "0x0000000000000000000000000000000000000000" as Address;
 
 export const addresses: Record<number, MirrorAddresses> = {
-  // Robinhood Chain testnet — filled from deployments/46630.json on Day 7.
+  // Robinhood Chain testnet, filled from deployments/46630.json on Day 7.
   46630: {
     agentRegistry: ZERO,
     trackRecord: ZERO,
@@ -27,7 +27,7 @@ export const addresses: Record<number, MirrorAddresses> = {
     copyVault: ZERO,
     usdg: ZERO,
   },
-  // Local anvil — deploy stubs here while waiting for the testnet deploy.
+  // Local anvil, deploy stubs here while waiting for the testnet deploy.
   31337: {
     agentRegistry: ZERO,
     trackRecord: ZERO,
@@ -44,7 +44,7 @@ export function addressesFor(chainId: number): MirrorAddresses | undefined {
 /**
  * Whether an address is real yet. Every entry above is the zero address until
  * Jason publishes deployments/46630.json, and subscribing to logs on the zero
- * address silently never fires — so anything that reads or watches must gate
+ * address silently never fires, so anything that reads or watches must gate
  * on this rather than look live while doing nothing.
  */
 export function isDeployed(address?: Address): boolean {
@@ -126,7 +126,7 @@ export const trackRecordAbi = [
     outputs: [{ name: "", type: "uint256" }],
   },
   {
-    // The real total for one agent — what "Showing 50 of {N}" needs.
+    // The real total for one agent, what "Showing 50 of {N}" needs.
     // fillCount() is global; useAgents' own fill counts are capped at
     // whatever sample it read, not this.
     type: "function",
@@ -155,7 +155,7 @@ export const trackRecordAbi = [
  * PolicyModule's reads, hand-kept in sync with IPolicyModule.sol (Isaac).
  *
  * Only the views: setPolicy, checkAndConsume and kill are onlyVault, so the
- * frontend never calls them — it follows and unfollows through CopyVault and
+ * frontend never calls them, it follows and unfollows through CopyVault and
  * reads the result here. The custom errors live in usePolicyError's own
  * fragment, which decodes them from MirrorRejected's reason bytes.
  */
@@ -260,7 +260,7 @@ export const copyVaultAbi = [
     outputs: [],
   },
   {
-    // onlyRunner. Always succeeds, even when every follower is rejected —
+    // onlyRunner. Always succeeds, even when every follower is rejected,
     // rejections are logged as MirrorRejected, not reverted (§7.1).
     type: "function",
     name: "mirrorFill",
@@ -271,7 +271,7 @@ export const copyVaultAbi = [
   {
     /**
      * Principal committed to this follow, returned unchanged at unfollow
-     * (PRD v2.2 §7.3) — NOT the current value of the position and NOT a
+     * (PRD v2.2 §7.3), NOT the current value of the position and NOT a
      * balance. Mirror never settles anything, so there is no mark-to-market
      * here; leaderboard PnL must come from Mirrored events priced at each
      * fill, never from this.
@@ -287,7 +287,7 @@ export const copyVaultAbi = [
   },
   {
     // A follower's exposure in token units, which is what the vault tracks
-    // (§7.2) — a USDG running total underflowed on profitable exits.
+    // (§7.2), a USDG running total underflowed on profitable exits.
     type: "function",
     name: "positionOf",
     stateMutability: "view",
@@ -351,7 +351,7 @@ export const copyVaultAbi = [
   {
     /**
      * A policy rejection, logged rather than reverted (§7.1). `reason` is the
-     * raw revert data from PolicyModule.checkAndConsume — decode it with
+     * raw revert data from PolicyModule.checkAndConsume, decode it with
      * usePolicyError's policyErrorsAbi. This is the only on-chain record that
      * a rejection happened, and it rides a SUCCESSFUL mirrorFill tx.
      */

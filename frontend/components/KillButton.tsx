@@ -11,11 +11,11 @@ type Stage = "idle" | "confirming" | "signing" | "pending" | "killed" | "error";
  * Kill switch (design prompt §10, PRD acceptance criterion): confirm →
  * signing → pending → a solid "This agent can no longer move your funds"
  * badge, backed by a *fresh* contract read, not optimistic UI. The caller
- * owns the actual read-after-write — this component just renders the state
+ * owns the actual read-after-write, this component just renders the state
  * machine and calls back into it.
  *
  * `onKill` is CopyVault.unfollow() and `verify` is a fresh read of the
- * chain — neither is optimistic, and the badge waits for both.
+ * chain, neither is optimistic, and the badge waits for both.
  */
 export function KillButton({
   agentName,
@@ -85,7 +85,7 @@ export function KillButton({
         <p className="text-sm text-text">
           Kill {agentName}&apos;s follow and release your funds? Your{" "}
           {allocatedAmount.toFixed(2)} USDG principal returns to your free
-          balance immediately — unfollow always returns exactly what you put
+          balance immediately. Unfollow always returns exactly what you put
           in, never a mark-to-market.
         </p>
         <div className="mt-3 flex gap-2">
@@ -127,7 +127,7 @@ export function KillButton({
         fullWidth
         onClick={() => setStage("confirming")}
       >
-        Kill didn&apos;t confirm — try again
+        Kill didn&apos;t confirm. Try again
       </MetalButton>
     );
   }

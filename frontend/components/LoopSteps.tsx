@@ -11,12 +11,12 @@ const STEP_INTERVAL_MS = 1100;
  * The six-step loop, horizontal: a numbered track with one shared detail
  * panel underneath rather than six full text blocks side by side, which is
  * what actually makes six steps fit at any width. Once the section enters
- * view, the emphasis walks 01 → 06 on its own — a spotlight, not a read
- * order the visitor has to scroll to discover — then rests on the last
+ * view, the emphasis walks 01 → 06 on its own, a spotlight, not a read
+ * order the visitor has to scroll to discover, then rests on the last
  * step, fully interactive: any circle can be clicked at any time, which
  * stops the auto-advance so the visitor's own click always wins.
  *
- * Reduced motion skips all of it and renders the original plain list —
+ * Reduced motion skips all of it and renders the original plain list,
  * every step's full text, visible at once, nothing gated behind an
  * animation or a click.
  */
@@ -134,7 +134,7 @@ export function LoopSteps({ steps }: { steps: LoopStep[] }) {
         })}
       </ol>
 
-      {/* The shared detail panel — every step's content stacked in the same
+      {/* The shared detail panel, every step's content stacked in the same
           grid cell, crossfading via opacity so nothing reflows as the
           emphasis moves. */}
       <div className="relative mx-auto mt-8 grid max-w-xl text-center">

@@ -44,7 +44,7 @@ const claims = [
   {
     title: "Capped",
     contract: "PolicyModule + CopyVault",
-    body: "You set a daily spend cap per agent. The vault enforces it on-chain, and you hold the kill switch — an unlock, not a stop, that always returns exactly what you put in.",
+    body: "You set a daily spend cap per agent. The vault enforces it on-chain, and you hold the kill switch: an unlock, not a stop, that always returns exactly what you put in.",
     Icon: IconShield,
   },
   {
@@ -57,7 +57,7 @@ const claims = [
 
 /**
  * The user-facing half of the on-chain loop (PRD §11's one-page test),
- * turned into the landing page's own walkthrough — the same sequence the
+ * turned into the landing page's own walkthrough, the same sequence the
  * demo runs, in the order a first-time visitor would actually hit it.
  */
 const loopSteps: LoopStep[] = [
@@ -69,12 +69,12 @@ const loopSteps: LoopStep[] = [
   {
     title: "Deposit",
     short: "Deposit",
-    body: "USDG into the vault — approve, then deposit, both re-read from chain once they land, never assumed.",
+    body: "USDG into the vault. Approve, then deposit, both re-read from chain once they land, never assumed.",
   },
   {
     title: "Follow, with a cap",
     short: "Follow",
-    body: "A daily notional cap per agent, enforced on-chain. Not a setting in a modal — a number PolicyModule actually checks.",
+    body: "A daily notional cap per agent, enforced on-chain. Not a setting in a modal, but a number PolicyModule actually checks.",
   },
   {
     title: "Fills land",
@@ -84,7 +84,7 @@ const loopSteps: LoopStep[] = [
   {
     title: "Kill, any time",
     short: "Kill",
-    body: "An unlock, not a stop. Unfollow always returns exactly the principal you put in — never a mark-to-market.",
+    body: "An unlock, not a stop. Unfollow always returns exactly the principal you put in, never a mark-to-market.",
   },
   {
     title: "Withdraw",
@@ -94,7 +94,7 @@ const loopSteps: LoopStep[] = [
 ];
 
 /**
- * What a visitor who already knows this space will compare Mirror to —
+ * What a visitor who already knows this space will compare Mirror to,
  * answered before they have to ask. Framed by category, not by naming
  * other teams' products on our own page.
  */
@@ -123,7 +123,7 @@ export default function Home() {
       {/*
         The body sits in the top-left corner with its top edge 20px below the
         top of the page. The camera always looks at the origin, so the body
-        lands dead centre of this box however it is sized — position the box
+        lands dead centre of this box however it is sized, position the box
         and the body follows.
 
         Anchored to the page wrapper, not the hero section: the section starts
@@ -132,7 +132,7 @@ export default function Home() {
 
         Vertical: the body's diameter is a fixed fraction of the box height
         (horizon radius / (camera distance x tan(fov/2))), so "top edge at
-        20px" is 20px + radius - half the box — hence the calc against svh.
+        20px" is 20px + radius - half the box, hence the calc against svh.
         Changing camDistance in SingularityHorizon moves the top edge.
 
         Horizontal: an offset from the viewport centre. The box is much wider
@@ -161,7 +161,7 @@ export default function Home() {
               through the first words of the paragraph, and at reading size
               that edge is brighter than the muted text crossing it. Dimming a
               soft ellipse under the words keeps both the composition and the
-              rim — moving the copy or the body would have changed the shot.
+              rim, moving the copy or the body would have changed the shot.
             */}
             <div
               aria-hidden="true"
@@ -181,7 +181,7 @@ export default function Home() {
             </h1>
 
             <p className="relative z-10 mt-7 max-w-xl text-lg leading-relaxed text-muted text-balance">
-              The trust layer for copy-trading Robinhood Stock Tokens — a
+              The trust layer for copy-trading Robinhood Stock Tokens: a
               tamper-proof track record, a hard daily cap, and a kill switch that
               always returns exactly what you put in.
             </p>
@@ -211,7 +211,7 @@ export default function Home() {
         </section>
 
         {/*
-          The problem, said by name, before the product — the same order the
+          The problem, said by name, before the product, the same order the
           demo script opens in. A visitor who doesn't yet know what Mirror is
           should read this and recognise their own experience before seeing
           a single screen of the app.
@@ -229,7 +229,7 @@ export default function Home() {
               A trader who wants exposure to a specific agent&rsquo;s strategy
               has usually already been burned by an edited or cherry-picked
               tape on Twitter or Telegram. What they want isn&rsquo;t another
-              promise — it&rsquo;s a constraint they can check themselves, on an
+              promise. It&rsquo;s a constraint they can check themselves, on an
               explorer, without asking anyone&rsquo;s permission.
             </p>
           </section>
