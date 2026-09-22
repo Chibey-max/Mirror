@@ -14,7 +14,10 @@ optimizer_runs    = 200
 bytecode_hash     = "none"
 cbor_metadata     = false
 ffi               = false
-fs_permissions    = [{ access = "read", path = "./out" }]
+fs_permissions    = [
+  { access = "read", path = "./out" },
+  { access = "read", path = "../runner/src/strategies" },
+]
 
 [profile.ci]
 verbosity         = 4

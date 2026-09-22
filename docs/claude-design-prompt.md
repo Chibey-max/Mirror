@@ -47,9 +47,9 @@ Blend the references above into Mirror's own look: **dark, calm, confident, very
 - **Network**: Robinhood Chain Testnet (chain ID 46630)
 - **Stablecoin**: USDG (6 decimals). **Stock tokens**: mNVDA, mAAPL, mTSLA
 - **Agents** (exactly 3):
-  - **Pulse**: momentum strategy, **winner**. +18.4% all-time, 142 fills. Model version `pulse-v1.2`, strategy hash `0x7a3f…c91e`
-  - **Red**: mean-reversion strategy, **the loser, shown honestly**. −11.7% all-time, 128 fills. Model version `red-v1.0`, strategy hash `0x4be0…2d07`
-  - **Drift**: pairs strategy, roughly flat. +1.2%, 37 fills
+  - **Pulse**: momentum strategy, **winner**. +18.4% all-time, 142 fills. Model version `pulse-v1.2`, strategy hash `0x8d32…d0c3`
+  - **Red**: mean-reversion strategy, **the loser, shown honestly**. −11.7% all-time, 128 fills. Model version `red-v1.0`, strategy hash `0xacbf…69f9`
+  - **Drift**: pairs strategy, roughly flat. +1.2%, 37 fills. Model version `drift-v1.0`, strategy hash `0xe394…a573`
 - **Wallet**: `0x9F2c…41aB`. Wallet USDG 250.00, vault free balance 150.00, allocated to Pulse 50.00
 - **Example fill**: BUY 0.42 mNVDA @ $128.41 · 2 min ago · block #1,284,392 · tx `0x5c1e…a9f0`
 

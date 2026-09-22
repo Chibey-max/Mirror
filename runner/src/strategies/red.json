@@ -1,0 +1,26 @@
+{
+  "schema": "mirror.strategy.v1",
+  "agent": "Red",
+  "modelVersion": "red-v1.0",
+  "strategyType": "mean-reversion",
+  "description": "Buy a three-tick decline and exit the full held position on a rebound or a four-tick time stop.",
+  "universe": ["mNVDA", "mAAPL", "mTSLA"],
+  "priceInput": {
+    "source": "MockAggregatorV3.latestRoundData",
+    "decimals": 8,
+    "tickOrder": "ascending-round-id"
+  },
+  "signal": {
+    "lookbackTicks": 3,
+    "buyReturnBpsLessThanOrEqual": -75,
+    "sellReturnFromEntryBpsGreaterThanOrEqual": 50,
+    "maxHoldingTicks": 4
+  },
+  "execution": {
+    "longOnly": true,
+    "buySizeTokenUnits": "740000000000000000",
+    "sellSize": "full-held-position",
+    "maxFillsPerTokenPerOracleRound": 1,
+    "tieBreakSeed": "mirror:red:v1.0"
+  }
+}

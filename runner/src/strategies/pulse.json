@@ -1,0 +1,25 @@
+{
+  "schema": "mirror.strategy.v1",
+  "agent": "Pulse",
+  "modelVersion": "pulse-v1.2",
+  "strategyType": "momentum",
+  "description": "Buy strength over a three-tick lookback and exit the full held position on a one-tick reversal.",
+  "universe": ["mNVDA", "mAAPL", "mTSLA"],
+  "priceInput": {
+    "source": "MockAggregatorV3.latestRoundData",
+    "decimals": 8,
+    "tickOrder": "ascending-round-id"
+  },
+  "signal": {
+    "lookbackTicks": 3,
+    "buyReturnBpsGreaterThan": 100,
+    "sellOneTickReturnBpsLessThanOrEqual": -50
+  },
+  "execution": {
+    "longOnly": true,
+    "buySizeTokenUnits": "420000000000000000",
+    "sellSize": "full-held-position",
+    "maxFillsPerTokenPerOracleRound": 1,
+    "tieBreakSeed": "mirror:pulse:v1.2"
+  }
+}
