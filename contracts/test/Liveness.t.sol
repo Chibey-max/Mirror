@@ -435,7 +435,6 @@ contract MirrorFillIsolationTest is Test {
         vm.warp(1_789_000_000); // 00:26:40 UTC
     }
 
-    /// forge-config: default.fuzz.runs = 256
     function testFuzz_NoSingleFollowerCanRevertMirrorFill(uint256 seed) public {
         _follow(makeAddr("tight"), TIGHT_CAP);
         _follow(makeAddr("roomy"), ROOMY_CAP);
