@@ -365,6 +365,250 @@ contract LivenessTest is Test {
     }
 }
 
+/// @title MirrorFillIsolationTest
+/// @notice **PRD v2.2 Section 13 test 2.** One follower's cap or position can never make `mirrorFill` revert,
+///         and never changes what happens to any other follower in the same fill (§7.2).
+///
+/// @dev Every run follows with 2–5 followers: one whose cap every buy is over, one whose cap no buy reaches, and
+///      up to three with random caps on the scale of a fill. Then 20 random buys and sells with time passing,
+///      and a closing sell bigger than anything held. For every fill it checks that `mirrorFill` did not revert
+///      and that each follower got exactly what *their own* cap and position predict — mirrored at the right
+///      size, refused for the right reason, or untouched — using a model that knows nothing about the others.
+///
+///      The tight and roomy followers make every buy a fill where one is refused and another mirrors; the
+///      closing sell clamps whoever still holds; a forced midnight halfway through means every run crosses a
+///      day boundary. Each run asserts it reached all three, so none can pass by avoiding the hard part.
+contract MirrorFillIsolationTest is Test {
+    uint256 internal constant PRICE = 12_841e6; // $128.41 on an 8-decimal feed
+    uint256 internal constant STEPS = 20;
+    uint256 internal constant MIN_SIZE = 1e16; // 0.01 mNVDA = 1.2841 USDG, already over the tight cap
+    uint256 internal constant MAX_SIZE = 5e17; // 0.5 mNVDA = 64.205 USDG
+    uint256 internal constant TIGHT_CAP = 1e6; // 1 USDG: every buy this test makes is over it
+    uint256 internal constant ROOMY_CAP = 1_000_000e6; // 20 buys come to at most ~1,284 USDG
+
+    AgentRegistry internal registry;
+    TrackRecord internal record;
+    PolicyModule internal policy;
+    CopyVault internal vault;
+    MockUSDG internal usdg;
+    MockStock internal stock;
+    uint256 internal agentId;
+
+    address internal admin = makeAddr("policyAdmin");
+    address internal agentOwner = makeAddr("agentOwner");
+    address internal runner = makeAddr("runner");
+
+    // --- the model: what each follower's own cap and position say should happen ------------------------------
+    address[] internal followers;
+    mapping(address => uint256) internal capOf;
+    mapping(address => uint256) internal heldOf;
+    mapping(address => uint256) internal spentOf;
+    mapping(address => uint256) internal spentDayOf;
+
+    uint256 internal fillsWithRefusalAndMirror;
+    uint256 internal clampedSells;
+    uint256 internal rollovers;
+
+    enum Outcome {
+        Untouched,
+        Mirrored,
+        Refused
+    }
+
+    function setUp() public {
+        registry = new AgentRegistry();
+        vm.prank(agentOwner);
+        agentId = registry.registerAgent("Pulse", keccak256("pulse"), "v1");
+
+        record = new TrackRecord(address(registry), runner);
+        usdg = new MockUSDG();
+        stock = new MockStock("Mock NVDA", "mNVDA");
+
+        address predicted = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
+        policy = new PolicyModule(predicted, admin);
+        vault = new CopyVault(address(record), address(policy), address(usdg), runner);
+
+        address token = address(stock); // read first: an external call here would eat the prank
+        vm.prank(admin);
+        policy.setTokenAllowlist(token, true);
+
+        vm.warp(1_789_000_000); // 00:26:40 UTC
+    }
+
+    /// forge-config: default.fuzz.runs = 256
+    function testFuzz_NoSingleFollowerCanRevertMirrorFill(uint256 seed) public {
+        _follow(makeAddr("tight"), TIGHT_CAP);
+        _follow(makeAddr("roomy"), ROOMY_CAP);
+        uint256 extra = _rand(seed, 0, "followers") % 4;
+        for (uint256 i = 0; i < extra; i++) {
+            _follow(address(uint160(0xF011 + i)), bound(_rand(seed, i, "cap"), 1e6, 80e6));
+        }
+
+        uint256 bought;
+        for (uint256 step = 0; step < STEPS; step++) {
+            _advanceTime(seed, step);
+            // The first and last are buys: the first guarantees a refused-and-mirrored fill, the last that
+            // somebody holds something for the closing sell to clamp.
+            bool isBuy = step == 0 || step == STEPS - 1 || _rand(seed, step, "side") % 3 != 0;
+            uint256 size = bound(_rand(seed, step, "size"), MIN_SIZE, MAX_SIZE);
+            if (isBuy) bought += size;
+            _mirrorAndCheck(isBuy, size);
+        }
+        // More than anyone can hold, so every holder is clamped to exactly what they have.
+        _mirrorAndCheck(false, bought + 1);
+
+        assertGt(fillsWithRefusalAndMirror, 0, "no fill had one follower refused while another mirrored");
+        assertGt(clampedSells, 0, "no sell was ever clamped to what a follower held");
+        assertGt(rollovers, 0, "the sequence never crossed a UTC day boundary");
+    }
+
+    // --- helpers -----------------------------------------------------------
+
+    function _rand(uint256 seed, uint256 index, string memory what) internal pure returns (uint256) {
+        return uint256(keccak256(abi.encode(seed, index, what)));
+    }
+
+    function _follow(address user, uint256 cap) internal {
+        usdg.mint(user, cap);
+        vm.startPrank(user);
+        usdg.approve(address(vault), cap);
+        vault.deposit(cap);
+        vault.follow(agentId, cap, 50);
+        vm.stopPrank();
+        followers.push(user);
+        capOf[user] = cap;
+    }
+
+    /// @dev Mostly short gaps so several fills share a day and caps can bind; sometimes a whole day; and at the
+    ///      halfway step a jump to just past midnight, so every run has at least one rollover.
+    function _advanceTime(uint256 seed, uint256 step) internal {
+        uint256 dayBefore = block.timestamp / 1 days;
+        if (step == STEPS / 2) {
+            vm.warp((dayBefore + 1) * 1 days + 1 minutes);
+        } else if (_rand(seed, step, "jump") % 5 == 0) {
+            vm.warp(block.timestamp + 1 days);
+        } else {
+            vm.warp(block.timestamp + bound(_rand(seed, step, "gap"), 0, 3 hours));
+        }
+        if (block.timestamp / 1 days != dayBefore) rollovers++;
+    }
+
+    function _mirrorAndCheck(bool isBuy, uint256 size) internal {
+        vm.prank(runner);
+        uint256 fillId = record.recordFill(agentId, address(stock), isBuy, size, PRICE, bytes32("fuzz"));
+
+        vm.recordLogs();
+        vm.prank(runner);
+        try vault.mirrorFill(fillId) {}
+        catch (bytes memory reason) {
+            // The claim itself: nothing in one follower's state may stop the fill for everyone.
+            fail(string.concat("mirrorFill reverted: ", vm.toString(reason)));
+        }
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        uint256 mirrored;
+        uint256 capRefused;
+        for (uint256 i = 0; i < followers.length; i++) {
+            Outcome outcome = _checkFollower(logs, followers[i], fillId, isBuy, size);
+            if (outcome == Outcome.Mirrored) mirrored++;
+            if (outcome == Outcome.Refused) capRefused++;
+        }
+        uint256 outcomes = mirrored + capRefused;
+        assertEq(_vaultLogCount(logs), outcomes, "the vault logged something no follower's state explains");
+        if (mirrored > 0 && capRefused > 0) fillsWithRefusalAndMirror++;
+    }
+
+    /// @dev One follower in one fill: the vault's outcome, size or reason, position and spend must all match
+    ///      what this follower's own state predicts.
+    function _checkFollower(Vm.Log[] memory logs, address user, uint256 fillId, bool isBuy, uint256 size)
+        internal
+        returns (Outcome expected)
+    {
+        uint256 expectedSize;
+        bytes memory expectedReason;
+        (expected, expectedSize, expectedReason) = _predict(user, isBuy, size);
+        (Outcome actual, uint256 actualSize, bytes memory actualReason) = _observe(logs, user, fillId, isBuy);
+
+        assertEq(uint8(actual), uint8(expected), "a follower got a different outcome than its own state predicts");
+        if (expected == Outcome.Mirrored) {
+            assertEq(actualSize, expectedSize, "a follower mirrored the wrong size");
+            if (!isBuy && expectedSize < size) clampedSells++;
+        } else if (expected == Outcome.Refused) {
+            assertEq(actualReason, expectedReason, "a follower was refused for the wrong reason");
+        }
+        assertEq(vault.positionOf(user, agentId, address(stock)), heldOf[user], "a follower's position drifted");
+        assertEq(policy.spentToday(user, agentId), spentOf[user], "a follower's spend drifted");
+    }
+
+    /// @dev What this follower's cap and position alone say should happen, and the model updated to match. It
+    ///      reads nothing about any other follower, which is the point.
+    function _predict(address user, bool isBuy, uint256 size)
+        internal
+        returns (Outcome outcome, uint256 mirroredSize, bytes memory reason)
+    {
+        uint256 day = block.timestamp / 1 days;
+        if (spentDayOf[user] != day) {
+            spentOf[user] = 0; // the daily cap resets at 00:00 UTC (§7.6)
+            spentDayOf[user] = day;
+        }
+        if (isBuy) {
+            uint256 notional = (size * PRICE + 1e20 - 1) / 1e20; // rounded up, as CopyVault does (§8)
+            uint256 attempted = spentOf[user] + notional;
+            if (attempted > capOf[user]) {
+                return (
+                    Outcome.Refused,
+                    0,
+                    abi.encodeWithSelector(IPolicyModule.CapExceeded.selector, attempted, capOf[user])
+                );
+            }
+            spentOf[user] = attempted;
+            heldOf[user] += size;
+            return (Outcome.Mirrored, size, "");
+        }
+        mirroredSize = size < heldOf[user] ? size : heldOf[user];
+        if (mirroredSize == 0) return (Outcome.Untouched, 0, "");
+        heldOf[user] -= mirroredSize;
+        return (Outcome.Mirrored, mirroredSize, "");
+    }
+
+    /// @dev What the vault actually logged for this follower in this fill. At most one entry is allowed, and a
+    ///      mirror must carry the fill's own side: the frontend shows buy or sell from this flag.
+    function _observe(Vm.Log[] memory logs, address user, uint256 fillId, bool isBuy)
+        internal
+        view
+        returns (Outcome outcome, uint256 size, bytes memory reason)
+    {
+        uint256 found;
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].emitter != address(vault)) continue;
+            if (address(uint160(uint256(logs[i].topics[1]))) != user) continue;
+            assertEq(uint256(logs[i].topics[2]), agentId, "an outcome was logged against the wrong agent");
+            assertEq(uint256(logs[i].topics[3]), fillId, "an outcome was logged against the wrong fill");
+            found++;
+            if (logs[i].topics[0] == ICopyVault.Mirrored.selector) {
+                outcome = Outcome.Mirrored;
+                size = _mirroredSize(logs[i].data, isBuy);
+            } else if (logs[i].topics[0] == ICopyVault.MirrorRejected.selector) {
+                outcome = Outcome.Refused;
+                reason = abi.decode(logs[i].data, (bytes));
+            }
+        }
+        assertLe(found, 1, "a follower got more than one outcome from one fill");
+    }
+
+    function _mirroredSize(bytes memory data, bool isBuy) internal pure returns (uint256 size) {
+        bool loggedIsBuy;
+        (size, loggedIsBuy) = abi.decode(data, (uint256, bool));
+        assertEq(loggedIsBuy, isBuy, "a mirror was logged with the wrong side");
+    }
+
+    function _vaultLogCount(Vm.Log[] memory logs) internal view returns (uint256 count) {
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == address(vault)) count++;
+        }
+    }
+}
+
 /// @title SolvencyHandler
 /// @notice Drives the whole system the way real use plus a hostile admin would: money in and out,
 ///         follows and exits, the runner mirroring, the allowlist flipping, an agent dying, days passing.
