@@ -10,8 +10,9 @@ import {
 } from "react";
 import { txUrl } from "@/lib/chains";
 import type { WriteProgress } from "@/hooks/useVaultConnection";
+import { describeWriteError } from "@/lib/writeErrors";
 
-type TxStatus = "approving" | "pending" | "success" | "error";
+type TxStatus = "approving" | "pending" | "success" | "error" | "cancelled";
 
 type TxRecord = {
   id: string;
@@ -19,6 +20,8 @@ type TxRecord = {
   label: string;
   status: TxStatus;
   txHash?: string;
+  /** Why it failed, in the user's terms. Only set on `error`. */
+  detail?: string;
 };
 
 type TransactionsContextValue = {
@@ -31,7 +34,11 @@ type TransactionsContextValue = {
   /** The write settled, clears from the header count either way, and
    *  the toast itself fades a few seconds later so a glance still catches
    *  a failure that happened while looking elsewhere. */
-  resolve: (id: string, ok: boolean) => void;
+  resolve: (
+    id: string,
+    outcome: "success" | "error" | "cancelled",
+    detail?: string,
+  ) => void;
   dismiss: (id: string) => void;
 };
 
@@ -68,12 +75,10 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resolve = useCallback(
-    (id: string, ok: boolean) => {
+    (id: string, outcome: "success" | "error" | "cancelled", detail?: string) => {
       setRecords((current) =>
         current.map((record) =>
-          record.id === id
-            ? { ...record, status: ok ? "success" : "error" }
-            : record,
+          record.id === id ? { ...record, status: outcome, detail } : record,
         ),
       );
       const timer = setTimeout(() => dismiss(id), AUTO_DISMISS_MS);
@@ -133,10 +138,15 @@ export function useTrackedWrite() {
         const result = await run((event) => {
           if (event.stage === "submitted") submitted(id, event.txHash);
         });
-        resolve(id, true);
+        resolve(id, "success");
         return result;
       } catch (error) {
-        resolve(id, false);
+        const failure = describeWriteError(error);
+        resolve(
+          id,
+          failure.cancelled ? "cancelled" : "error",
+          failure.cancelled ? undefined : failure.message,
+        );
         throw error;
       }
     },
@@ -149,6 +159,7 @@ const STATUS_COPY: Record<TxStatus, string> = {
   pending: "Pending on-chain…",
   success: "Confirmed",
   error: "Failed",
+  cancelled: "Cancelled in your wallet",
 };
 
 function TransactionToastHost() {
@@ -175,7 +186,9 @@ function TransactionToastHost() {
                 ? "bg-profit"
                 : record.status === "error"
                   ? "bg-loss"
-                  : "animate-pulse bg-accent"
+                  : record.status === "cancelled"
+                    ? "bg-muted"
+                    : "animate-pulse bg-accent"
             }`}
           />
           <div className="min-w-0 flex-1">
@@ -187,7 +200,9 @@ function TransactionToastHost() {
                 record.status === "error" ? "text-loss" : "text-muted"
               }`}
             >
-              {STATUS_COPY[record.status]}
+              {record.status === "error" && record.detail
+                ? record.detail
+                : STATUS_COPY[record.status]}
               {record.txHash && (
                 <>
                   {" · "}

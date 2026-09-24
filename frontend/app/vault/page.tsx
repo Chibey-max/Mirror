@@ -15,7 +15,7 @@ import { useRequireConnection } from "@/hooks/useRequireConnection";
 import { WithdrawModal } from "@/components/WithdrawModal";
 import { YourMirrors } from "@/components/YourMirrors";
 import { useAgents } from "@/hooks/useAgents";
-import { useDeposit } from "@/hooks/useDeposit";
+import { FAUCET_AMOUNT, useDeposit } from "@/hooks/useDeposit";
 import { useFollow } from "@/hooks/useFollow";
 import { useMyMirrors } from "@/hooks/useMyMirrors";
 import { useSpentToday } from "@/hooks/useSpentToday";
@@ -40,7 +40,14 @@ export default function VaultPage() {
   const { agents } = useAgents();
   const agentIds = agents.map((agent) => agent.id);
 
-  const { walletBalance, vaultBalance, deposit, creditWallet } = useDeposit();
+  const {
+    walletBalance,
+    vaultBalance,
+    deposit,
+    creditWallet,
+    faucetAvailable,
+    getTestUsdg,
+  } = useDeposit();
   const { allocatedByAgent, freeBalance, addFreeBalance, subtractFreeBalance } =
     useFollow(vaultBalance, agentIds);
   const { withdraw } = useWithdraw(freeBalance, subtractFreeBalance, creditWallet);
@@ -59,12 +66,29 @@ export default function VaultPage() {
 
   const [depositOpen, setDepositOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [minting, setMinting] = useState(false);
+
+  function mintTestUsdg() {
+    requireConnection(async () => {
+      setMinting(true);
+      try {
+        await track(
+          `Get ${FAUCET_AMOUNT.toLocaleString()} test USDG`,
+          (progress) => getTestUsdg(progress),
+        );
+      } catch {
+        // The toast already says what happened.
+      } finally {
+        setMinting(false);
+      }
+    });
+  }
 
   return (
     <div className="relative overflow-x-clip">
       <PageAtmosphere />
       <SiteHeader />
-      <main className="mx-auto w-full max-w-6xl px-5 pb-20 sm:px-10">
+      <main id="main-content" tabIndex={-1} className="outline-none mx-auto w-full max-w-6xl px-5 pb-20 sm:px-10">
         <PageHeader
           eyebrow="Your position"
           title="Vault"
@@ -106,6 +130,11 @@ export default function VaultPage() {
           >
             Withdraw
           </MetalButton>
+          {faucetAvailable && (
+            <MetalButton tone="quiet" disabled={minting} onClick={mintTestUsdg}>
+              {minting ? "Minting..." : "Get test USDG"}
+            </MetalButton>
+          )}
         </div>
 
         <section className="mt-10">
@@ -195,6 +224,15 @@ export default function VaultPage() {
         onClose={() => setDepositOpen(false)}
         walletBalance={walletBalance}
         vaultBalance={vaultBalance}
+        onGetTestUsdg={
+          faucetAvailable
+            ? () =>
+                track(
+                  `Get ${FAUCET_AMOUNT.toLocaleString()} test USDG`,
+                  (progress) => getTestUsdg(progress),
+                )
+            : undefined
+        }
         onDeposit={(amount, onProgress) =>
           track(`Deposit ${amount.toFixed(2)} USDG`, async (progress) => {
             const result = await deposit(amount, (event) => {

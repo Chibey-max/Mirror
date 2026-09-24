@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { WriteProgress } from "@/hooks/useVaultConnection";
 import { txUrl } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
+import { describeWriteError } from "@/lib/writeErrors";
 
 type Stage = "idle" | "confirming" | "signing" | "pending" | "killed" | "error";
 
@@ -34,6 +35,7 @@ export function KillButton({
 }) {
   const [stage, setStage] = useState<Stage>("idle");
   const [txHash, setTxHash] = useState<string>();
+  const [errorMessage, setErrorMessage] = useState<string>();
 
   async function handleConfirm() {
     setStage("signing");
@@ -47,8 +49,19 @@ export function KillButton({
 
       // Only now is the unfollow mined, so the reads below see its effect.
       const confirmed = await verify();
+      if (!confirmed) {
+        setErrorMessage(
+          "The unfollow was mined, but the chain still shows this follow as active. Check the vault page before trying again.",
+        );
+      }
       setStage(confirmed ? "killed" : "error");
-    } catch {
+    } catch (error) {
+      const failure = describeWriteError(error);
+      if (failure.cancelled) {
+        setStage("confirming");
+        return;
+      }
+      setErrorMessage(failure.message);
       setStage("error");
     }
   }

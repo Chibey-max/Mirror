@@ -28,7 +28,7 @@ import { useMirrorOutcomes } from "@/hooks/useMirrorOutcomes";
 import { useSpentToday } from "@/hooks/useSpentToday";
 import { usePolicyError, useMirrorRejection } from "@/hooks/usePolicyError";
 import { useAgent } from "@/hooks/useAgents";
-import { useDeposit } from "@/hooks/useDeposit";
+import { FAUCET_AMOUNT, useDeposit } from "@/hooks/useDeposit";
 import { useFollow } from "@/hooks/useFollow";
 import { useWithdraw } from "@/hooks/useWithdraw";
 import { MetalButton } from "@/components/MetalButton";
@@ -58,7 +58,14 @@ export default function AgentDetailPage({
   // Per-fill: mirrored, blocked, or never touched this vault (§7.1).
   const mirrorOutcomes = useMirrorOutcomes(agentId);
 
-  const { walletBalance, vaultBalance, deposit, creditWallet } = useDeposit();
+  const {
+    walletBalance,
+    vaultBalance,
+    deposit,
+    creditWallet,
+    faucetAvailable,
+    getTestUsdg,
+  } = useDeposit();
   const {
     allocatedByAgent,
     freeBalance,
@@ -114,7 +121,7 @@ export default function AgentDetailPage({
       <div className="relative overflow-x-clip">
         <PageAtmosphere />
         <SiteHeader />
-        <main className="mx-auto w-full max-w-6xl px-5 pb-20 sm:px-10">
+        <main id="main-content" tabIndex={-1} className="outline-none mx-auto w-full max-w-6xl px-5 pb-20 sm:px-10">
           <PageHeader
             eyebrow="Registry"
             title="Agent not found"
@@ -451,6 +458,15 @@ export default function AgentDetailPage({
             onClose={() => setDepositOpen(false)}
             walletBalance={walletBalance}
             vaultBalance={vaultBalance}
+            onGetTestUsdg={
+              faucetAvailable
+                ? () =>
+                    track(
+                      `Get ${FAUCET_AMOUNT.toLocaleString()} test USDG`,
+                      (progress) => getTestUsdg(progress),
+                    )
+                : undefined
+            }
             onDeposit={(amount, onProgress) =>
               track(`Deposit ${amount.toFixed(2)} USDG`, async (progress) => {
                 const result = await deposit(amount, (event) => {

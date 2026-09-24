@@ -3,6 +3,7 @@
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import type { Hex } from "viem";
 import { addressesFor, isDeployed, type MirrorAddresses } from "@/lib/contracts";
+import { TransactionRevertedError } from "@/lib/writeErrors";
 
 /**
  * How far along a write is, reported as it happens.
@@ -41,7 +42,7 @@ export function useVaultConnection(): {
 } {
   const { address, chainId } = useAccount();
   const publicClient = usePublicClient();
-  const { writeContractAsync } = useWriteContract();
+  const { writeContractAsync: send } = useWriteContract();
   const addresses = chainId ? addressesFor(chainId) : undefined;
 
   const live =
@@ -50,9 +51,31 @@ export function useVaultConnection(): {
     isDeployed(addresses?.copyVault) &&
     isDeployed(addresses?.usdg);
 
+  // Every write is simulated first. A revert then arrives here as a decoded
+  // contract error (FollowerLimitReached, AgentInactive...) before the wallet
+  // even opens, instead of as whatever the wallet chooses to report, which
+  // usually drops the error name. Same parameters, so it can't disagree with
+  // the write that follows.
+  //
+  // The casts only bridge wagmi's per-call generics, which can't be threaded
+  // through a pass-through wrapper; callers still see send's exact signature.
+  const writeContractAsync = (async (parameters: Parameters<typeof send>[0]) => {
+    if (publicClient && address) {
+      await publicClient.simulateContract({
+        ...parameters,
+        account: address,
+      } as never);
+    }
+    return send(parameters as never);
+  }) as typeof send;
+
   async function confirm(hash: Hex) {
     if (!publicClient) return;
-    await publicClient.waitForTransactionReceipt({ hash });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    // A reverted transaction still produces a receipt; without this check it
+    // resolved like a success and the screen reported a change that never
+    // happened.
+    if (receipt.status !== "success") throw new TransactionRevertedError(hash);
   }
 
   return { live, address, addresses, writeContractAsync, publicClient, confirm };

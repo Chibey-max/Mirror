@@ -4,6 +4,9 @@ import { useCallback, useEffect, useId, useState } from "react";
 import type { WriteProgress } from "@/hooks/useVaultConnection";
 import { txUrl } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { describeWriteError } from "@/lib/writeErrors";
+import { FAUCET_AMOUNT } from "@/hooks/useDeposit";
 
 type Stage = "idle" | "approving" | "depositing" | "success" | "error";
 
@@ -13,6 +16,7 @@ export function DepositModal({
   walletBalance,
   vaultBalance,
   onDeposit,
+  onGetTestUsdg,
 }: {
   open: boolean;
   onClose: () => void;
@@ -24,10 +28,16 @@ export function DepositModal({
     amount: number,
     onProgress?: WriteProgress,
   ) => Promise<{ txHash: string }>;
+  /** Testnet faucet. Offered inline when the wallet can't cover the
+   *  deposit, so an empty wallet isn't a dead end. Omit it off testnet. */
+  onGetTestUsdg?: () => Promise<unknown>;
 }) {
   const [amount, setAmount] = useState("");
   const [stage, setStage] = useState<Stage>("idle");
   const [txHash, setTxHash] = useState<string>();
+  const [errorMessage, setErrorMessage] = useState<string>();
+  const dialogRef = useFocusTrap<HTMLDivElement>(open);
+  const [minting, setMinting] = useState(false);
   const amountId = useId();
 
   const handleClose = useCallback(() => {
@@ -57,6 +67,23 @@ export function DepositModal({
   const invalid =
     amount === "" || Number.isNaN(parsed) || parsed <= 0 || overWallet;
 
+  async function handleGetTestUsdg() {
+    if (!onGetTestUsdg) return;
+    setMinting(true);
+    try {
+      await onGetTestUsdg();
+      if (stage === "error") setStage("idle");
+    } catch (error) {
+      const failure = describeWriteError(error);
+      if (!failure.cancelled) {
+        setErrorMessage(failure.message);
+        setStage("error");
+      }
+    } finally {
+      setMinting(false);
+    }
+  }
+
   async function handleDeposit() {
     setStage("depositing");
     try {
@@ -70,7 +97,13 @@ export function DepositModal({
       });
       setTxHash(hash);
       setStage("success");
-    } catch {
+    } catch (error) {
+      const failure = describeWriteError(error);
+      if (failure.cancelled) {
+        setStage("idle");
+        return;
+      }
+      setErrorMessage(failure.message);
       setStage("error");
     }
   }
@@ -81,6 +114,7 @@ export function DepositModal({
       onClick={handleClose}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="deposit-title"
@@ -163,9 +197,24 @@ export function DepositModal({
                 You only have {walletBalance.toFixed(2)} USDG available.
               </p>
             )}
+            {onGetTestUsdg && (walletBalance <= 0 || overWallet) && (
+              <p className="mt-2 text-xs text-muted">
+                Testnet wallet running low?{" "}
+                <button
+                  type="button"
+                  disabled={minting}
+                  onClick={handleGetTestUsdg}
+                  className="font-medium text-accent hover:underline disabled:opacity-60"
+                >
+                  {minting
+                    ? "Minting test USDG..."
+                    : `Get ${FAUCET_AMOUNT.toLocaleString()} test USDG`}
+                </button>
+              </p>
+            )}
             {stage === "error" && (
-              <p className="mt-2 text-xs text-loss">
-                Deposit failed. Check your wallet and try again.
+              <p role="alert" className="mt-2 text-xs text-loss">
+                {errorMessage}
               </p>
             )}
 

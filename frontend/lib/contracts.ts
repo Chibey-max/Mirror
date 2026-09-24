@@ -474,4 +474,17 @@ export const usdgAbi = [
     ],
     outputs: [{ name: "", type: "uint256" }],
   },
+  {
+    // MockUSDG only (contracts/src/mocks): anyone can mint, which is what
+    // the "Get test USDG" button calls. Real USDG has no such function, so
+    // the button is only offered on a testnet.
+    type: "function",
+    name: "mint",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [],
+  },
 ] as const satisfies Abi;
