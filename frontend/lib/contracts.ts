@@ -339,6 +339,16 @@ export const copyVaultAbi = [
   },
   {
     type: "function",
+    name: "followFillBoundaryOf",
+    stateMutability: "view",
+    inputs: [
+      { name: "user", type: "address" },
+      { name: "agentId", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
     name: "isMirrored",
     stateMutability: "view",
     inputs: [{ name: "fillId", type: "uint256" }],
@@ -409,6 +419,7 @@ export const copyVaultAbi = [
   { type: "error", name: "InsufficientBalance", inputs: [] },
   { type: "error", name: "AlreadyFollowing", inputs: [] },
   { type: "error", name: "NotFollowing", inputs: [] },
+  { type: "error", name: "NotRunner", inputs: [] },
   { type: "error", name: "ZeroRunner", inputs: [] },
   {
     type: "error",
@@ -420,6 +431,17 @@ export const copyVaultAbi = [
     name: "FillAlreadyMirrored",
     inputs: [{ name: "fillId", type: "uint256" }],
   },
+  {
+    type: "error",
+    name: "InvalidTokenDecimals",
+    inputs: [{ name: "token", type: "address" }],
+  },
+  {
+    type: "error",
+    name: "NotionalOverflow",
+    inputs: [{ name: "fillId", type: "uint256" }],
+  },
+  { type: "error", name: "PositionOverflow", inputs: [] },
 ] as const satisfies Abi;
 
 export const usdgAbi = [

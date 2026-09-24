@@ -10,7 +10,7 @@ import {TrackRecord} from "../src/TrackRecord.sol";
 import {MockUSDG} from "../src/mocks/MockUSDG.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-/// @dev Test double only. Production PolicyModule is still a stub on this branch.
+/// @dev Lifecycle-only test double for injected set/kill failures and callback probes.
 contract LifecyclePolicyDouble {
     address public vault;
     bool public failSet;
