@@ -47,6 +47,12 @@ const NETWORK_DETAILS = [
  * offers a one-click switch. Acceptance criterion (PRD §5.2): a fresh wallet on
  * Ethereum mainnet reaches chain 46630 without reading any instructions.
  *
+ * A fresh wallet has never heard of chain 46630, which is the common case,
+ * not the edge case (spec §2). The one button covers it: if the switch fails
+ * because the network is unknown, wagmi asks the wallet to add it, then
+ * switches. If the wallet can't add networks itself, the details to add it by
+ * hand are right here, each one copyable.
+ *
  * A disconnected visitor is never blocked, browsing is read-only and fine.
  */
 export function NetworkGuard({ children }: { children: ReactNode }) {

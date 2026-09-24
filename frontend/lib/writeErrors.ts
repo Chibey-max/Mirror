@@ -20,6 +20,20 @@ export class TransactionRevertedError extends Error {
 }
 
 /**
+ * A write refused before it was sent, because what the screen had cached no
+ * longer matches the chain: the form was filled in with a balance that has
+ * since moved, usually by another tab, the runner, or a write that landed
+ * while the modal sat open. Carries its own sentence, since there is no
+ * contract error to decode.
+ */
+export class StaleStateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StaleStateError";
+  }
+}
+
+/**
  * Errors a user's own writes can revert with, beyond what's in the ABI the
  * write was sent with: a deposit reverts inside USDG's transferFrom, so its
  * reason is one of USDG's errors (OpenZeppelin ERC20) or SafeERC20's, not
@@ -112,6 +126,9 @@ function revertName(revert: ContractFunctionRevertedError): string | undefined {
 
 /** Turns anything a write can throw into what the screen should say. */
 export function describeWriteError(error: unknown): WriteFailure {
+  if (error instanceof StaleStateError) {
+    return { cancelled: false, message: error.message };
+  }
   if (error instanceof TransactionRevertedError) {
     return {
       cancelled: false,
