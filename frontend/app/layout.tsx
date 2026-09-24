@@ -1,18 +1,27 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Fraunces } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "./providers";
 import { NetworkGuard } from "@/components/NetworkGuard";
 import { mirrorMode } from "@/lib/config";
 
-const geistSans = Geist({
+/*
+ * All three faces are self-hosted from app/fonts (Latin subset, variable,
+ * OFL-licensed; licenses alongside). next/font/google downloads them at
+ * build time, and when that download failed it silently shipped a fallback
+ * serif in place of Fraunces: the page looked broken with only a build
+ * warning to show for it. Local files make the typeface part of the build.
+ */
+const geistSans = localFont({
+  src: "./fonts/geist.woff2",
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  weight: "100 900",
 });
 
-const geistMono = Geist_Mono({
+const geistMono = localFont({
+  src: "./fonts/geist-mono.woff2",
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  weight: "100 900",
 });
 
 /**
@@ -25,17 +34,41 @@ const geistMono = Geist_Mono({
  * has a genuine 600-900 range plus an optical-size axis tuned for large
  * display text, which is what "bolder and thicker" actually requires.
  */
-const fraunces = Fraunces({
+const fraunces = localFont({
+  src: [
+    { path: "./fonts/fraunces.woff2", weight: "600 900", style: "normal" },
+    { path: "./fonts/fraunces-italic.woff2", weight: "600 900", style: "italic" },
+  ],
   variable: "--font-display",
-  weight: ["600", "700", "900"],
-  style: ["normal", "italic"],
-  subsets: ["latin"],
 });
 
+const description =
+  "Every trade on-chain, every follow capped. A tamper-proof track record for trading agents on Robinhood Chain Stock Tokens, a hard daily cap, and a kill switch that always returns what you put in.";
+
+// Preview images need an absolute URL. NEXT_PUBLIC_SITE_URL is the public
+// address once there is one; Vercel previews supply VERCEL_URL.
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+
 export const metadata: Metadata = {
-  title: "Mirror: on-chain agent track records",
-  description:
-    "A tamper-proof on-chain performance ledger for trading agents, with a hard-capped copy vault.",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "Mirror: on-chain agent track records",
+    template: "%s · Mirror",
+  },
+  description,
+  openGraph: {
+    type: "website",
+    siteName: "Mirror",
+    title: "Mirror: on-chain agent track records",
+    description,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Mirror: on-chain agent track records",
+    description,
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
