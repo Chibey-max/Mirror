@@ -135,20 +135,13 @@ export function KillButton({
 
   if (stage === "error") {
     return (
-      <div>
-        <MetalButton
-          tone="danger"
-          fullWidth
-          onClick={() => setStage("confirming")}
-        >
-          Kill didn&apos;t confirm. Try again
-        </MetalButton>
-        {errorMessage && (
-          <p role="alert" className="mt-2 text-xs text-loss">
-            {errorMessage}
-          </p>
-        )}
-      </div>
+      <MetalButton
+        tone="danger"
+        fullWidth
+        onClick={() => setStage("confirming")}
+      >
+        Kill didn&apos;t confirm. Try again
+      </MetalButton>
     );
   }
 
