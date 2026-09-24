@@ -2,6 +2,7 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { TransactionReceiptNotFoundError } from "viem";
 import { RunnerJournal } from "../src/journal";
 import {
   DurableTransactionSender,
@@ -43,6 +44,27 @@ describe("DurableTransactionSender", () => {
     expect(forbiddenSigner).not.toHaveBeenCalled();
     expect(secondPort.broadcast).toHaveBeenCalledWith(raw);
     expect(confirmed).toMatchObject({ status: "confirmed", hash, nonce: 7, blockNumber: "99" });
+  });
+
+  it("keeps waiting when viem reports the receipt could not be found yet", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "mirror-runner-"));
+    const journal = await RunnerJournal.open(join(directory, "journal.json"));
+    const port: TransactionPort = {
+      broadcast: vi.fn().mockResolvedValue(hash),
+      // viem's real error, whose message says "could not be found": the
+      // wording the old text match missed, so a mined transaction was
+      // journalled as failed on its first receipt check.
+      receipt: vi
+        .fn()
+        .mockRejectedValueOnce(new TransactionReceiptNotFoundError({ hash }))
+        .mockResolvedValue({ status: "success", blockNumber: BigInt(5) }),
+    };
+    const signer = vi.fn().mockResolvedValue({ rawTransaction: raw, hash, nonce: 0 });
+    const sender = new DurableTransactionSender(journal, port, { sleep: async () => undefined });
+
+    const confirmed = await sender.send("oracle:1", signer);
+    expect(confirmed).toMatchObject({ status: "confirmed", hash, blockNumber: "5" });
+    expect(port.receipt).toHaveBeenCalledTimes(2);
   });
 
   it("treats a reverted receipt as final and never signs a replacement", async () => {

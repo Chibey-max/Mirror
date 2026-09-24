@@ -1,4 +1,4 @@
-import type { Hex } from "viem";
+import { TransactionReceiptNotFoundError, type Hex } from "viem";
 import type { RunnerJournal, TransactionEntry } from "./journal";
 
 export type SignedTransaction = {
@@ -38,6 +38,10 @@ function isPotentiallyAccepted(error: unknown): boolean {
 }
 
 function isTransient(error: unknown): boolean {
+  // A receipt that isn't there yet is the normal state straight after a
+  // broadcast, not a failure. viem's wording ("could not be found") doesn't
+  // contain "not found", so match the error type rather than the text.
+  if (error instanceof TransactionReceiptNotFoundError) return true;
   const text = message(error).toLowerCase();
   return (
     text.includes("429") ||
