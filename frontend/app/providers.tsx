@@ -58,7 +58,7 @@ const mirrorTheme: Theme = {
     actionButtonBorderMobile: "#2b2c31",
 
     // Rows and secondary controls sit one step above the panel, like .field
-    // inverted — a wallet row should read as pressable, not as a plain list.
+    // inverted, a wallet row should read as pressable, not as a plain list.
     menuItemBackground: "#141417",
     actionButtonSecondaryBackground: "#141417",
     profileAction: "#141417",

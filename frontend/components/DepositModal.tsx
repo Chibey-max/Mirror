@@ -18,7 +18,7 @@ export function DepositModal({
   onClose: () => void;
   walletBalance: number;
   vaultBalance: number;
-  /** Reports the real stages as they happen — an approval that wasn't
+  /** Reports the real stages as they happen, an approval that wasn't
    *  needed is never announced. */
   onDeposit: (
     amount: number,

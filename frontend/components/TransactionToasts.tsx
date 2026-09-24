@@ -15,7 +15,7 @@ type TxStatus = "approving" | "pending" | "success" | "error";
 
 type TxRecord = {
   id: string;
-  /** What the user asked for — "Deposit 25.00 USDG", not a function name. */
+  /** What the user asked for, "Deposit 25.00 USDG", not a function name. */
   label: string;
   status: TxStatus;
   txHash?: string;
@@ -28,7 +28,7 @@ type TransactionsContextValue = {
   begin: (label: string) => string;
   /** The write got a hash and its receipt is now awaited. */
   submitted: (id: string, txHash: string) => void;
-  /** The write settled — clears from the header count either way, and
+  /** The write settled, clears from the header count either way, and
    *  the toast itself fades a few seconds later so a glance still catches
    *  a failure that happened while looking elsewhere. */
   resolve: (id: string, ok: boolean) => void;
@@ -101,7 +101,7 @@ function useTransactions(): TransactionsContextValue {
 }
 
 /**
- * How many writes are still in flight — what the header's indicator counts.
+ * How many writes are still in flight, what the header's indicator counts.
  * `success`/`error` are settled; only `approving`/`pending` are "in flight".
  */
 export function usePendingTxCount(): number {
@@ -117,7 +117,7 @@ export function usePendingTxCount(): number {
  * Modals already thread a `WriteProgress` callback into every write hook to
  * drive their own stage machine; this wraps that same callback rather than
  * replacing it, so closing the modal mid-transaction no longer makes the
- * transaction disappear — the toast and the header's pending count outlive
+ * transaction disappear, the toast and the header's pending count outlive
  * the component that started the write.
  */
 export function useTrackedWrite() {
@@ -217,7 +217,7 @@ function TransactionToastHost() {
   );
 }
 
-/** The header's own glimpse of the same state — a dot and a count, not a
+/** The header's own glimpse of the same state, a dot and a count, not a
  *  second list; the toasts already are the list. */
 export function PendingTxIndicator() {
   const count = usePendingTxCount();

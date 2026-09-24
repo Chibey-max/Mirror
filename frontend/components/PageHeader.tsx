@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 /**
  * The masthead every inner page opens with: a mono eyebrow, the title, a line
- * of explanation, optional actions on the right, and a rule under the lot —
+ * of explanation, optional actions on the right, and a rule under the lot,
  * the same ledger vocabulary the tape and the stat cells use.
  */
 export function PageHeader({

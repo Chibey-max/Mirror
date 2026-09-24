@@ -99,7 +99,7 @@ body {
 
   /*
    * Surfaces are flat on purpose: black with a single hairline rule, like a
-   * statement or a ledger page. Chrome is reserved for exactly two things —
+   * statement or a ledger page. Chrome is reserved for exactly two things,
    * the buttons (what you can act on) and the planet (the mark). When every
    * panel was chrome-rimmed nothing stood out and the whole UI read as a
    * generic glossy template rather than a trading ledger.
@@ -130,17 +130,45 @@ body {
   }
 }
 
+/* A row (a fill, a leaderboard rank) arriving, the same fade-and-lift
+   Reveal uses for whole sections, in keyframe form for elements Reveal's
+   div wrapper can't legally wrap (a <tr> stays a table's direct child). */
+@keyframes rowIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* A star's own breathing room, between the two brightnesses Starfield
+   picks for it, never full off, so nothing "disappears", and never
+   perfectly synced with its neighbours, since every star's --star-duration
+   and animation-delay differ. */
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: var(--star-min);
+  }
+  50% {
+    opacity: var(--star-max);
+  }
+}
+
 /*
  * There is deliberately no ambient background layer. An earlier version had a
  * fixed, full-viewport opaque black div at z-index -1 here, which painted over
- * the hero's WebGL canvas entirely — the disk rendered the whole time and was
+ * the hero's WebGL canvas entirely, the disk rendered the whole time and was
  * simply covered. The body background is the page ground.
  */
 
 /*
  * Fades the ring field out below the body so it doesn't run into the headline
  * at full strength. The stop sits where the body's lower limb lands, which is
- * a different fraction of the canvas per breakpoint — the camera dollies out
+ * a different fraction of the canvas per breakpoint, the camera dollies out
  * on portrait viewports, so the body occupies less of the box there. Hence a
  * media query rather than one inline style.
  */

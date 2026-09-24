@@ -2,7 +2,7 @@ import { defineChain } from "viem";
 import { arbitrumSepolia } from "viem/chains";
 
 /**
- * Robinhood Chain testnet — the primary deploy target (PRD §2).
+ * Robinhood Chain testnet, the primary deploy target (PRD §2).
  *
  * TODO(Jason, Day 2): confirm the public RPC and explorer URLs, then drop them
  * in as the fallbacks below. Until then set NEXT_PUBLIC_RH_RPC_URL locally.
@@ -30,7 +30,7 @@ export { arbitrumSepolia };
 /** The chain every write goes to. Everything else is a wrong-network state. */
 export const targetChain = robinhoodTestnet;
 
-/** Explorer deep links — every fill row needs one (PRD §5.2). */
+/** Explorer deep links, every fill row needs one (PRD §5.2). */
 export function txUrl(hash: string) {
   return `${targetChain.blockExplorers.default.url}/tx/${hash}`;
 }

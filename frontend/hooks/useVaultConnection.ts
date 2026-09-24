@@ -10,7 +10,7 @@ import { addressesFor, isDeployed, type MirrorAddresses } from "@/lib/contracts"
  * The screens have always had these stages; they were driven by fixed
  * timers, so "Approving…" lasted 350ms whether or not an approval was
  * needed and "Pending" was a 600ms pause after the work was already done.
- * The hooks know the real answer — an approval that was skipped is never
+ * The hooks know the real answer, an approval that was skipped is never
  * announced, and `submitted` fires when the transaction has a hash and the
  * wait for its receipt begins.
  */
@@ -26,7 +26,7 @@ export type WriteProgress = (
  * gate, and getting the gate wrong in any one of them is the failure mode
  * that matters: CopyVault's address is the zero address until Jason
  * publishes deployments/46630.json, and a write to the zero address doesn't
- * error — it succeeds, does nothing, and leaves the UI showing a balance
+ * error, it succeeds, does nothing, and leaves the UI showing a balance
  * that never moved. `live` is false until every address a write touches is
  * real, and each hook keeps its mock path for that case.
  */

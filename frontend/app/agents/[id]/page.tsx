@@ -3,7 +3,11 @@
 import { use, useState } from "react";
 import { AgentTapeTable } from "@/components/AgentTapeTable";
 import { Badge } from "@/components/Badge";
+import { CopyableHash } from "@/components/Copyable";
 import { PageHeader, SectionHeader } from "@/components/PageHeader";
+import { PnlChart } from "@/components/PnlChart";
+import { RetryBanner } from "@/components/RetryBanner";
+import { Reveal } from "@/components/Reveal";
 import { PageAtmosphere } from "@/components/PageAtmosphere";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -17,6 +21,7 @@ import {
   PolicyRejectBanner,
   type PolicyRejectReason,
 } from "@/components/PolicyRejectBanner";
+import { useAgentPnlHistory } from "@/hooks/useAgentPnlHistory";
 import { useFillEvents } from "@/hooks/useFillEvents";
 import { useKillVerification } from "@/hooks/useKillVerification";
 import { useMirrorOutcomes } from "@/hooks/useMirrorOutcomes";
@@ -29,6 +34,7 @@ import { useWithdraw } from "@/hooks/useWithdraw";
 import { MetalButton } from "@/components/MetalButton";
 import { useTrackedWrite } from "@/components/TransactionToasts";
 import { useRequireConnection } from "@/hooks/useRequireConnection";
+import { spentTodayTier } from "@/lib/format";
 
 // Day 3–4 (David, PRD §5.2): tape table, deposit, follow. This file also
 // carries the consequences-flow pieces (Patrick, PRD §5.3) below the
@@ -40,8 +46,9 @@ export default function AgentDetailPage({
 }: PageProps<"/agents/[id]">) {
   const { id } = use(params);
   const agentId = Number(id);
-  const { agent, fills: tapeFills } = useAgent(agentId);
-  const { fills } = useFillEvents(agent?.id);
+  const { agent, fills: tapeFills, isLoading, error, refetch } = useAgent(agentId);
+  const { points: pnlHistory } = useAgentPnlHistory(agentId);
+  const { fills, totalCount, hasMore, loadMore } = useFillEvents(agent?.id);
   const { decode, simulate } = usePolicyError();
   // Proves the kill from chain state rather than trusting the write (§10).
   const { verify: verifyKill } = useKillVerification(agentId);
@@ -67,12 +74,12 @@ export default function AgentDetailPage({
   const track = useTrackedWrite();
   // A disconnected visitor browses read-only; an action prompts them to
   // connect instead of running against nothing and failing silently at the
-  // wallet layer (§13) — easy to miss, since the fixture path renders a
+  // wallet layer (§13), easy to miss, since the fixture path renders a
   // full "as if following" demo state with nobody connected at all.
   const { isConnected, requireConnection } = useRequireConnection();
   const allocated = agent ? (allocatedByAgent[agent.id] ?? 0) : 0;
   // Only asked live while there's a cap to measure against (design prompt
-  // §5: "spent today, progress bar against the cap") — allocated doubles as
+  // §5: "spent today, progress bar against the cap"), allocated doubles as
   // the cap because follow() sets both from the one capAmount argument.
   const spentToday = useSpentToday(allocated > 0 ? [agentId] : []);
 
@@ -93,7 +100,7 @@ export default function AgentDetailPage({
       : null;
   /*
    * Keeps KillButton mounted across the kill. It renders the "can no longer
-   * move your funds" badge itself, off its own verified state — and the
+   * move your funds" badge itself, off its own verified state, and the
    * allocation it was mounted for is zero by then, so mounting on the
    * allocation alone tears the badge down at the moment it is earned.
    */
@@ -129,6 +136,22 @@ export default function AgentDetailPage({
       <PageAtmosphere />
       <SiteHeader />
       <main className="mx-auto w-full max-w-6xl px-5 pb-20 sm:px-10">
+      {isLoading && (
+        <div className="mt-8 animate-pulse" aria-label="Loading agent">
+          <div className="h-9 w-48 rounded-lg bg-surface" />
+          <div className="mt-3 h-4 w-80 rounded-lg bg-surface" />
+          <div className="mt-8 h-64 rounded-3xl bg-surface" />
+        </div>
+      )}
+
+      {error && (
+        <RetryBanner
+          className="mt-8"
+          message="Could not load this agent from the chain. The RPC may be unreachable."
+          onRetry={refetch}
+        />
+      )}
+
       {agent && (
         <div className="border-b border-border pb-6">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
@@ -158,8 +181,11 @@ export default function AgentDetailPage({
                 </div>
                 <div className="flex min-w-0 gap-2">
                   <dt className="uppercase tracking-[0.08em]">Strategy hash</dt>
-                  <dd className="truncate text-text">
-                    {agent.strategyHash.slice(0, 10)}…{agent.strategyHash.slice(-6)}
+                  <dd className="min-w-0 text-text">
+                    <CopyableHash
+                      value={agent.strategyHash}
+                      label="Copy the full strategy hash"
+                    />
                   </dd>
                 </div>
                 <div className="flex gap-2">
@@ -176,7 +202,42 @@ export default function AgentDetailPage({
         </div>
       )}
 
-      {!agent && (
+      {/*
+        The big PnL figure plus a ranged chart (design prompt §5), the page
+        had neither before this, only the number buried in a card elsewhere.
+        Same pnlPct/pnlUsd as the leaderboard and the agent cards; the chart
+        is the evidence behind that one number, not a second computation.
+      */}
+      {agent && (
+        <Reveal>
+          <section className="mt-8 panel rounded-3xl p-5 sm:p-6">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+              <div>
+                <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">
+                  Realised PnL
+                </p>
+                <p
+                  className={`tabular mt-1 text-3xl font-semibold ${
+                    agent.pnlPct < 0 ? "text-loss" : "text-profit"
+                  }`}
+                >
+                  {agent.pnlPct > 0 ? "+" : ""}
+                  {agent.pnlPct.toFixed(1)}%
+                  <span className="ml-2 text-base text-muted">
+                    {agent.pnlUsd > 0 ? "+" : ""}
+                    {agent.pnlUsd.toFixed(2)} USDG
+                  </span>
+                </p>
+              </div>
+            </div>
+            <div className="mt-5">
+              <PnlChart points={pnlHistory} />
+            </div>
+          </section>
+        </Reveal>
+      )}
+
+      {!isLoading && !error && !agent && (
         <div className="mt-8 panel rounded-3xl p-6 text-sm text-muted">
           Agent #{agentId} is not in the current fixture set. Once
           AgentRegistry is wired, this page will resolve from chain reads.
@@ -186,7 +247,7 @@ export default function AgentDetailPage({
       {agent && (
         <>
           <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_20rem]">
-            <div className="min-w-0">
+            <Reveal className="min-w-0">
               <section>
                 <SectionHeader
                   label="Verified tape"
@@ -200,7 +261,13 @@ export default function AgentDetailPage({
                   label="Live activity"
                   description="Fills as the runner mirrors them into your vault."
                 />
-                <FillFeed fills={fills} outcomes={mirrorOutcomes} />
+                <FillFeed
+                  fills={fills}
+                  outcomes={mirrorOutcomes}
+                  totalCount={totalCount}
+                  hasMore={hasMore}
+                  onLoadMore={loadMore}
+                />
 
                 {/*
                   Demo controls, boxed and labelled so nobody watching the
@@ -246,7 +313,7 @@ export default function AgentDetailPage({
                   </div>
                 )}
               </section>
-            </div>
+            </Reveal>
 
             {/*
               Balances and the actions that change them travel together, and
@@ -279,13 +346,13 @@ export default function AgentDetailPage({
                 {/*
                   The follow panel design prompt §5 asks for: cap, spent
                   today against it, allocation (above), kill switch (below).
-                  Only shown while following — spending against a cap that
+                  Only shown while following, spending against a cap that
                   doesn't exist isn't a state that means anything.
                 */}
                 {allocated > 0 && (() => {
                   const spent = spentToday[agentId] ?? 0;
                   // Enforcement is on-chain; a fill can still land between
-                  // reads and put this over 100% for a moment — clamped so
+                  // reads and put this over 100% for a moment, clamped so
                   // the bar never draws past its own track.
                   const pct = Math.min(100, (spent / allocated) * 100);
                   return (
@@ -293,8 +360,14 @@ export default function AgentDetailPage({
                       <div className="flex items-baseline justify-between gap-3">
                         <p className="text-sm text-muted">Spent today</p>
                         <p className="tabular text-sm font-semibold">
-                          ${spent.toFixed(2)}
-                          <span className="text-muted"> / ${allocated.toFixed(2)}</span>
+                          {pct >= 100 ? (
+                            <span className="text-loss">Cap reached</span>
+                          ) : (
+                            <>
+                              ${spent.toFixed(2)}
+                              <span className="text-muted"> / ${allocated.toFixed(2)}</span>
+                            </>
+                          )}
                         </p>
                       </div>
                       <div
@@ -306,12 +379,16 @@ export default function AgentDetailPage({
                         className="mt-2 h-1.5 overflow-hidden rounded-full bg-border"
                       >
                         <div
-                          className={`h-full rounded-full transition-[width] ${
-                            pct >= 100 ? "bg-loss" : "bg-accent"
-                          }`}
+                          className={`h-full rounded-full transition-[width] ${spentTodayTier(pct)}`}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
+                      {pct >= 100 && (
+                        <p className="mt-1.5 text-xs text-muted">
+                          Buys will reject until the cap resets; sells still
+                          pass.
+                        </p>
+                      )}
                     </div>
                   );
                 })()}

@@ -10,7 +10,7 @@ import type { FixtureAgent, FixtureFill } from "@/lib/fixtures";
  * whether its record is going up or down.
  *
  * Everything here is derived from the same two reads the rest of the app uses
- * — the registry row and the agent's tape — so it stays true when fixtures
+ *, the registry row and the agent's tape, so it stays true when fixtures
  * give way to chain reads.
  */
 export function AgentBoard({

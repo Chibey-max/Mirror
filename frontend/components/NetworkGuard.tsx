@@ -10,7 +10,7 @@ import { MetalButton } from "@/components/MetalButton";
  * offers a one-click switch. Acceptance criterion (PRD §5.2): a fresh wallet on
  * Ethereum mainnet reaches chain 46630 without reading any instructions.
  *
- * A disconnected visitor is never blocked — browsing is read-only and fine.
+ * A disconnected visitor is never blocked, browsing is read-only and fine.
  */
 export function NetworkGuard({ children }: { children: ReactNode }) {
   const { isConnected, chain } = useAccount();

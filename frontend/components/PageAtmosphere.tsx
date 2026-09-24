@@ -3,7 +3,7 @@ import { SingularityHorizon } from "@/components/SingularityHorizon";
 /**
  * The hero's body and ring, dimmed right down, behind an inner page.
  *
- * The landing page gets the full object; here it's atmosphere — pushed off to
+ * The landing page gets the full object; here it's atmosphere, pushed off to
  * one side, faded to a third, and masked away before it reaches the content
  * so tables and numbers never sit on a moving field. Fewer particles too:
  * this is a background, and the screens it sits behind are the ones people

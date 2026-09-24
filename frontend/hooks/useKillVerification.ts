@@ -13,8 +13,8 @@ import {
  * Proves a killed follow is actually dead, from chain state.
  *
  * PRD v2.2 §10: the kill switch can no longer be verified by catching a
- * revert. Under §7.1 a killed follow doesn't produce one — it is simply
- * absent from the mirror loop — so KillButton's `verify` callback has to
+ * revert. Under §7.1 a killed follow doesn't produce one, it is simply
+ * absent from the mirror loop, so KillButton's `verify` callback has to
  * check the three facts that make "killed" true, all read fresh after the
  * transaction:
  *
@@ -26,7 +26,7 @@ import {
  * worth surfacing, not a successful kill.
  *
  * Until deployments/46630.json lands there is nothing to read, so it reports
- * success and the demo path stands in — the same behaviour the page had
+ * success and the demo path stands in, the same behaviour the page had
  * before, but now in one place and labelled.
  */
 export function useKillVerification(agentId: number) {

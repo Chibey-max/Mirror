@@ -50,7 +50,7 @@ export function AgentTapeTable({ fills }: { fills: AgentFill[] }) {
                   ) : (
                     // Read back from TrackRecord, which returns the fill and
                     // not the transaction that recorded it.
-                    <span className="text-muted">—</span>
+                    <span className="text-muted">n/a</span>
                   )}
                 </td>
               </tr>

@@ -7,7 +7,7 @@ import type { Abi, Address } from "viem";
  * three means anything on screen without the token's own decimals: the same
  * `size` is 0.42 shares or 420000000000000000 depending on them. The stock
  * tokens' decimals aren't frozen in any doc, and asking the team to freeze
- * them isn't necessary — every ERC-20 already answers this itself.
+ * them isn't necessary, every ERC-20 already answers this itself.
  */
 export const erc20MetadataAbi = [
   {
