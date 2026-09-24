@@ -2,10 +2,10 @@
 
 Foundry workspace for the Mirror core primitive. Current spec: **PRD v2.2**, with
 unchanged requirements inherited from earlier versions (`../docs/`). Migration is
-incremental: AgentRegistry, TrackRecord, PolicyModule and CopyVault's principal lifecycle
-and bounded mirroring path are implemented; deployment and the runner remain pending.
+incremental: AgentRegistry, TrackRecord, PolicyModule, CopyVault, the deployment script,
+and the journaled runner are implemented. Live deployment and explorer verification remain pending.
 
-## CopyVault lifecycle and mirroring (not deployment-ready)
+## CopyVault lifecycle and mirroring
 
 `CopyVault.sol` implements deposits and withdrawals with SafeERC20 and a shared
 reentrancy guard. It supports exact-transfer, non-rebasing MockUSDG only. Donations
@@ -20,7 +20,7 @@ an existing, active agent; later deactivation never blocks unfollow. Slippage is
 `mirrorFill` is runner-only and processes each TrackRecord fill at most once. It isolates per-follower
 policy rejections as `MirrorRejected` logs, while `isMirrored` reports whether the fill was processed.
 Only tokens reporting exactly 18 decimals can be mirrored; invalid token metadata and notional overflow
-are terminal malformed-fill errors that the future runner must alert on rather than retry forever.
+are terminal malformed-fill errors that the runner alerts on rather than retrying forever.
 The frontend ABI includes the new errors and capacity getter. Do not use the contracts for real funds.
 
 `VaultFoundation.t.sol` covers exact transfers/events, user isolation, failed-transfer
@@ -41,7 +41,7 @@ in storage but are no longer current positions. Future mirror writes must use th
 Re-follow must preserve the same day's policy spend. CopyVault never clears spend;
 the real PolicyModule's `setPolicy` and `kill` must preserve its daily buckets. Changing
 the cap below already-spent notional must not forgive that spend. Actual enforcement
-and day rollover require Isaac's implementation and integration tests.
+and UTC day rollover are enforced by PolicyModule and its integration/invariant tests.
 Each follow snapshots the global fill count. Only strictly later fill IDs are eligible;
 re-follow captures a fresh boundary. This avoids timestamp ties within one block.
 See [review decisions](../docs/decisions/0003-copyvault-lifecycle-review.md) for the additive
@@ -111,13 +111,12 @@ All four must be green before the **Thu 24 Sep integration checkpoint**:
 | # | Test | File | Status |
 |---|---|---|---|
 | 1 | Append-only enforcement | `AppendOnly.t.sol` | Surface and recorded-fill tests pass |
-| 2 | Over-cap revert | `PolicyCap.t.sol` | ⏳ skipped — needs PolicyModule bodies (Day 5) |
+| 2 | Over-cap rejection | `PolicyCap.t.sol` | Passes; `MirrorRejected(CapExceeded)` leaves the follower position unchanged |
 | 3 | Withdraw | `VaultWithdraw.t.sol` | All 3 pass; allocation setup uses a policy double |
-| 4 | Drain-beyond-cap | `DrainBeyondCap.t.sol` | Full acceptance skipped; custody reentrancy/fuzz tests implemented separately |
+| 4 | Drain-beyond-cap | `DrainBeyondCap.t.sol` | Passes against CopyVault and the real PolicyModule |
 
-Skeletons call `vm.skip(true)` on purpose. A test that asserts nothing but reports green is
-worse than no test — it makes the Section 7 gate look satisfied when it is not. Remove the
-`vm.skip` line as each body lands.
+The suite contains no skipped test. Policy rejection is a `MirrorRejected` log inside a
+successful `mirrorFill`, not a reverted transaction.
 
 ## Deploy targets
 
@@ -127,9 +126,43 @@ worse than no test — it makes the Section 7 gate look satisfied when it is not
 | Arbitrum Sepolia | 421614 | qualifying extra | `deployments/421614.json` |
 
 `evm_version` is pinned to `paris` in `foundry.toml` so the mirrored deploy cannot diverge on
-opcode support between the two chains. Both `deployments/*.json` files are owned by Jason and
-consumed by the frontend.
+opcode support between the two chains. Jason owns producing and finalizing both
+`deployments/*.json` files. The frontend owner consumes those manifests, runs the address sync,
+configures live mode, and performs wallet/UI smoke testing; frontend integration is not Jason's
+responsibility.
 
 Deployment uses four non-zero, pairwise-distinct testnet identities: deployer, PolicyModule
 admin, runner, and agent registrar/owner. Their exact authority boundaries and environment
 variables are fixed in [decision 0004](../docs/decisions/0004-deployment-identities.md).
+The dedicated deployer must have nonce zero on both chains. The script refuses any other nonce;
+this keeps every CREATE address—and therefore every immutable-bearing runtime bytecode—identical.
+
+`script/Deploy.s.sol` deploys mocks and core contracts, keeps PolicyModule and CopyVault
+adjacent for nonce-based vault prediction, allowlists the three stocks as the dedicated admin,
+registers agents as the registrar, and then asserts every immutable wiring edge. It can write
+`deployments/.pending/<chain-id>.json`; agent IDs come from successful registration calls and are never
+assumed to be 1/2/3.
+
+```bash
+forge script script/Deploy.s.sol:Deploy --rpc-url rh_testnet --broadcast
+node script/finalize-manifest.mjs 46630 "$RH_TESTNET_RPC_URL"
+forge script script/Deploy.s.sol:Deploy --rpc-url arb_sepolia --broadcast
+node script/finalize-manifest.mjs 421614 "$ARB_SEPOLIA_RPC_URL"
+node script/compare-deployments.mjs
+node script/verify-deployment.mjs 46630 "$RH_TESTNET_RPC_URL"
+node script/verify-deployment.mjs 421614 "$ARB_SEPOLIA_RPC_URL"
+```
+
+Only the finalizer writes the committed manifest. It requires a successful mined receipt for every
+creation, allowlist call and registration, verifies their addresses/code through the target RPC,
+and records each transaction hash plus the first mined deployment block.
+
+The verification helper reads the finalized manifest, reconstructs every constructor argument,
+waits for all eleven source-verification submissions, and writes non-secret evidence under
+`deployments/evidence/`. Robinhood uses its Blockscout API; Arbitrum Sepolia uses the
+`ARBISCAN_API_KEY` from the ignored environment.
+
+Broadcast only with the four funded testnet identities and after a dry run. Source verification,
+committed 46630/421614 manifests, and live smoke evidence are release gates.
+The exact operator procedure, fifth non-privileged smoke follower, evidence tables and frontend
+ownership boundary are in [the deployment/frontend handoff runbook](../docs/deployment-frontend-handoff.md).
