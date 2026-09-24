@@ -7,7 +7,11 @@ import {
   UserRejectedRequestError,
 } from "viem";
 import { copyVaultAbi } from "@/lib/contracts";
-import { describeWriteError, TransactionRevertedError } from "@/lib/writeErrors";
+import {
+  describeWriteError,
+  StaleStateError,
+  TransactionRevertedError,
+} from "@/lib/writeErrors";
 
 /** A revert as viem throws it from simulateContract: the decoded contract
  *  error wrapped in the execution error that names the call. */
@@ -66,6 +70,16 @@ describe("describeWriteError", () => {
     const failure = describeWriteError(new TransactionRevertedError("0xabc"));
     expect(failure.cancelled).toBe(false);
     expect(failure.message).toMatch(/reverted, so nothing changed/);
+  });
+
+  it("passes a stale-state refusal through with its own sentence", () => {
+    const failure = describeWriteError(
+      new StaleStateError("Your balance changed. Close this and try again."),
+    );
+    expect(failure).toEqual({
+      cancelled: false,
+      message: "Your balance changed. Close this and try again.",
+    });
   });
 
   it("falls back to a plain sentence for anything unrecognised", () => {

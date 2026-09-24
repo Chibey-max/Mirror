@@ -101,7 +101,7 @@ export default function VaultPage() {
             current value. Mirror never settles anything, so there&rsquo;s no
             mark-to-market to show here. Unfollow always returns this exact
             number to free balance, whatever the tape did while you were
-            following.
+            following. Kill every follow and all of it comes back.
           </p>
         </Reveal>
 

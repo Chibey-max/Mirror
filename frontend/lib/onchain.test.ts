@@ -24,6 +24,21 @@ describe("on-chain unit boundaries", () => {
     });
   });
 
+  it("widens backwards as more is loaded, never past the first fill", () => {
+    expect(latestFillPage(BigInt(120), 100)).toEqual({
+      offset: BigInt(20),
+      limit: BigInt(100),
+    });
+    expect(latestFillPage(BigInt(120), 150)).toEqual({
+      offset: BigInt(0),
+      limit: BigInt(120),
+    });
+    expect(latestFillPage(BigInt(0), 50)).toEqual({
+      offset: BigInt(0),
+      limit: BigInt(0),
+    });
+  });
+
   it("accepts only successful mined receipts", () => {
     expect(() => assertSuccessfulReceipt({ status: "success" }, HASH)).not.toThrow();
     expect(() => assertSuccessfulReceipt({ status: "reverted" }, HASH)).toThrow(

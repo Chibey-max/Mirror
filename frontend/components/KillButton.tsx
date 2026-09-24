@@ -156,7 +156,7 @@ export function KillButton({
       fullWidth
       onClick={() => setStage("confirming")}
     >
-      Kill follow
+      Kill follow · release principal
     </MetalButton>
   );
 }

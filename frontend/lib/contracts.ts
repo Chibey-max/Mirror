@@ -21,7 +21,7 @@ const ZERO = "0x0000000000000000000000000000000000000000" as Address;
 export const addresses: Record<number, MirrorAddresses> = {
   46630: deployedAddresses[46630],
   421614: deployedAddresses[421614],
-  // Local anvil — deploy stubs here while waiting for the testnet deploy.
+  // Local anvil: deploy stubs here while waiting for the testnet deploy.
   31337: {
     agentRegistry: ZERO,
     trackRecord: ZERO,
@@ -36,10 +36,10 @@ export function addressesFor(chainId: number): MirrorAddresses | undefined {
 }
 
 /**
- * Whether an address is real yet. Every entry above is the zero address until
- * Jason publishes deployments/46630.json, and subscribing to logs on the zero
- * address silently never fires, so anything that reads or watches must gate
- * on this rather than look live while doing nothing.
+ * Whether an address is real yet. Every entry is the zero address until a
+ * deployment file is filled in, and subscribing to logs on the zero address
+ * silently never fires, so anything that reads or watches must gate on this
+ * rather than look live while doing nothing.
  */
 export function isDeployed(address?: Address): boolean {
   return mirrorMode === "live" && !!address && address !== ZERO;
@@ -132,16 +132,6 @@ export const trackRecordAbi = [
     name: "fillCount",
     stateMutability: "view",
     inputs: [],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    // The real total for one agent, what "Showing 50 of {N}" needs.
-    // fillCount() is global; useAgents' own fill counts are capped at
-    // whatever sample it read, not this.
-    type: "function",
-    name: "fillCountByAgent",
-    stateMutability: "view",
-    inputs: [{ name: "agentId", type: "uint256" }],
     outputs: [{ name: "", type: "uint256" }],
   },
   {

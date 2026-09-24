@@ -7,15 +7,23 @@ import {
   InsufficientFundsError,
   UserRejectedRequestError,
 } from "viem";
+import { TransactionRevertedError } from "@/lib/onchain";
+
+// One class app-wide: `confirm` throws it (via assertSuccessfulReceipt) when a
+// transaction was mined but reverted, and describeWriteError explains it.
+export { TransactionRevertedError } from "@/lib/onchain";
 
 /**
- * Thrown by `confirm` when a transaction was mined but reverted. A receipt
- * comes back either way, so without this a reverted write reads as success.
+ * A write refused before it was sent, because what the screen had cached no
+ * longer matches the chain: the form was filled in with a balance that has
+ * since moved, usually by another tab, the runner, or a write that landed
+ * while the modal sat open. Carries its own sentence, since there is no
+ * contract error to decode.
  */
-export class TransactionRevertedError extends Error {
-  constructor(readonly txHash: string) {
-    super(`Transaction ${txHash} reverted`);
-    this.name = "TransactionRevertedError";
+export class StaleStateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StaleStateError";
   }
 }
 
@@ -112,6 +120,9 @@ function revertName(revert: ContractFunctionRevertedError): string | undefined {
 
 /** Turns anything a write can throw into what the screen should say. */
 export function describeWriteError(error: unknown): WriteFailure {
+  if (error instanceof StaleStateError) {
+    return { cancelled: false, message: error.message };
+  }
   if (error instanceof TransactionRevertedError) {
     return {
       cancelled: false,

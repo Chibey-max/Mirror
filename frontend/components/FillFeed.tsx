@@ -81,6 +81,7 @@ export function FillFeed({
 
   return (
     <div>
+      {liveRegion}
       <ul className="flex flex-col gap-2">
         {fills.map((fill) => {
           const outcome = outcomes[fill.id];

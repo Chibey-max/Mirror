@@ -3,7 +3,7 @@
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import type { Hex } from "viem";
 import { addressesFor, isDeployed, type MirrorAddresses } from "@/lib/contracts";
-import { TransactionRevertedError } from "@/lib/writeErrors";
+import { assertSuccessfulReceipt } from "@/lib/onchain";
 
 /**
  * How far along a write is, reported as it happens.
@@ -75,7 +75,7 @@ export function useVaultConnection(): {
     // A reverted transaction still produces a receipt; without this check it
     // resolved like a success and the screen reported a change that never
     // happened.
-    if (receipt.status !== "success") throw new TransactionRevertedError(hash);
+    assertSuccessfulReceipt(receipt, hash);
   }
 
   return { live, address, addresses, writeContractAsync, publicClient, confirm };

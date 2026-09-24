@@ -2,6 +2,7 @@
 
 import { copyVaultAbi } from "@/lib/contracts";
 import { toUsdg } from "@/lib/usdg";
+import { StaleStateError } from "@/lib/writeErrors";
 import {
   useVaultConnection,
   type WriteProgress,
@@ -34,7 +35,9 @@ export function useWithdraw(
     onProgress?: WriteProgress,
   ): Promise<{ txHash: string }> {
     if (!Number.isFinite(amount) || amount <= 0 || amount > freeBalance) {
-      throw new Error("Invalid withdraw amount");
+      throw new StaleStateError(
+        "That amount no longer matches your free balance. Close this and try again.",
+      );
     }
 
     if (!live || !addresses) {
