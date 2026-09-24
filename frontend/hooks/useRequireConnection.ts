@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { useAccount } from "wagmi";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useAccount, useConnect } from "wagmi";
 
 /**
  * Gates an action on being connected, without gating the screen around it.
@@ -16,11 +15,12 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
  *
  * One wrapper rather than a connected check duplicated at every call site:
  * wrap the handler that opens a modal or starts a write, and it either runs
- * as normal or opens the same connect modal the header's own button uses.
+ * as normal or starts the injected-wallet connection used by the primary
+ * header button. WalletConnect remains an explicit choice in the header.
  */
 export function useRequireConnection() {
   const { isConnected } = useAccount();
-  const { openConnectModal } = useConnectModal();
+  const { connectors, connect } = useConnect();
 
   const requireConnection = useCallback(
     (action: () => void) => {
@@ -28,9 +28,11 @@ export function useRequireConnection() {
         action();
         return;
       }
-      openConnectModal?.();
+      const injected = connectors.find((connector) => connector.id === "injected");
+      const connector = injected ?? connectors[0];
+      if (connector) connect({ connector });
     },
-    [isConnected, openConnectModal],
+    [connect, connectors, isConnected],
   );
 
   return { isConnected, requireConnection };

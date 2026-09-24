@@ -1,60 +1,62 @@
 "use client";
 
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import {
+  useAccount,
+  useConnect,
+  useDisconnect,
+  useSwitchChain,
+} from "wagmi";
+import { targetChain } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
 
+function shortAccount(address: string): string {
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
 /**
- * Wallet entry point. RainbowKit still owns the connect, account and chain
- * modals; ConnectButton.Custom only swaps its button for ours so the wallet
- * control matches every other button.
- *
- * NetworkGuard is what handles a wrong chain (PRD §5.2) — the "Wrong network"
- * state here only opens RainbowKit's chain switcher as a shortcut to it.
+ * Minimal connector UI over Wagmi 3. Only the two supported connection
+ * methods are installed: injected browser wallets and WalletConnect.
  */
 export function WalletConnectButton() {
-  return (
-    <ConnectButton.Custom>
-      {({
-        account,
-        chain,
-        openAccountModal,
-        openChainModal,
-        openConnectModal,
-        authenticationStatus,
-        mounted,
-      }) => {
-        // RainbowKit's documented readiness check: render nothing interactive
-        // until it has hydrated, or the button flashes the wrong state.
-        const ready = mounted && authenticationStatus !== "loading";
-        const connected =
-          ready &&
-          account &&
-          chain &&
-          (!authenticationStatus || authenticationStatus === "authenticated");
+  const { address, chainId, isConnected } = useAccount();
+  const { connectors, connect, isPending, error: connectError } = useConnect();
+  const { disconnect } = useDisconnect();
+  const { switchChain, isPending: isSwitching } = useSwitchChain();
+  const onWrongChain = isConnected && chainId !== targetChain.id;
 
-        return (
-          <div
-            {...(!ready && {
-              "aria-hidden": true,
-              style: { opacity: 0, pointerEvents: "none", userSelect: "none" },
-            })}
-          >
-            {!connected ? (
-              <MetalButton tone="primary" onClick={openConnectModal}>
-                Connect wallet
-              </MetalButton>
-            ) : chain.unsupported ? (
-              <MetalButton tone="danger" onClick={openChainModal}>
-                Wrong network
-              </MetalButton>
-            ) : (
-              <MetalButton onClick={openAccountModal}>
-                <span className="tabular">{account.displayName}</span>
-              </MetalButton>
-            )}
-          </div>
-        );
-      }}
-    </ConnectButton.Custom>
+  if (onWrongChain) {
+    return (
+      <MetalButton
+        tone="danger"
+        onClick={() => switchChain({ chainId: targetChain.id })}
+        disabled={isSwitching}
+      >
+        {isSwitching ? "Switching…" : "Wrong network"}
+      </MetalButton>
+    );
+  }
+
+  if (isConnected && address) {
+    return (
+      <MetalButton onClick={() => disconnect()} title="Disconnect wallet">
+        <span className="tabular">{shortAccount(address)}</span>
+      </MetalButton>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      {connectors.map((connector) => (
+        <MetalButton
+          key={connector.uid}
+          tone={connector.id === "injected" ? "primary" : "neutral"}
+          onClick={() => connect({ connector })}
+          disabled={isPending}
+          title={connectError?.message}
+        >
+          {connector.id === "injected" ? "Browser wallet" : "WalletConnect"}
+        </MetalButton>
+      ))}
+    </div>
   );
 }

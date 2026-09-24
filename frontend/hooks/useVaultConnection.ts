@@ -3,6 +3,7 @@
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import type { Hex } from "viem";
 import { addressesFor, isDeployed, type MirrorAddresses } from "@/lib/contracts";
+import { assertSuccessfulReceipt } from "@/lib/onchain";
 
 /**
  * How far along a write is, reported as it happens.
@@ -28,7 +29,7 @@ export type WriteProgress = (
  * publishes deployments/46630.json, and a write to the zero address doesn't
  * error — it succeeds, does nothing, and leaves the UI showing a balance
  * that never moved. `live` is false until every address a write touches is
- * real, and each hook keeps its mock path for that case.
+ * real, and each hook keeps its mock path only in explicit fixture mode.
  */
 export function useVaultConnection(): {
   live: boolean;
@@ -51,8 +52,9 @@ export function useVaultConnection(): {
     isDeployed(addresses?.usdg);
 
   async function confirm(hash: Hex) {
-    if (!publicClient) return;
-    await publicClient.waitForTransactionReceipt({ hash });
+    if (!publicClient) throw new Error("No public client is available to confirm the transaction");
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    assertSuccessfulReceipt(receipt, hash);
   }
 
   return { live, address, addresses, writeContractAsync, publicClient, confirm };

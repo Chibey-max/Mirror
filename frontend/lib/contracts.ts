@@ -1,12 +1,12 @@
 import type { Abi, Address } from "viem";
+import { mirrorMode } from "@/lib/config";
+import { deployedAddresses } from "@/lib/deployments.generated";
 
 /**
  * Contract addresses per chain.
  *
- * Jason owns /deployments/46630.json and /deployments/421614.json (PRD §2) and
- * publishes them on Day 7. Until then these are placeholders and reads run
- * against a local anvil fork. When the file lands, this is the only frontend
- * file that changes.
+ * Finalized /deployments manifests are copied into deployments.generated.ts
+ * by `npm run sync:deployments`. Until then live builds fail on these zeros.
  */
 export type MirrorAddresses = {
   agentRegistry: Address;
@@ -19,14 +19,8 @@ export type MirrorAddresses = {
 const ZERO = "0x0000000000000000000000000000000000000000" as Address;
 
 export const addresses: Record<number, MirrorAddresses> = {
-  // Robinhood Chain testnet — filled from deployments/46630.json on Day 7.
-  46630: {
-    agentRegistry: ZERO,
-    trackRecord: ZERO,
-    policyModule: ZERO,
-    copyVault: ZERO,
-    usdg: ZERO,
-  },
+  46630: deployedAddresses[46630],
+  421614: deployedAddresses[421614],
   // Local anvil — deploy stubs here while waiting for the testnet deploy.
   31337: {
     agentRegistry: ZERO,
@@ -48,7 +42,15 @@ export function addressesFor(chainId: number): MirrorAddresses | undefined {
  * on this rather than look live while doing nothing.
  */
 export function isDeployed(address?: Address): boolean {
-  return !!address && address !== ZERO;
+  return mirrorMode === "live" && !!address && address !== ZERO;
+}
+
+if (mirrorMode === "live") {
+  for (const [name, address] of Object.entries(addresses[46630])) {
+    if (address === ZERO) {
+      throw new Error(`Live Mirror build has no Robinhood address for ${name}`);
+    }
+  }
 }
 
 export const agentRegistryAbi = [
@@ -117,6 +119,13 @@ export const trackRecordAbi = [
         ],
       },
     ],
+  },
+  {
+    type: "function",
+    name: "fillCountByAgent",
+    stateMutability: "view",
+    inputs: [{ name: "agentId", type: "uint256" }],
+    outputs: [{ name: "", type: "uint256" }],
   },
   {
     type: "function",

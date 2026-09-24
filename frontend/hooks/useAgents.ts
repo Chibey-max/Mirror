@@ -16,7 +16,7 @@ import {
   type FixtureFill,
 } from "@/lib/fixtures";
 import { computeAgentPnl, pnlPctSeries, type MirroredTrade } from "@/lib/pnl";
-import { USDG_DECIMALS } from "@/lib/usdg";
+import { formatRecordedPrice } from "@/lib/onchain";
 import { useFillEvents } from "@/hooks/useFillEvents";
 import { useTokenMetadata } from "@/hooks/useTokenMetadata";
 
@@ -72,8 +72,10 @@ function asRecordedFills(value: unknown): RecordedFill[] {
   });
 }
 
-/** Fills read per agent for the list's counts and PnL. */
-const FILL_SAMPLE = 100;
+/** Bound each RPC response while still reading the complete tape for PnL. */
+const FILL_PAGE_SIZE = 100;
+
+type FillPage = { agentId: number; offset: bigint; limit: bigint };
 
 /**
  * The agent list, from AgentRegistry.
@@ -123,13 +125,13 @@ export function useAgents(): {
     query: { enabled: live && ids.length > 0 },
   });
 
-  const activity = useReadContracts({
+  const summaries = useReadContracts({
     contracts: ids.flatMap((id) => [
       {
         address: addresses?.trackRecord,
         abi: trackRecordAbi,
-        functionName: "getFillsByAgent",
-        args: [BigInt(id), BigInt(0), BigInt(FILL_SAMPLE)],
+        functionName: "fillCountByAgent",
+        args: [BigInt(id)],
       } as const,
       {
         address: addresses?.copyVault,
@@ -147,9 +149,52 @@ export function useAgents(): {
     },
   });
 
-  const fillsByAgent = new Map<number, RecordedFill[]>();
+  const fillCounts = new Map<number, bigint>();
   ids.forEach((id, index) => {
-    fillsByAgent.set(id, asRecordedFills(activity.data?.[index * 2]?.result));
+    const result = summaries.data?.[index * 2]?.result;
+    if (typeof result === "bigint") fillCounts.set(id, result);
+  });
+
+  const fillPages: FillPage[] = ids.flatMap((agentId) => {
+    const countForAgent = fillCounts.get(agentId) ?? BigInt(0);
+    const pages: FillPage[] = [];
+    for (
+      let offset = BigInt(0);
+      offset < countForAgent;
+      offset += BigInt(FILL_PAGE_SIZE)
+    ) {
+      const remaining = countForAgent - offset;
+      pages.push({
+        agentId,
+        offset,
+        limit: remaining < BigInt(FILL_PAGE_SIZE) ? remaining : BigInt(FILL_PAGE_SIZE),
+      });
+    }
+    return pages;
+  });
+
+  const history = useReadContracts({
+    contracts: fillPages.map((page) => ({
+      address: addresses?.trackRecord,
+      abi: trackRecordAbi,
+      functionName: "getFillsByAgent",
+      args: [BigInt(page.agentId), page.offset, page.limit],
+    })),
+    query: {
+      enabled:
+        live &&
+        fillPages.length > 0 &&
+        isDeployed(addresses?.trackRecord),
+    },
+  });
+
+  const fillsByAgent = new Map<number, RecordedFill[]>(
+    ids.map((id) => [id, []]),
+  );
+  fillPages.forEach((page, index) => {
+    fillsByAgent.get(page.agentId)?.push(
+      ...asRecordedFills(history.data?.[index]?.result),
+    );
   });
   const tokens = [
     ...new Set([...fillsByAgent.values()].flat().map((fill) => fill.token)),
@@ -166,7 +211,8 @@ export function useAgents(): {
     if (!record) return;
 
     const fills = fillsByAgent.get(id) ?? [];
-    const followers = activity.data?.[index * 2 + 1]?.result;
+    const followers = summaries.data?.[index * 2 + 1]?.result;
+    const fillTotal = fillCounts.get(id) ?? BigInt(0);
 
     /*
      * A fill whose token metadata hasn't resolved is counted but not
@@ -188,7 +234,7 @@ export function useAgents(): {
             token: fill.token,
             isBuy: fill.isBuy,
             size: Number(formatUnits(fill.size, token.decimals)),
-            price: Number(formatUnits(fill.price, USDG_DECIMALS)),
+            price: Number(formatRecordedPrice(fill.price)),
           },
         ];
       });
@@ -211,7 +257,7 @@ export function useAgents(): {
         .slice(0, 10),
       pnlPct: pnl?.pnlPct ?? 0,
       pnlUsd: pnl?.pnlUsd ?? 0,
-      fills: fills.length,
+      fills: Number(fillTotal),
       followers: typeof followers === "bigint" ? Number(followers) : 0,
       volumeUsd: Math.round(volumeUsd * 100) / 100,
       isLosing: (pnl?.pnlPct ?? 0) < 0,
@@ -221,8 +267,15 @@ export function useAgents(): {
 
   return {
     agents,
-    isLoading: count.isLoading || registry.isLoading || activity.isLoading,
-    error: (count.error ?? registry.error ?? activity.error) as Error | null,
+    isLoading:
+      count.isLoading ||
+      registry.isLoading ||
+      summaries.isLoading ||
+      history.isLoading,
+    error: (count.error ??
+      registry.error ??
+      summaries.error ??
+      history.error) as Error | null,
   };
 }
 

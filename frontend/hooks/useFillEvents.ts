@@ -7,7 +7,7 @@ import { addressesFor, isDeployed, trackRecordAbi } from "@/lib/contracts";
 import { fixtureFills, type FixtureFill } from "@/lib/fixtures";
 import { relativeTime } from "@/lib/format";
 import { shortAddress, type TokenMetadata } from "@/lib/tokens";
-import { USDG_DECIMALS } from "@/lib/usdg";
+import { formatRecordedPrice, latestFillPage } from "@/lib/onchain";
 import { useTokenMetadata } from "@/hooks/useTokenMetadata";
 
 /**
@@ -115,14 +115,23 @@ export function useFillEvents(agentId?: number): {
    *  does not — getFillsByAgent returns fills, not receipts. */
   const [watched, setWatched] = useState<IndexedFill[]>([]);
 
+  const count = useReadContract({
+    address: trackRecord,
+    abi: trackRecordAbi,
+    functionName: "fillCountByAgent",
+    args: agentId === undefined ? undefined : [BigInt(agentId)],
+    query: { enabled: live },
+  });
+  const page = latestFillPage(count.data ?? BigInt(0), BACKFILL_LIMIT);
+
   const backfill = useReadContract({
     address: trackRecord,
     abi: trackRecordAbi,
     functionName: "getFillsByAgent",
     args: agentId === undefined
       ? undefined
-      : [BigInt(agentId), BigInt(0), BigInt(BACKFILL_LIMIT)],
-    query: { enabled: live },
+      : [BigInt(agentId), page.offset, page.limit],
+    query: { enabled: live && count.data !== undefined },
   });
 
   useWatchContractEvent({
@@ -159,10 +168,10 @@ export function useFillEvents(agentId?: number): {
   }
 
   const fills = [...unique.values()]
-    .sort((a, b) => Number(b.timestamp - a.timestamp))
+    .sort((a, b) => (a.fillId < b.fillId ? 1 : a.fillId > b.fillId ? -1 : 0))
     .map((fill) => toDisplayFill(fill, metadata.get(fill.token)));
 
-  return { fills, isLoading: backfill.isLoading };
+  return { fills, isLoading: count.isLoading || backfill.isLoading };
 }
 
 type IndexedFill = OnChainFill & { txHash?: `0x${string}` };
@@ -177,7 +186,7 @@ function toDisplayFill(
     sizeFormatted: token
       ? trimZeros(formatUnits(fill.size, token.decimals))
       : "—",
-    priceFormatted: formatUnits(fill.price, USDG_DECIMALS),
+    priceFormatted: formatRecordedPrice(fill.price),
     timeFormatted: relativeTime(Number(fill.timestamp)),
     // Only a watched fill has one. A row without it renders without the
     // explorer link rather than linking somewhere wrong.
