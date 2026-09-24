@@ -5,6 +5,7 @@ import { useAccount, useReadContract } from "wagmi";
 import { copyVaultAbi, usdgAbi } from "@/lib/contracts";
 import { fixtureWallet } from "@/lib/fixtures";
 import { fromUsdg, toUsdg } from "@/lib/usdg";
+import { StaleStateError } from "@/lib/writeErrors";
 import {
   useVaultConnection,
   type WriteProgress,
@@ -68,7 +69,9 @@ export function useDeposit() {
     onProgress?: WriteProgress,
   ): Promise<{ txHash: string }> {
     if (!Number.isFinite(amount) || amount <= 0 || amount > walletBalance) {
-      throw new Error("Invalid deposit amount");
+      throw new StaleStateError(
+        "That amount no longer matches your wallet balance. Close this and try again.",
+      );
     }
 
     if (!live || !addresses || !address || !publicClient) {

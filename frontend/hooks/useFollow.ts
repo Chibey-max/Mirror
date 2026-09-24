@@ -5,6 +5,7 @@ import { useReadContract, useReadContracts } from "wagmi";
 import { copyVaultAbi } from "@/lib/contracts";
 import { fixtureWallet } from "@/lib/fixtures";
 import { fromUsdg, toUsdg } from "@/lib/usdg";
+import { StaleStateError } from "@/lib/writeErrors";
 import {
   useVaultConnection,
   type WriteProgress,
@@ -91,7 +92,9 @@ export function useFollow(initialFreeBalance: number, agentIds: number[] = []) {
       !Number.isFinite(maxSlippageBps) ||
       maxSlippageBps < 0
     ) {
-      throw new Error("Invalid follow settings");
+      throw new StaleStateError(
+        "Your balance or this follow changed while the form was open. Close this and try again.",
+      );
     }
 
     if (!live || !addresses) {
