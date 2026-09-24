@@ -1,5 +1,5 @@
 /**
- * Sample data — exactly the values from docs/claude-design-prompt.md, so the
+ * Sample data, exactly the values from docs/claude-design-prompt.md, so the
  * UI matches the Design Canvas mock pixel-for-pixel while contracts aren't
  * live yet (PRD §5.2/§5.3). Every consumer must treat this as sample data,
  * never as a source of truth once real reads exist.
@@ -95,7 +95,7 @@ export type FixtureFill = {
 
 export const fixtureFills: FixtureFill[] = [
   {
-    // The agent's trade still landed on the tape — it was this follower's
+    // The agent's trade still landed on the tape, it was this follower's
     // mirror that PolicyModule rejected (PRD v2.2 §7.1). See
     // hooks/useMirrorOutcomes for the per-follower outcome of each fill.
     id: "fill-0",

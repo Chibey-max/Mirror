@@ -16,14 +16,14 @@ import { fromUsdg } from "@/lib/usdg";
 /**
  * The PolicyModule + CopyVault user-facing custom errors (PRD §4.3/§4.4/§4.6),
  * hand-kept in sync with IPolicyModule.sol and ICopyVault.sol. The frontend
- * doesn't depend on the contracts workspace at all — this fragment is a
+ * doesn't depend on the contracts workspace at all, this fragment is a
  * deliberate duplicate, not an import, so the two workspaces stay
  * independently buildable. If either interface's errors change
  * post-ABI-freeze, that's a whole-team sync (contracts/README.md) and this
  * array is part of it.
  *
  * These decode for real even though CopyVault.sol isn't implemented yet
- * (Jason) — decoding only needs the error shape, which is frozen.
+ * (Jason), decoding only needs the error shape, which is frozen.
  */
 const policyErrorsAbi = [
   {
@@ -57,7 +57,7 @@ function toReason(
 ): PolicyRejectReason | null {
   switch (errorName) {
     case "CapExceeded": {
-      // Both are raw 6-decimal USDG — going straight to Number() here once
+      // Both are raw 6-decimal USDG, going straight to Number() here once
       // rendered a $80 cap breach as "$80000000", and only the fixture path
       // (already human-scale) hid it.
       const [attempted, cap] = (args ?? []) as [bigint, bigint];
@@ -76,7 +76,7 @@ function toReason(
     case "InsufficientBalance":
       return { type: "InsufficientBalance" };
     default:
-      // OnlyVault is access control, never user-facing — no banner copy for it.
+      // OnlyVault is access control, never user-facing, no banner copy for it.
       return null;
   }
 }
@@ -97,7 +97,7 @@ export function decodePolicyReason(
     const decoded = decodeErrorResult({ abi: policyErrorsAbi, data: reason });
     return toReason(decoded.errorName, decoded.args, resolveSymbol);
   } catch {
-    // Not one of ours (or empty bytes) — the banner shows nothing rather than
+    // Not one of ours (or empty bytes), the banner shows nothing rather than
     // inventing a reason.
     return null;
   }
@@ -107,14 +107,14 @@ export function decodePolicyReason(
  * Decoding for the two ways a policy error can reach the UI.
  *
  * `decode` handles a caught revert. After §7.1 this is no longer how mirror
- * rejections arrive, but it is still live for the user's own direct calls —
+ * rejections arrive, but it is still live for the user's own direct calls,
  * deposit, follow, withdraw revert normally with CopyVault's errors.
  *
  * `decodeReason` handles MirrorRejected's bytes; `useMirrorRejection` below
  * is the subscription that produces them.
  *
  * `simulate` still exists for the design mock's "Simulate a mirror attempt"
- * demo control (docs/demo-script.md) — it fabricates the same shape a real
+ * demo control (docs/demo-script.md), it fabricates the same shape a real
  * decode would produce, so the banner and this hook don't know or care
  * whether the reason came from a real rejection or a rehearsal.
  */
@@ -154,7 +154,7 @@ export function usePolicyError(resolveSymbol?: TokenSymbolResolver) {
 /** A rejection as the banner needs it: why, and the tx that recorded it. */
 export type MirrorRejection = {
   reason: PolicyRejectReason;
-  /** The SUCCESSFUL mirrorFill tx that logged it — not a reverted tx (§7.1). */
+  /** The SUCCESSFUL mirrorFill tx that logged it, not a reverted tx (§7.1). */
   txHash?: Hex;
   fillId?: bigint;
   agentId?: bigint;
@@ -167,7 +167,7 @@ export type MirrorRejection = {
  * All three filtered fields are indexed on the event, so the node does the
  * filtering, not the client.
  *
- * Inert until deployments/46630.json lands — `isDeployed` gates the
+ * Inert until deployments/46630.json lands, `isDeployed` gates the
  * subscription, because watching the zero address would look live while
  * never firing.
  */

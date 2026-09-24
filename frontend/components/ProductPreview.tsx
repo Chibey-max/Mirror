@@ -17,7 +17,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 /**
- * The product, below the hero — the same components the real screens use, so
+ * The product, below the hero, the same components the real screens use, so
  * this is a preview rather than an illustration.
  *
  * Two things here are live, not pictures of controls: the tabs switch the
@@ -136,7 +136,7 @@ export function ProductPreview() {
                     {sample.size} {sample.token}
                   </span>{" "}
                   at{" "}
-                  <span className="tabular text-text">${sample.price}</span> —
+                  <span className="tabular text-text">${sample.price}</span>,
                   a{" "}
                   <span className="tabular text-text">
                     ${notional.toFixed(2)}

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { txUrl } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { describeWriteError } from "@/lib/writeErrors";
 import type { WriteProgress } from "@/hooks/useVaultConnection";
 
 type Stage = "idle" | "signing" | "success" | "error";
@@ -31,6 +33,8 @@ export function FollowModal({
   const [maxSlippageBps, setMaxSlippageBps] = useState("50");
   const [stage, setStage] = useState<Stage>("idle");
   const [txHash, setTxHash] = useState<string>();
+  const [errorMessage, setErrorMessage] = useState<string>();
+  const dialogRef = useFocusTrap<HTMLDivElement>(open);
   const capId = useId();
   const slippageId = useId();
 
@@ -82,7 +86,13 @@ export function FollowModal({
       );
       setTxHash(hash);
       setStage("success");
-    } catch {
+    } catch (error) {
+      const failure = describeWriteError(error);
+      if (failure.cancelled) {
+        setStage("idle");
+        return;
+      }
+      setErrorMessage(failure.message);
       setStage("error");
     }
   }
@@ -93,6 +103,7 @@ export function FollowModal({
       onClick={handleClose}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="follow-title"
@@ -221,10 +232,32 @@ export function FollowModal({
               </p>
             )}
             {stage === "error" && (
-              <p className="mt-2 text-xs text-loss">
-                Follow failed. Check your wallet and try again.
+              <p role="alert" className="mt-2 text-xs text-loss">
+                {errorMessage}
               </p>
             )}
+
+            {/*
+              Design prompt §7 / briefing §09.A: the plain-language safety
+              summary is the product, not a disclaimer, same body-copy size
+              as everything else in the modal, placed where it's read right
+              before signing rather than buried above the inputs. Renders
+              even with an empty/invalid cap, with a placeholder, so the
+              promise is visible before the first keystroke.
+            */}
+            <p className="mt-4 text-sm leading-relaxed text-muted">
+              <span className="text-text">{agentName}</span> can move at most{" "}
+              <span className="tabular text-text">
+                {capAmount !== "" && !Number.isNaN(parsedCap) && parsedCap > 0
+                  ? `${parsedCap.toFixed(2)} USDG`
+                  : "the amount you set"}
+              </span>{" "}
+              of your vault per day, and only into allowlisted Stock Tokens.
+              Sells do not consume the cap. You can kill this follow at any
+              time; unfollow returns your principal, not a mark-to-market.
+              The daily cap resets at 00:00 UTC (08:00 SGT). Slippage is
+              stored on the policy and is not enforced on-chain in V1.
+            </p>
 
             <MetalButton
               tone="primary"

@@ -10,15 +10,18 @@ import {
 } from "react";
 import { txUrl } from "@/lib/chains";
 import type { WriteProgress } from "@/hooks/useVaultConnection";
+import { describeWriteError } from "@/lib/writeErrors";
 
-type TxStatus = "approving" | "pending" | "success" | "error";
+type TxStatus = "approving" | "pending" | "success" | "error" | "cancelled";
 
 type TxRecord = {
   id: string;
-  /** What the user asked for — "Deposit 25.00 USDG", not a function name. */
+  /** What the user asked for, "Deposit 25.00 USDG", not a function name. */
   label: string;
   status: TxStatus;
   txHash?: string;
+  /** Why it failed, in the user's terms. Only set on `error`. */
+  detail?: string;
 };
 
 type TransactionsContextValue = {
@@ -28,10 +31,14 @@ type TransactionsContextValue = {
   begin: (label: string) => string;
   /** The write got a hash and its receipt is now awaited. */
   submitted: (id: string, txHash: string) => void;
-  /** The write settled — clears from the header count either way, and
+  /** The write settled, clears from the header count either way, and
    *  the toast itself fades a few seconds later so a glance still catches
    *  a failure that happened while looking elsewhere. */
-  resolve: (id: string, ok: boolean) => void;
+  resolve: (
+    id: string,
+    outcome: "success" | "error" | "cancelled",
+    detail?: string,
+  ) => void;
   dismiss: (id: string) => void;
 };
 
@@ -68,12 +75,10 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resolve = useCallback(
-    (id: string, ok: boolean) => {
+    (id: string, outcome: "success" | "error" | "cancelled", detail?: string) => {
       setRecords((current) =>
         current.map((record) =>
-          record.id === id
-            ? { ...record, status: ok ? "success" : "error" }
-            : record,
+          record.id === id ? { ...record, status: outcome, detail } : record,
         ),
       );
       const timer = setTimeout(() => dismiss(id), AUTO_DISMISS_MS);
@@ -101,7 +106,7 @@ function useTransactions(): TransactionsContextValue {
 }
 
 /**
- * How many writes are still in flight — what the header's indicator counts.
+ * How many writes are still in flight, what the header's indicator counts.
  * `success`/`error` are settled; only `approving`/`pending` are "in flight".
  */
 export function usePendingTxCount(): number {
@@ -117,7 +122,7 @@ export function usePendingTxCount(): number {
  * Modals already thread a `WriteProgress` callback into every write hook to
  * drive their own stage machine; this wraps that same callback rather than
  * replacing it, so closing the modal mid-transaction no longer makes the
- * transaction disappear — the toast and the header's pending count outlive
+ * transaction disappear, the toast and the header's pending count outlive
  * the component that started the write.
  */
 export function useTrackedWrite() {
@@ -133,10 +138,15 @@ export function useTrackedWrite() {
         const result = await run((event) => {
           if (event.stage === "submitted") submitted(id, event.txHash);
         });
-        resolve(id, true);
+        resolve(id, "success");
         return result;
       } catch (error) {
-        resolve(id, false);
+        const failure = describeWriteError(error);
+        resolve(
+          id,
+          failure.cancelled ? "cancelled" : "error",
+          failure.cancelled ? undefined : failure.message,
+        );
         throw error;
       }
     },
@@ -149,6 +159,7 @@ const STATUS_COPY: Record<TxStatus, string> = {
   pending: "Pending on-chain…",
   success: "Confirmed",
   error: "Failed",
+  cancelled: "Cancelled in your wallet",
 };
 
 function TransactionToastHost() {
@@ -175,7 +186,9 @@ function TransactionToastHost() {
                 ? "bg-profit"
                 : record.status === "error"
                   ? "bg-loss"
-                  : "animate-pulse bg-accent"
+                  : record.status === "cancelled"
+                    ? "bg-muted"
+                    : "animate-pulse bg-accent"
             }`}
           />
           <div className="min-w-0 flex-1">
@@ -187,7 +200,9 @@ function TransactionToastHost() {
                 record.status === "error" ? "text-loss" : "text-muted"
               }`}
             >
-              {STATUS_COPY[record.status]}
+              {record.status === "error" && record.detail
+                ? record.detail
+                : STATUS_COPY[record.status]}
               {record.txHash && (
                 <>
                   {" · "}
@@ -217,7 +232,7 @@ function TransactionToastHost() {
   );
 }
 
-/** The header's own glimpse of the same state — a dot and a count, not a
+/** The header's own glimpse of the same state, a dot and a count, not a
  *  second list; the toasts already are the list. */
 export function PendingTxIndicator() {
   const count = usePendingTxCount();

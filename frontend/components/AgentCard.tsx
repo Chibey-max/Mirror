@@ -1,13 +1,10 @@
 import Link from "next/link";
 import { Badge } from "@/components/Badge";
+import { CopyableHash } from "@/components/Copyable";
 import { Sparkline } from "@/components/Sparkline";
 import { lastAction, tokensTraded } from "@/lib/agentActivity";
 import type { Agent } from "@/hooks/useAgents";
 import type { FixtureFill } from "@/lib/fixtures";
-
-function shortHash(hash: string) {
-  return `${hash.slice(0, 8)}...${hash.slice(-6)}`;
-}
 
 export function AgentCard({
   agent,
@@ -97,8 +94,17 @@ export function AgentCard({
       </div>
 
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-4">
-        <span className="min-w-0 truncate font-mono text-xs text-muted">
-          {shortHash(agent.strategyHash)}
+        {/*
+          The card itself is a Link, a button nested in an anchor is
+          invalid content, and without stopping the click it would copy the
+          hash AND navigate. Stopped here, not inside CopyableHash itself,
+          since that's a fact about this one placement, not about copying.
+        */}
+        <span
+          onClick={(event) => event.stopPropagation()}
+          className="min-w-0 font-mono text-xs text-muted"
+        >
+          <CopyableHash value={agent.strategyHash} label="Copy the full strategy hash" />
         </span>
         <span className="text-sm font-medium text-accent group-hover:underline">
           View tape

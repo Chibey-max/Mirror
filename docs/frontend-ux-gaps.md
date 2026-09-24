@@ -4,141 +4,126 @@ What stands between the current frontend and a UI a stranger can operate
 without being walked through it. Measured against
 [the design prompt](./claude-design-prompt.md) §§1–13.
 
-Where we are: `main` has the **behaviour** — every write is real, every read
-has a live path gated on `isDeployed()`, policy rejections decode from
-`MirrorRejected`, the kill verifies against chain state.
-`design/glass-direction` has the **surface** — header, hero, metal controls,
-ledger palette, masthead, sparkline, agent board, ticker.
-
-What neither has is the connective tissue between them. That's this list.
-
 Items are grouped by what their absence costs, not by size. Anything marked
 **blocked** needs someone outside the frontend.
 
 ---
 
-## Tier 1 — a user can't finish a journey without these
+## Tier 1: a user can't finish a journey without these
 
-### 1. A persistent app shell — ✅ nav + footer shipped
+### 1. A persistent app shell: ✅ nav + footer shipped
 `SiteHeader` still renders per page rather than once in `app/layout.tsx` (left
 alone: the landing hero's canvas positioning is tuned against its own page
-wrapper and moving the header risked breaking it for a cosmetic win). What
-shipped: a shared `SiteFooter` on all four routes, and "Vault" added to the
-nav — the mobile row under the pill already existed and picked it up for
-free. Spec §3's dedicated bottom tab bar is still open; the under-pill row
-covers the same job today.
+wrapper). A shared `SiteFooter` is on every route and "Vault" is in the nav.
+Spec §3's dedicated bottom tab bar is still open; the under-pill row covers
+the same job today.
 
-### 2. A vault surface — ✅ shipped
+### 2. A vault surface: ✅ shipped
 `/vault`: wallet, vault free, total allocated, one row per active follow with
-its own spent-today bar, deposit and withdraw. `docs/frontend-ux-gaps.md`
-itself is now slightly stale on this one — everything asked for is built.
+its own spent-today bar, deposit, withdraw, and "your mirrors" (#10).
 
-### 3. "Get test USDG" faucet — **blocked on contracts**
-Spec §3, §6. A judge connects with an empty wallet and the whole flow is dead:
-deposit needs USDG nobody can obtain. `contracts/src/mocks/` is empty —
-MockUSDG doesn't exist yet. It is a ten-line contract on the demo's critical
-path.
+### 3. "Get test USDG" faucet: ✅ shipped
+MockUSDG landed on main with an open `mint`. `useDeposit.getTestUsdg()` mints
+1,000 test USDG to the connected wallet, testnets only. It's a button on the
+vault page, and the deposit modal offers it inline whenever the wallet can't
+cover the amount typed.
 
-### 4. Transaction lifecycle outside the modal — ✅ shipped
-`TransactionsProvider` + `useTrackedWrite`: a toast host and a pending count
-in the header, both independent of whichever modal started the write. Wired
-into every write on both screens that have one.
+### 4. Transaction lifecycle outside the modal: ✅ shipped
+`TransactionsProvider` + `useTrackedWrite`: toasts and a pending count in the
+header, independent of whichever modal started the write. Failed toasts now
+say why (see "Write errors" below); a wallet cancel shows as Cancelled, not
+Failed.
 
-### 5. Connect-gating on actions — ✅ shipped
-`useRequireConnection`, applied to Deposit/Follow/Withdraw/Kill on both
-screens. Disconnected, they open the Wagmi connector picker instead of
-running.
-
----
-
-## Tier 2 — the trust layer
-
-### 6. The follow panel, with "spent today" — ✅ shipped
-Cap, spent-today progress bar, allocation and the kill switch, together in
-the agent page's own "Your position" panel — exactly the order spec §5 asks
-for. `useSpentToday` reads `policyModuleAbi.spentToday`, shared with the
-vault page's own bar.
-
-### 7. PnL chart with range pills
-Spec §5 wants the big figure plus a line chart on agent detail. We have
-`Sparkline` — twelve points, decorative, hidden from screen readers. The series
-is available from `getFillsByAgent` priced per fill.
-
-### 8. Tape pagination
-`useFillEvents` reads 50 fills and stops. `getFillsByAgent(offset, limit)`
-takes those arguments precisely so this can page; an agent with 142 fills shows
-50 with no sign the rest exist. Spec §5 also wants new rows animating in live.
-
-### 9. Copyable hashes, and the TrustBadge tooltip
-Spec §5: the full strategy hash, copyable, and "Why this matters" on the trust
-badge — *the ledger has no edit or delete function*. Neither exists; there is no
-clipboard helper and no tooltip primitive in the repo. The badge makes a claim
-the user currently has no way to interrogate.
-
-### 10. A "your mirrors" view
-`useMirrorOutcomes` is per agent. The follower's actual question — what has been
-mirrored into my vault, across everything I follow — has no screen. It is also
-where a rejection should still be visible after navigating away from the agent
-that caused it.
+### 5. Connect-gating on actions: ✅ shipped
+`useRequireConnection` on Deposit/Follow/Withdraw/Kill/faucet. A disconnected
+click opens the connect modal and carries on once connected, no second click.
+A click while a remembered wallet is still reconnecting after a reload waits
+for it instead of asking to connect a wallet the header already shows.
 
 ---
 
-## Tier 3 — states and polish
+## Tier 2: the trust layer
 
-### 11. Loading, empty, and error-with-retry
-Only `/agents` handles all three. `/leaderboard` and agent detail have none.
-There are no skeletons anywhere, no RPC error banner, no retry. Spec §13 wants
-them on every data area, and testnet RPC flakiness makes this ordinary, not
-defensive.
+### 6. The follow panel, with "spent today": ✅ shipped
+Cap, spent-today bar (colour tiers, "Cap reached" state), allocation and the
+kill switch, in the agent page's "Your position" panel.
 
-### 12. Sort control on the agent list
-PnL · Fills · Newest. Spec §4.
+### 7. PnL chart with range pills: ✅ shipped
+Big figure plus a line chart with 1D/7D/30D/All on agent detail. The y-axis is
+never forced to include zero, so a losing agent's line can sit below it.
 
-### 13. The third network state
-`NetworkGuard` switches chains and reports an error, but spec §2 wants an
-explicit "network not found → Add network" path (`wallet_addEthereumChain`). A
-fresh wallet has never heard of chain 46630, so this is the common case.
+### 8. Tape pagination: ✅ shipped
+Pages of 50 via `getFillsByAgent(offset, limit)`, "Showing N of total" from
+`fillCountByAgent`, and a "Load earlier fills" button.
 
-### 14. Mobile treatments
-Modals as bottom sheets, the tape as stacked rows, the tab bar from §3. The
-product screens are responsive; these three patterns aren't built.
+### 9. Copyable hashes, and the TrustBadge tooltip: ✅ shipped
+`CopyableHash` and `InfoTooltip` in `components/Copyable.tsx`, used for the
+strategy hash, the trust badge, and the network details in the wrong-network
+guard.
 
-### 15. Accessibility
-No focus trap in any modal. No `aria-live` on the feed or the reject banner — a
-screen reader does not hear the demo's centrepiece announce itself. No skip
-link.
+### 10. A "your mirrors" view: ✅ shipped
+On `/vault`: every fill from every followed agent, with what happened to this
+vault (mirrored, rejected with cause, or not mirrored) and explorer links.
 
 ---
 
-## Cross-cutting: the design-system sheet
+## Tier 3: states and polish
 
-Spec deliverable #2, and what makes everything above cheap instead of
-expensive: tokens, type scale, button variants (primary, secondary,
-destructive, disabled, loading), input states (default, focus, error), badges
-(Verified, Following, Losing agent, Killed), table rows, toasts, modal and
-bottom sheet, chart. `MetalButton` covers roughly a third.
+### 11. Loading, empty, and error-with-retry: ✅ shipped
+`RetryBanner` on `/leaderboard` and agent detail; `/agents` already had all
+three.
 
-Defining the rest **during** the design merge rather than after is what stops
-the next fifteen components each inventing their own input.
+### 12. Sort control on the agent list: ✅ shipped
+PnL · Fills · Newest.
+
+### 13. The third network state: ✅ shipped
+wagmi falls back to `wallet_addEthereumChain` when a switch fails with 4902,
+so the guard's one button adds then switches. The guard tells a real cancel
+apart from a wallet that can't add networks (wagmi reports both as
+`UserRejectedRequestError`), and for the latter shows the network details to
+add by hand, each copyable.
+
+### 14. Mobile treatments: **design owner**
+Modals as bottom sheets, the tape as stacked rows, the tab bar from §3.
+Handed to the design side along with the rest of the visual layer.
+
+### 15. Accessibility: ✅ shipped
+Focus trap in every modal (initial focus on the amount field, Tab wraps,
+focus returns to the opener on close), Withdraw made a real dialog with
+Escape, a polite live region on the fill feed that announces only fills
+arriving after load, `role=alert` on the reject banner and write errors, and
+a skip link.
+
+---
+
+## Write errors
+
+Every vault write is simulated before it's sent, so a revert arrives as a
+decoded contract error before the wallet opens. `lib/writeErrors.ts` turns it
+into one sentence: CopyVault's errors (`FollowerLimitReached`,
+`AgentInactive`, `AlreadyFollowing`, `NotFollowing`, `InsufficientBalance`),
+USDG's ERC20 errors recovered from raw revert bytes, wrong network, no gas.
+`confirm()` also rejects a transaction that was mined but reverted; it used
+to resolve like a success.
+
+The frontend ABIs were diffed against the contracts compiled from main
+(solc 0.8.24): every function, event and error the frontend uses matches.
 
 ---
 
 ## Status
 
-Done: the design merge, #2, #4, #5, #6, and the nav/footer half of #1.
-Remaining, roughly in order:
+Done: everything above except #14, which is with the design owner, and the
+cross-cutting design-system sheet, which went with it.
 
-1. **#11 states** — skeletons, empty, error/retry — across `/leaderboard` and
-   agent detail, which have none; `/agents` already has all three.
-2. **#7 PnL chart**, **#8 tape pagination**, **#12 sort control** — independent
-   pickups against data that already exists (`getFillsByAgent`).
-3. **#9 copyable hashes + tooltip**, **#10 "your mirrors" view**, **#13 the
-   third network state**, **#14 mobile treatments**, **#15 accessibility**.
-4. **#3 the faucet** — still blocked on `contracts/src/mocks/` being empty.
+## Still open, not ours
 
-## Not ours
-
-- **MockUSDG + faucet** (#3) blocks the demo's opening minute.
-- `IPolicyModule.checkAndConsume` still lacks the `isBuy` parameter PRD v2.2
-  §7.5 added. Worth fixing before the PolicyModule body is written against the
-  current signature.
+- **`CopyVault.mirrorFill` is still a `NotImplemented` stub on main.** Until it
+  lands, `Mirrored` and `MirrorRejected` never fire, so "your mirrors", the
+  reject banner and the leaderboard's mirrored PnL only have fixture data to
+  show. The frontend side is wired and waiting.
+- **`deployments/46630.json`.** Every address in `lib/contracts.ts` is still
+  the zero address, which keeps the whole app on its fixture path.
+- **Robinhood Chain RPC and explorer URLs.** `lib/chains.ts` still has a TODO
+  to confirm the public endpoints; they also feed the wrong-network guard's
+  manual-add details.

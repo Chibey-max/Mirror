@@ -25,14 +25,14 @@ export type FollowInput = {
  * Following an agent with a cap (PRD §5.2), and the balances that follow
  * from it.
  *
- * `agentIds` names the agents whose allocation this caller cares about —
+ * `agentIds` names the agents whose allocation this caller cares about,
  * CopyVault has no "agents I follow" view, `allocationOf` is per (user,
  * agent) pair, so the screen says which pairs to read. A page showing one
  * agent passes one id.
  *
  * What comes back per agent is `allocationOf`: principal committed, returned
  * unchanged at unfollow (PRD v2.2 §7.3). It is not the position's value, and
- * nothing here should be read as PnL — that comes from Mirrored events
+ * nothing here should be read as PnL, that comes from Mirrored events
  * priced at each fill (lib/pnl.ts).
  *
  * Until deployments/46630.json lands the fixture path runs instead.
@@ -77,7 +77,7 @@ export function useFollow(initialFreeBalance: number, agentIds: number[] = []) {
   const liveAllocated: Record<number, number> = {};
   agentIds.forEach((id, index) => {
     const result = allocationReads.data?.[index]?.result;
-    // A reverted or still-loading read is not "zero allocated" — leaving the
+    // A reverted or still-loading read is not "zero allocated", leaving the
     // id out keeps the screen's `?? 0` from asserting an unfollow that the
     // chain never reported.
     if (typeof result === "bigint") liveAllocated[id] = fromUsdg(result);
@@ -129,7 +129,7 @@ export function useFollow(initialFreeBalance: number, agentIds: number[] = []) {
       address: addresses.copyVault,
       abi: copyVaultAbi,
       functionName: "follow",
-      // maxSlippageBps is basis points, not a USDG amount — no unit
+      // maxSlippageBps is basis points, not a USDG amount, no unit
       // conversion, unlike the cap beside it.
       args: [BigInt(agentId), toUsdg(capAmount), BigInt(maxSlippageBps)],
     });
@@ -144,7 +144,7 @@ export function useFollow(initialFreeBalance: number, agentIds: number[] = []) {
   }
 
   /**
-   * Unfollow — the kill switch's write (PRD §5.3).
+   * Unfollow, the kill switch's write (PRD §5.3).
    *
    * The principal comes back unchanged (§7.3): the vault never settled
    * anything, so what was committed is what is released, and it lands in
@@ -194,7 +194,7 @@ export function useFollow(initialFreeBalance: number, agentIds: number[] = []) {
     setMockFreeBalance((balance) => balance + amount);
   }
 
-  /** Withdraw's counterpart to addFreeBalance — same bridge, opposite direction. */
+  /** Withdraw's counterpart to addFreeBalance, same bridge, opposite direction. */
   function subtractFreeBalance(amount: number) {
     if (live) {
       void freeRead.refetch();

@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { WriteProgress } from "@/hooks/useVaultConnection";
 import { txUrl } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
+import { describeWriteError } from "@/lib/writeErrors";
 
 type Stage = "idle" | "confirming" | "signing" | "pending" | "killed" | "error";
 
@@ -11,11 +12,11 @@ type Stage = "idle" | "confirming" | "signing" | "pending" | "killed" | "error";
  * Kill switch (design prompt §10, PRD acceptance criterion): confirm →
  * signing → pending → a solid "This agent can no longer move your funds"
  * badge, backed by a *fresh* contract read, not optimistic UI. The caller
- * owns the actual read-after-write — this component just renders the state
+ * owns the actual read-after-write, this component just renders the state
  * machine and calls back into it.
  *
  * `onKill` is CopyVault.unfollow() and `verify` is a fresh read of the
- * chain — neither is optimistic, and the badge waits for both.
+ * chain, neither is optimistic, and the badge waits for both.
  */
 export function KillButton({
   agentName,
@@ -34,6 +35,7 @@ export function KillButton({
 }) {
   const [stage, setStage] = useState<Stage>("idle");
   const [txHash, setTxHash] = useState<string>();
+  const [errorMessage, setErrorMessage] = useState<string>();
 
   async function handleConfirm() {
     setStage("signing");
@@ -47,8 +49,19 @@ export function KillButton({
 
       // Only now is the unfollow mined, so the reads below see its effect.
       const confirmed = await verify();
+      if (!confirmed) {
+        setErrorMessage(
+          "The unfollow was mined, but the chain still shows this follow as active. Check the vault page before trying again.",
+        );
+      }
       setStage(confirmed ? "killed" : "error");
-    } catch {
+    } catch (error) {
+      const failure = describeWriteError(error);
+      if (failure.cancelled) {
+        setStage("confirming");
+        return;
+      }
+      setErrorMessage(failure.message);
       setStage("error");
     }
   }
@@ -83,8 +96,10 @@ export function KillButton({
     return (
       <div className="rounded-xl border border-loss/40 bg-loss/10 p-3">
         <p className="text-sm text-text">
-          Stop following {agentName}? Your {allocatedAmount.toFixed(2)} USDG
-          allocation returns to your free balance immediately.
+          Kill {agentName}&apos;s follow and release your funds? Your{" "}
+          {allocatedAmount.toFixed(2)} USDG principal returns to your free
+          balance immediately. Unfollow always returns exactly what you put
+          in, never a mark-to-market.
         </p>
         <div className="mt-3 flex gap-2">
           <MetalButton
@@ -120,13 +135,18 @@ export function KillButton({
 
   if (stage === "error") {
     return (
-      <MetalButton
-        tone="danger"
-        fullWidth
-        onClick={() => setStage("confirming")}
-      >
-        Kill didn&apos;t confirm — try again
-      </MetalButton>
+      <div className="space-y-2">
+        <p role="alert" className="text-sm text-loss">
+          {errorMessage ?? "Kill did not confirm on-chain."}
+        </p>
+        <MetalButton
+          tone="danger"
+          fullWidth
+          onClick={() => setStage("confirming")}
+        >
+          Try again
+        </MetalButton>
+      </div>
     );
   }
 

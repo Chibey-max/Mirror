@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { formatUnits, type Address } from "viem";
 import {
@@ -25,7 +26,7 @@ export type AgentFill = FixtureFill;
 
 /**
  * IAgentRegistry.Agent and ITrackRecord.Fill as they come back from a
- * dynamically built multicall, where the result type is `unknown` — the
+ * dynamically built multicall, where the result type is `unknown`, the
  * tuple typing viem gives a single read doesn't survive the array. Both
  * guards check the fields actually used, so a shape change fails to a
  * skipped row rather than to a rendered `undefined`.
@@ -83,11 +84,11 @@ type FillPage = { agentId: number; offset: bigint; limit: bigint };
  * Three of the card's fields aren't in the registry and are assembled here:
  * follower count from CopyVault, fill count and volume from TrackRecord, and
  * PnL from those fills through the same `computeAgentPnl` the leaderboard
- * uses — so the two screens can't disagree.
+ * uses, so the two screens can't disagree.
  *
  * One field has no on-chain source at all. `strategy` is the human label
- * ("Momentum"); the registry stores `strategyHash` — a commitment, not a
- * name — and `modelVersion`. Live agents show their model version rather
+ * ("Momentum"); the registry stores `strategyHash`, a commitment, not a
+ * name, and `modelVersion`. Live agents show their model version rather
  * than a label invented in the frontend.
  *
  * Inert until deployments/46630.json lands, when fixtures stand in.
@@ -96,6 +97,9 @@ export function useAgents(): {
   agents: Agent[];
   isLoading: boolean;
   error: Error | null;
+  /** Re-runs every read this hook made. For a calm error banner, not a
+   *  spinner, the caller decides when "try again" is worth showing. */
+  refetch: () => void;
 } {
   const { chainId } = useAccount();
   const addresses = chainId ? addressesFor(chainId) : undefined;
@@ -201,8 +205,15 @@ export function useAgents(): {
   ];
   const metadata = useTokenMetadata(tokens, live);
 
+  const refetch = useCallback(() => {
+    void count.refetch();
+    void registry.refetch();
+    void summaries.refetch();
+    void history.refetch();
+  }, [count, registry, summaries, history]);
+
   if (!live) {
-    return { agents: fixtureAgents, isLoading: false, error: null };
+    return { agents: fixtureAgents, isLoading: false, error: null, refetch };
   }
 
   const agents: Agent[] = [];
@@ -248,7 +259,7 @@ export function useAgents(): {
     agents.push({
       id,
       name: record.name,
-      // No on-chain label — the model version is the closest true thing.
+      // No on-chain label, the model version is the closest true thing.
       strategy: record.modelVersion,
       modelVersion: record.modelVersion,
       strategyHash: record.strategyHash,
@@ -276,6 +287,7 @@ export function useAgents(): {
       registry.error ??
       summaries.error ??
       history.error) as Error | null,
+    refetch,
   };
 }
 
@@ -285,9 +297,19 @@ export function useAgent(agentId: number): {
   fills: AgentFill[];
   isLoading: boolean;
   error: Error | null;
+  refetch: () => void;
 } {
-  const { agents, isLoading, error } = useAgents();
-  const { fills, isLoading: fillsLoading } = useFillEvents(agentId);
+  const { agents, isLoading, error, refetch: refetchAgents } = useAgents();
+  const {
+    fills,
+    isLoading: fillsLoading,
+    refetch: refetchFills,
+  } = useFillEvents(agentId);
+
+  const refetch = useCallback(() => {
+    refetchAgents();
+    refetchFills();
+  }, [refetchAgents, refetchFills]);
 
   return {
     agent: agents.find((agent) => agent.id === agentId),
@@ -298,5 +320,6 @@ export function useAgent(agentId: number): {
       : fills,
     isLoading: isLoading || fillsLoading,
     error,
+    refetch,
   };
 }

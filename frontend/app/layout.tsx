@@ -17,9 +17,9 @@ const geistMono = Geist_Mono({
 
 /**
  * Display-only face for headlines and hero-scale numerals. Everything else
- * stays Geist — this isn't a font swap, it's one deliberate accent.
+ * stays Geist, this isn't a font swap, it's one deliberate accent.
  *
- * Was Instrument Serif — swapped after feedback that the hero read as too
+ * Was Instrument Serif, swapped after feedback that the hero read as too
  * thin. Instrument Serif only ships one weight (400); no CSS font-weight
  * makes a single-weight face heavier, the font file itself is thin. Fraunces
  * has a genuine 600-900 range plus an optical-size axis tuned for large
@@ -33,7 +33,7 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Mirror — on-chain agent track records",
+  title: "Mirror: on-chain agent track records",
   description:
     "A tamper-proof on-chain performance ledger for trading agents, with a hard-capped copy vault.",
 };
@@ -49,6 +49,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         suppressHydrationWarning
         className="min-h-full flex flex-col bg-bg text-text"
       >
+        {/* First stop for a keyboard user: past the header straight to the
+            page. Invisible until focused. Every page's <main> carries the id. */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded-full focus:bg-surface focus:px-4 focus:py-2 focus:text-sm focus:text-text focus:outline focus:outline-1 focus:outline-accent"
+        >
+          Skip to content
+        </a>
         <Providers>
           <NetworkGuard>
             {mirrorMode === "fixture" && (

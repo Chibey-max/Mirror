@@ -27,7 +27,7 @@ export function lastAction(
   return byAgentNewestFirst(fills, agentId)[0];
 }
 
-/** Newest first by block — `time` is a display string, not sortable. */
+/** Newest first by block, `time` is a display string, not sortable. */
 function byAgentNewestFirst(fills: FixtureFill[], agentId: number) {
   return fills
     .filter((fill) => fill.agentId === agentId)

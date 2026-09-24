@@ -1,11 +1,11 @@
 import { fixtureAgents, fixtureFills } from "@/lib/fixtures";
 
 /**
- * The verified tape as a ticker — Mirror's own artifact, not decoration.
+ * The verified tape as a ticker, Mirror's own artifact, not decoration.
  *
  * Every field is a real field of a fill, newest block first. Type follows the
  * rest of the page rather than a terminal: agent names in Geist, numbers in
- * tabular mono, sides in the P&L colours. No visible label — the rows speak
+ * tabular mono, sides in the P&L colours. No visible label, the rows speak
  * for themselves; screen readers get one via aria-label.
  *
  * The pill's rim is a near-invisible hairline on purpose. A full chrome rim
@@ -47,14 +47,14 @@ export function TapeTicker({ className = "" }: { className?: string }) {
     <div
       role="marquee"
       aria-label="Recent verified fills"
-      // The fade is a mask over the whole pill — rim, face and text together
-      // — so both ends dissolve rather than stopping on a hard cap.
+      // The fade is a mask over the whole pill, rim, face and text together
+      //, so both ends dissolve rather than stopping on a hard cap.
       className={`relative h-11 w-[92vw] rounded-full border border-white/[0.06] bg-[linear-gradient(180deg,#111113_0%,#060607_100%)] [mask-image:linear-gradient(90deg,transparent,#000_9%,#000_91%,transparent)] sm:w-[86vw] ${className}`}
     >
       {/*
         Two copies of the list in one track that slides left by exactly half
         its width, so the loop is seamless. The pill's own fade handles both
-        ends. The second copy is hidden from assistive tech — it's a repeat,
+        ends. The second copy is hidden from assistive tech, it's a repeat,
         not more fills.
       */}
       <div className="h-full overflow-hidden rounded-full text-[13px]">

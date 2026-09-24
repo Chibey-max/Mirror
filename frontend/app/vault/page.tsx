@@ -7,26 +7,30 @@ import { LedgerStats } from "@/components/LedgerStats";
 import { MetalButton } from "@/components/MetalButton";
 import { PageAtmosphere } from "@/components/PageAtmosphere";
 import { PageHeader, SectionHeader } from "@/components/PageHeader";
+import { Reveal } from "@/components/Reveal";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { useTrackedWrite } from "@/components/TransactionToasts";
 import { useRequireConnection } from "@/hooks/useRequireConnection";
 import { WithdrawModal } from "@/components/WithdrawModal";
+import { YourMirrors } from "@/components/YourMirrors";
 import { useAgents } from "@/hooks/useAgents";
-import { useDeposit } from "@/hooks/useDeposit";
+import { FAUCET_AMOUNT, useDeposit } from "@/hooks/useDeposit";
 import { useFollow } from "@/hooks/useFollow";
+import { useMyMirrors } from "@/hooks/useMyMirrors";
 import { useSpentToday } from "@/hooks/useSpentToday";
 import { useWithdraw } from "@/hooks/useWithdraw";
+import { spentTodayTier } from "@/lib/format";
 
 /**
- * The vault, across every agent followed — not just the one you happen to
+ * The vault, across every agent followed, not just the one you happen to
  * be looking at (design prompt §3: "a persistent vault summary").
  *
  * Before this page, balances existed only on one agent's detail screen:
  * follow two agents and there was nowhere to see the total position, or
  * what any of them had spent against their cap today. This is that screen.
  *
- * `agentIds` is every registered agent — `useFollow`'s allocation reads are
+ * `agentIds` is every registered agent, `useFollow`'s allocation reads are
  * per (user, agent) pair with no "agents I follow" view on-chain, so the
  * caller has to name every pair worth checking. A wallet with two follows
  * out of forty agents still means forty reads; cheap relative to the
@@ -36,7 +40,14 @@ export default function VaultPage() {
   const { agents } = useAgents();
   const agentIds = agents.map((agent) => agent.id);
 
-  const { walletBalance, vaultBalance, deposit, creditWallet } = useDeposit();
+  const {
+    walletBalance,
+    vaultBalance,
+    deposit,
+    creditWallet,
+    faucetAvailable,
+    getTestUsdg,
+  } = useDeposit();
   const { allocatedByAgent, freeBalance, addFreeBalance, subtractFreeBalance } =
     useFollow(vaultBalance, agentIds);
   const { withdraw } = useWithdraw(freeBalance, subtractFreeBalance, creditWallet);
@@ -50,29 +61,61 @@ export default function VaultPage() {
     0,
   );
 
+  const agentNames = Object.fromEntries(agents.map((a) => [a.id, a.name]));
+  const { rows: mirrorRows } = useMyMirrors(followedIds, agentNames);
+
   const [depositOpen, setDepositOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [minting, setMinting] = useState(false);
+
+  function mintTestUsdg() {
+    requireConnection(async () => {
+      setMinting(true);
+      try {
+        await track(
+          `Get ${FAUCET_AMOUNT.toLocaleString()} test USDG`,
+          (progress) => getTestUsdg(progress),
+        );
+      } catch {
+        // The toast already says what happened.
+      } finally {
+        setMinting(false);
+      }
+    });
+  }
 
   return (
     <div className="relative overflow-x-clip">
       <PageAtmosphere />
       <SiteHeader />
-      <main className="mx-auto w-full max-w-6xl px-5 pb-20 sm:px-10">
+      <main id="main-content" tabIndex={-1} className="outline-none mx-auto w-full max-w-6xl px-5 pb-20 sm:px-10">
         <PageHeader
           eyebrow="Your position"
           title="Vault"
-          description="Every follow, one place. The cap is enforced on-chain per agent — this is where you see what each one has actually used."
+          description="Every follow, one place. The cap is enforced on-chain per agent. This is where you see what each one has actually used."
         />
 
-        <LedgerStats
-          className="mt-8"
-          stats={[
-            { label: "Wallet", value: `${walletBalance.toFixed(2)} USDG` },
-            { label: "Vault free", value: `${freeBalance.toFixed(2)} USDG` },
-            { label: "Allocated", value: `${totalAllocated.toFixed(2)} USDG` },
-            { label: "Following", value: followedIds.length.toString() },
-          ]}
-        />
+        <Reveal>
+          <p className="mt-5 max-w-2xl text-sm leading-relaxed text-muted">
+            &ldquo;Allocated&rdquo; is principal locked into a follow, not its
+            current value. Mirror never settles anything, so there&rsquo;s no
+            mark-to-market to show here. Unfollow always returns this exact
+            number to free balance, whatever the tape did while you were
+            following.
+          </p>
+        </Reveal>
+
+        <Reveal delayMs={80}>
+          <LedgerStats
+            className="mt-8"
+            stats={[
+              { label: "Wallet", value: `${walletBalance.toFixed(2)} USDG` },
+              { label: "Vault free", value: `${freeBalance.toFixed(2)} USDG` },
+              { label: "Allocated", value: `${totalAllocated.toFixed(2)} USDG` },
+              { label: "Following", value: followedIds.length.toString() },
+            ]}
+          />
+        </Reveal>
 
         <div className="mt-6 flex flex-wrap gap-2">
           <MetalButton
@@ -87,12 +130,17 @@ export default function VaultPage() {
           >
             Withdraw
           </MetalButton>
+          {faucetAvailable && (
+            <MetalButton tone="quiet" disabled={minting} onClick={mintTestUsdg}>
+              {minting ? "Minting..." : "Get test USDG"}
+            </MetalButton>
+          )}
         </div>
 
         <section className="mt-10">
           <SectionHeader
             label="Active follows"
-            description="Spent today is enforced by PolicyModule — this bar can't fall behind what the chain would actually block."
+            description="Spent today is enforced by PolicyModule, so this bar can't fall behind what the chain would actually block."
           />
 
           {followedIds.length === 0 ? (
@@ -105,48 +153,67 @@ export default function VaultPage() {
             </div>
           ) : (
             <ul className="flex flex-col gap-2">
-              {followedIds.map((id) => {
+              {followedIds.map((id, index) => {
                 const agent = agents.find((candidate) => candidate.id === id);
                 const cap = allocatedByAgent[id] ?? 0;
                 const spent = spentToday[id] ?? 0;
                 // Cap enforcement is server-side (on-chain); a fill can still
-                // land between reads and put this over 100% for a moment —
+                // land between reads and put this over 100% for a moment,
                 // clamped so the bar never draws past its own track.
                 const pct = cap > 0 ? Math.min(100, (spent / cap) * 100) : 0;
+                const bar = spentTodayTier(pct);
 
                 return (
-                  <li key={id} className="panel rounded-2xl p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <Link
-                        href={`/agents/${id}`}
-                        className="font-medium text-text hover:text-accent"
-                      >
-                        {agent?.name ?? `Agent #${id}`}
-                      </Link>
-                      <span className="tabular text-xs text-muted">
-                        ${spent.toFixed(2)} / ${cap.toFixed(2)} today
-                      </span>
-                    </div>
-                    <div
-                      role="progressbar"
-                      aria-label={`Spent today against ${agent?.name ?? `agent #${id}`}'s cap`}
-                      aria-valuenow={Math.round(pct)}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-border"
-                    >
+                  <Reveal key={id} delayMs={index * 70}>
+                    <li className="panel rounded-2xl p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <Link
+                          href={`/agents/${id}`}
+                          className="font-medium text-text hover:text-accent"
+                        >
+                          {agent?.name ?? `Agent #${id}`}
+                        </Link>
+                        <span className="tabular text-xs text-muted">
+                          {pct >= 100
+                            ? "Cap reached: buys will reject, sells still pass"
+                            : `$${spent.toFixed(2)} / $${cap.toFixed(2)} today`}
+                        </span>
+                      </div>
                       <div
-                        className={`h-full rounded-full transition-[width] ${
-                          pct >= 100 ? "bg-loss" : "bg-accent"
-                        }`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </li>
+                        role="progressbar"
+                        aria-label={`Spent today against ${agent?.name ?? `agent #${id}`}'s cap`}
+                        aria-valuenow={Math.round(pct)}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-border"
+                      >
+                        <div
+                          className={`h-full rounded-full transition-[width] ${bar}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </li>
+                  </Reveal>
                 );
               })}
             </ul>
           )}
+        </section>
+
+        {/*
+          The personal view of the public log (briefing §09.C): every fill
+          from every followed agent, with whatever happened to THIS vault,
+          mirrored, blocked with cause, or neither. Below the per-follow
+          rows, not a fifth marketing page.
+        */}
+        <section className="mt-10">
+          <SectionHeader
+            label="Your mirrors"
+            description="Every fill from every agent you follow, and what it did to your vault."
+          />
+          <Reveal>
+            <YourMirrors rows={mirrorRows} />
+          </Reveal>
         </section>
       </main>
 
@@ -157,6 +224,15 @@ export default function VaultPage() {
         onClose={() => setDepositOpen(false)}
         walletBalance={walletBalance}
         vaultBalance={vaultBalance}
+        onGetTestUsdg={
+          faucetAvailable
+            ? () =>
+                track(
+                  `Get ${FAUCET_AMOUNT.toLocaleString()} test USDG`,
+                  (progress) => getTestUsdg(progress),
+                )
+            : undefined
+        }
         onDeposit={(amount, onProgress) =>
           track(`Deposit ${amount.toFixed(2)} USDG`, async (progress) => {
             const result = await deposit(amount, (event) => {

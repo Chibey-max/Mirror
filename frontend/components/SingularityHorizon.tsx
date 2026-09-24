@@ -3,7 +3,7 @@
 import * as React from "react";
 
 /**
- * Singularity Horizon — a black hole with a particle accretion ring, in raw
+ * Singularity Horizon, a black hole with a particle accretion ring, in raw
  * WebGL2.
  *
  * Started from a 21st.dev component and has since been rebuilt around three
@@ -12,8 +12,8 @@ import * as React from "react";
  *      billboarded streaks. Streaks read as flat and blocky; points with a
  *      gaussian falloff, gathered into concentric bands, read as a ring of
  *      matter.
- *   2. The disc turns as one rigid body at one slow rate. Real discs shear —
- *      inner orbits run faster — which reads on a hero as the ring tearing
+ *   2. The disc turns as one rigid body at one slow rate. Real discs shear,
+ *      inner orbits run faster, which reads on a hero as the ring tearing
  *      itself apart. The rotation angle is integrated per frame, so easing the
  *      rate can never snap the disc to a new angle.
  *   3. Gravitational lensing is faked, not traced. A real black hole bends
@@ -30,7 +30,7 @@ import * as React from "react";
  *
  * The palette is the buttons' liquid chrome: silver particles with a
  * copper-warm inner edge and a scattering of red/blue dispersion, and a body
- * whose limb is a band of drifting chrome — a metal button's rim at planetary
+ * whose limb is a band of drifting chrome, a metal button's rim at planetary
  * scale.
  *
  * Honours prefers-reduced-motion by rendering a single still frame.
@@ -42,7 +42,7 @@ export type SingularityState = {
   accent: string;
   velocity: string;
   intensity: number;
-  /** Disc rotation, radians per second — the same rate at every radius. */
+  /** Disc rotation, radians per second, the same rate at every radius. */
   orbit: number;
   /** Camera auto-orbit speed, radians per second. */
   spin: number;
@@ -53,13 +53,13 @@ export type SingularityState = {
   /**
    * On-screen tilt of the ring, degrees. Positive drops its right-hand side.
    * Implemented as camera roll, which only works because the body is a plain
-   * sphere — rolling leaves it looking identical and slants only the ring.
+   * sphere, rolling leaves it looking identical and slants only the ring.
    */
   slant: number;
 };
 
 export type SingularityHorizonProps = {
-  /** Must be a definite length — the canvas fills this box. */
+  /** Must be a definite length, the canvas fills this box. */
   height?: string;
   states?: SingularityState[];
   /** Milliseconds each state holds before easing into the next. */
@@ -83,7 +83,7 @@ export type SingularityHorizonProps = {
  * side of the ring across the lower half of the body and leaves the far side
  * for the lensed arc over the top. Edge-on, there is no arc to see.
  *
- * `spin` is 0 so the camera holds still — a camera orbit around a symmetric
+ * `spin` is 0 so the camera holds still, a camera orbit around a symmetric
  * disc only ever looked like extra rotation on top of `orbit`.
  */
 export const MIRROR_SINGULARITY_STATES: SingularityState[] = [
@@ -117,7 +117,7 @@ const CORE_QUAD = 4.6;
 const DISK_INNER = 5;
 const DISK_OUTER = 15;
 /**
- * Vertical field of view — deliberately narrow, from far back. A wide lens up
+ * Vertical field of view, deliberately narrow, from far back. A wide lens up
  * close magnifies the stretch of ring between the lens and the body.
  *
  * The body's on-screen size depends on camDistance x tan(FOV / 2). The hero's
@@ -277,7 +277,7 @@ void main() {
     float c = sqrt(max(1.0 - u * u, 0.0));
     float span = r - uDiskIn;
     // The arcs sit in the plane through the body's centre facing the camera,
-    // always just outside the horizon radius — so they never land on the body.
+    // always just outside the horizon radius, so they never land on the body.
     if (uMode == 1) {
       float rho = uHorizon * 1.04 + span * 0.2 + aSeed.z * 0.5;
       p = x0 * (rho * u) + y0 * (rho * c);
@@ -292,8 +292,8 @@ void main() {
     lens *= 1.0 - 0.7 * pow(abs(u), 6.0);
   }
 
-  // Chrome: a copper-warm white at the inner edge — the primary button's
-  // tint — through polished silver out to dull gunmetal.
+  // Chrome: a copper-warm white at the inner edge, the primary button's
+  // tint, through polished silver out to dull gunmetal.
   float t = clamp((r - uDiskIn) / (uDiskOut - uDiskIn), 0.0, 1.0);
   vec3 hot = vec3(1.0, 0.9, 0.8);
   vec3 mid = vec3(0.86, 0.88, 0.92);
@@ -382,7 +382,7 @@ void main() {
 
   if (uGlow) {
     // The quad's corners reach past uSize, where edge would exceed 1 and pow()
-    // below would be handed a negative base — undefined in GLSL, and it came
+    // below would be handed a negative base, undefined in GLSL, and it came
     // out as solid white wedges.
     if (d < uHorizon || d > uSize) discard;
     /*
@@ -896,7 +896,7 @@ export function SingularityHorizon({
       resize();
 
       if (!reduced) {
-        // Exponential approach — a tween library's job, in one line each.
+        // Exponential approach, a tween library's job, in one line each.
         const k = 1 - Math.exp(-dt / 1.2);
         const t = targetRef.current;
         eased.intensity += (t.intensity - eased.intensity) * k;

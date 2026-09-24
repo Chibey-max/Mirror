@@ -66,7 +66,7 @@ describe("computeAgentPnl", () => {
     ]);
     const agent = pnl.get(1)!;
 
-    // Average cost is (100 + 600) / 4 = 175, so the exit at 200 makes $100 —
+    // Average cost is (100 + 600) / 4 = 175, so the exit at 200 makes $100,
     // not the $0 that pricing against the last buy would report.
     expect(cents(agent.pnlUsd)).toBe(100);
     expect(cents(agent.closedCost)).toBe(700);

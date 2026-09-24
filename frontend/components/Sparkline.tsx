@@ -1,5 +1,5 @@
 /**
- * A PnL trend line, drawn as plain SVG — no chart library for twelve points.
+ * A PnL trend line, drawn as plain SVG, no chart library for twelve points.
  *
  * The dashed rule is zero, so a line below it reads as a loss at a glance
  * without needing an axis. Scaled to include zero always, so two agents'
@@ -15,7 +15,7 @@ export function Sparkline({
   height = 36,
   className = "",
 }: {
-  /** Unique per instance — the fill gradient needs an id, and useId would
+  /** Unique per instance, the fill gradient needs an id, and useId would
    *  force this to be a client component for nothing. */
   id: string;
   series: number[];

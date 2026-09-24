@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useReadContract } from "wagmi";
+import { useAccount, useReadContract } from "wagmi";
 import { copyVaultAbi, usdgAbi } from "@/lib/contracts";
 import { fixtureWallet } from "@/lib/fixtures";
 import { fromUsdg, toUsdg } from "@/lib/usdg";
@@ -12,6 +12,12 @@ import {
 
 const MOCK_TX =
   "0x7d2c9e1b3a5f8c0e4b6d9a1c3e5f7b9d2a4c6e8f0b1d3a5c7e9f1b3d5a7c9e1";
+const MOCK_MINT_TX =
+  "0x3e5f7b9d2a4c6e8f0b1d3a5c7e9f1b3d5a7c9e17d2c9e1b3a5f8c0e4b6d9a1c";
+
+/** What one press of "Get test USDG" mints: enough to deposit, follow a few
+ *  agents and still have room to withdraw, without a second trip. */
+export const FAUCET_AMOUNT = 1000;
 
 /**
  * Wallet and vault balances, and the deposit that moves USDG between them
@@ -19,7 +25,7 @@ const MOCK_TX =
  *
  * Live, a deposit is up to two transactions: ERC-20 `approve` so CopyVault
  * can pull the funds, then `deposit` itself. The allowance is read first and
- * the approval skipped when one already covers the amount — a second deposit
+ * the approval skipped when one already covers the amount, a second deposit
  * shouldn't cost the follower a second signature.
  *
  * Both balances are read from chain and re-read after the deposit is mined,
@@ -27,12 +33,13 @@ const MOCK_TX =
  * follow and withdraw also move, so anything kept in React state here would
  * drift the moment another write lands.
  *
- * Until deployments/46630.json lands the fixture path below runs instead —
+ * Until deployments/46630.json lands the fixture path below runs instead,
  * same shape, no chain.
  */
 export function useDeposit() {
   const { live, address, addresses, writeContractAsync, publicClient, confirm } =
     useVaultConnection();
+  const { chain } = useAccount();
 
   const [mockWallet, setMockWallet] = useState(fixtureWallet.walletUsdg);
   const [mockVault, setMockVault] = useState(fixtureWallet.vaultFree);
@@ -103,12 +110,12 @@ export function useDeposit() {
     await confirm(txHash);
     await Promise.all([walletRead.refetch(), vaultRead.refetch()]);
 
-    // The deposit, not the approval — this is the hash the success state
+    // The deposit, not the approval, this is the hash the success state
     // links to the explorer.
     return { txHash };
   }
 
-  /** Withdraw's counterpart to deposit's implicit wallet debit — credits the
+  /** Withdraw's counterpart to deposit's implicit wallet debit, credits the
    * wallet side when funds leave the vault. Mirrors addFreeBalance in
    * useFollow.ts, which bridges the same two hooks the other direction.
    * Live, the chain already knows; this only asks it again. */
@@ -120,5 +127,41 @@ export function useDeposit() {
     setMockWallet((balance) => balance + amount);
   }
 
-  return { walletBalance, vaultBalance, deposit, creditWallet };
+  /**
+   * Testnet faucet: MockUSDG lets anyone mint, and without it a first-time
+   * visitor with an empty wallet can't deposit, so the whole flow stops at
+   * step one. Never offered on a mainnet, where USDG is the real token.
+   */
+  const faucetAvailable = !live || chain?.testnet === true;
+
+  async function getTestUsdg(
+    onProgress?: WriteProgress,
+  ): Promise<{ txHash: string }> {
+    if (!live || !addresses || !address) {
+      onProgress?.({ stage: "submitted", txHash: MOCK_MINT_TX });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      setMockWallet((balance) => balance + FAUCET_AMOUNT);
+      return { txHash: MOCK_MINT_TX };
+    }
+
+    const txHash = await writeContractAsync({
+      address: addresses.usdg,
+      abi: usdgAbi,
+      functionName: "mint",
+      args: [address, toUsdg(FAUCET_AMOUNT)],
+    });
+    onProgress?.({ stage: "submitted", txHash });
+    await confirm(txHash);
+    await walletRead.refetch();
+    return { txHash };
+  }
+
+  return {
+    walletBalance,
+    vaultBalance,
+    deposit,
+    creditWallet,
+    faucetAvailable,
+    getTestUsdg,
+  };
 }
