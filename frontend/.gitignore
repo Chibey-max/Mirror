@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Synced from /deployments by scripts/sync-deployments.mjs
+lib/deployments/

@@ -1,12 +1,14 @@
 import type { Abi, Address } from "viem";
+import robinhoodTestnetDeployment from "./deployments/46630.json";
+import anvilDeployment from "./deployments/31337.json";
 
 /**
- * Contract addresses per chain.
+ * Contract addresses per chain, read from /deployments/<chainId>.json.
  *
- * Jason owns /deployments/46630.json and /deployments/421614.json (PRD §2) and
- * publishes them on Day 7. Until then these are placeholders and reads run
- * against a local anvil fork. When the file lands, this is the only frontend
- * file that changes.
+ * Jason owns those files (PRD §2). Going live is dropping the published file
+ * in: no frontend edit, no hand-copied address, and a typo can't be
+ * introduced in transit. Both files ship with zero addresses, which keeps the
+ * app on its fixture path until they're filled in.
  */
 export type MirrorAddresses = {
   agentRegistry: Address;
@@ -18,23 +20,40 @@ export type MirrorAddresses = {
 
 const ZERO = "0x0000000000000000000000000000000000000000" as Address;
 
+type DeploymentFile = {
+  chainId: number;
+  agentRegistry: string;
+  trackRecord: string;
+  policyModule: string;
+  copyVault: string;
+  usdg: string;
+};
+
+/**
+ * Anything that isn't a 20-byte hex address becomes the zero address, so a
+ * half-filled or malformed deployment file leaves the app on fixtures rather
+ * than sending writes at a nonsense address.
+ */
+function asAddress(value: string): Address {
+  return /^0x[0-9a-fA-F]{40}$/.test(value) ? (value as Address) : ZERO;
+}
+
+function fromDeployment(file: DeploymentFile): MirrorAddresses {
+  return {
+    agentRegistry: asAddress(file.agentRegistry),
+    trackRecord: asAddress(file.trackRecord),
+    policyModule: asAddress(file.policyModule),
+    copyVault: asAddress(file.copyVault),
+    usdg: asAddress(file.usdg),
+  };
+}
+
 export const addresses: Record<number, MirrorAddresses> = {
-  // Robinhood Chain testnet, filled from deployments/46630.json on Day 7.
-  46630: {
-    agentRegistry: ZERO,
-    trackRecord: ZERO,
-    policyModule: ZERO,
-    copyVault: ZERO,
-    usdg: ZERO,
-  },
-  // Local anvil, deploy stubs here while waiting for the testnet deploy.
-  31337: {
-    agentRegistry: ZERO,
-    trackRecord: ZERO,
-    policyModule: ZERO,
-    copyVault: ZERO,
-    usdg: ZERO,
-  },
+  [robinhoodTestnetDeployment.chainId]: fromDeployment(
+    robinhoodTestnetDeployment,
+  ),
+  // Local anvil, for running the real contracts against a local chain.
+  [anvilDeployment.chainId]: fromDeployment(anvilDeployment),
 };
 
 export function addressesFor(chainId: number): MirrorAddresses | undefined {
@@ -42,10 +61,10 @@ export function addressesFor(chainId: number): MirrorAddresses | undefined {
 }
 
 /**
- * Whether an address is real yet. Every entry above is the zero address until
- * Jason publishes deployments/46630.json, and subscribing to logs on the zero
- * address silently never fires, so anything that reads or watches must gate
- * on this rather than look live while doing nothing.
+ * Whether an address is real yet. Every entry is the zero address until a
+ * deployment file is filled in, and subscribing to logs on the zero address
+ * silently never fires, so anything that reads or watches must gate on this
+ * rather than look live while doing nothing.
  */
 export function isDeployed(address?: Address): boolean {
   return !!address && address !== ZERO;

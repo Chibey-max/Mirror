@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "sync:deployments": "node scripts/sync-deployments.mjs",
+    "predev": "npm run sync:deployments",
+    "prebuild": "npm run sync:deployments"
   },
   "dependencies": {
     "@paper-design/shaders-react": "0.0.81",
