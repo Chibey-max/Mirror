@@ -1,0 +1,35 @@
+name: Runner
+
+on:
+  push:
+    paths: ["runner/**", ".github/workflows/runner.yml"]
+  pull_request:
+    paths: ["runner/**", ".github/workflows/runner.yml"]
+
+jobs:
+  test:
+    name: Type-check, test, audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: runner
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: runner/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=moderate
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
