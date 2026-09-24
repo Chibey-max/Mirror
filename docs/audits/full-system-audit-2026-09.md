@@ -1,5 +1,21 @@
 # Mirror full-system audit — 23 September 2026
 
+## Remediation update — `feat/release-unblock`
+
+The findings below describe the audited `d60a371` snapshot and remain an immutable record of that review. The release-unblock branch has since closed every source-local finding:
+
+- FE-01/02/03/04: 8-decimal price handling, mined-receipt status enforcement, newest/full-history paging, and zero-cap membership reads are implemented and tested.
+- SUP-01: RainbowKit and its vulnerable connector tree were removed. The pinned frontend and runner production graphs report zero advisories; both CI workflows enforce `npm audit --omit=dev`.
+- CFG-01/02: official endpoints, explicit fixture/live mode, a visible fixture banner, generated deployment addresses, a WalletConnect requirement, and zero-address live-build failure are in place.
+- DOC-01, QA-01, CI-01, WEB-01: the amendment/demo/README text is aligned; Foundry CI uses its 1,000-run profile; 50 frontend ABI entries are checked against compiled artifacts; Actions are commit-pinned; and browser security headers are configured.
+- SYS-01 source work: four-role deployment, nonce-zero cross-chain determinism, receipt-derived manifests, runtime/wiring checks, manifest-driven verification, a deterministic non-privileged smoke path, reproducible strategies, and a sign-once/fsynced runner are implemented. A local 31337 rehearsal finalized 17 deployment receipts, recorded/mirrored fills without replay duplication, emitted an isolated `CapExceeded` rejection, proved kill state with fresh reads, and returned the follower's full 100 USDG principal.
+
+Local validation after remediation: **224 Foundry tests passed at 1,000 fuzz runs with zero failures/skips; 16 frontend tests, lint, production build, and ABI drift gate passed; 8 runner tests and TypeScript checking passed.**
+
+Release remains blocked only on external/live evidence: fund the four dedicated identities, deploy and source-verify on 46630 and 421614, commit both finalized manifests, generate live frontend addresses, manually smoke both wallet connectors, and run the closure audit against deployed bytecode and explorer transactions.
+
+Ownership boundary: Jason owns the contract deployment, finalized manifests, runner execution, source-verification evidence, and contract-side smoke transactions. The frontend owner consumes those manifests, generates the live address module, configures the public client, and performs wallet/UI smoke testing. Frontend integration is not part of Jason's release scope.
+
 ## Executive verdict
 
 **Release status: BLOCKED.** The audited Solidity core did not yield an exploitable defect, but Mirror as a whole is not deployable or demonstrably complete at this revision. The deployment script, runner, deployment manifests, source verification, and live-chain smoke evidence do not exist on `main`. The frontend also has three high-severity release findings: it renders 8-decimal fill prices as 6-decimal values, treats reverted receipts as confirmations, and ships a production dependency graph with two high and 24 moderate advisories.
@@ -53,8 +69,9 @@ The PRD amendment described by the team is not tracked in this revision, so it c
 1. Merge the four-identity decision and canonical Pulse, Red, and Drift strategy files.
 2. Implement and test `Deploy.s.sol`, including the PolicyModule predicted-vault address, adjacent deployment nonce assumption, post-broadcast immutable read-backs, event-derived agent IDs, token allowlisting, and explicit role-separation assertions.
 3. Implement the runner with sign-once/rebroadcast-identical-bytes semantics, a durable journal keyed by logical trade, receipt-status checks, and terminal handling for `InvalidTokenDecimals` and `NotionalOverflow`.
-4. Deploy identical bytecode to 46630 and 421614, commit both manifests, verify every contract on both explorers, and populate the frontend from the manifests.
-5. Re-run the audit against deployed code and wiring, then execute a dedicated smoke path that leaves explorer evidence for a fill, a `MirrorRejected` log, kill/unfollow reads, and withdrawal.
+4. The contract/deployment owner deploys identical bytecode to 46630 and 421614, commits both finalized manifests, and verifies every contract on both explorers.
+5. The frontend owner populates the live address module from those manifests and performs the wallet/UI integration smoke test.
+6. Re-run the audit against deployed code and wiring, then execute a dedicated contract-side smoke path that leaves explorer evidence for a fill, a `MirrorRejected` log, kill/unfollow reads, and withdrawal.
 
 ### FE-01 — Fill prices and PnL are displayed 100× too high — High
 

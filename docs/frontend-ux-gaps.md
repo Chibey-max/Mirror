@@ -46,7 +46,7 @@ into every write on both screens that have one.
 
 ### 5. Connect-gating on actions — ✅ shipped
 `useRequireConnection`, applied to Deposit/Follow/Withdraw/Kill on both
-screens. Disconnected, they open RainbowKit's connect modal instead of
+screens. Disconnected, they open the Wagmi connector picker instead of
 running.
 
 ---
