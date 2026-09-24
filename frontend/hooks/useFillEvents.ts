@@ -8,6 +8,7 @@ import { fixtureFills, type FixtureFill } from "@/lib/fixtures";
 import { relativeTime } from "@/lib/format";
 import { shortAddress, type TokenMetadata } from "@/lib/tokens";
 import { ORACLE_PRICE_DECIMALS } from "@/lib/usdg";
+import { latestFillPage } from "@/lib/onchain";
 import { useTokenMetadata } from "@/hooks/useTokenMetadata";
 
 /**
@@ -127,16 +128,8 @@ export function useFillEvents(agentId?: number): {
   const [watched, setWatched] = useState<IndexedFill[]>([]);
   const [limit, setLimit] = useState(PAGE_SIZE);
 
-  const backfill = useReadContract({
-    address: trackRecord,
-    abi: trackRecordAbi,
-    functionName: "getFillsByAgent",
-    args: agentId === undefined
-      ? undefined
-      : [BigInt(agentId), BigInt(0), BigInt(limit)],
-    query: { enabled: live },
-  });
-
+  // The count comes first: the tape is oldest first, so the newest `limit`
+  // fills sit at the end of it, and "load earlier" widens that window back.
   const countRead = useReadContract({
     address: trackRecord,
     abi: trackRecordAbi,
@@ -144,8 +137,19 @@ export function useFillEvents(agentId?: number): {
     args: agentId === undefined ? undefined : [BigInt(agentId)],
     query: { enabled: live },
   });
-  const totalCount =
-    live && typeof countRead.data === "bigint" ? Number(countRead.data) : undefined;
+  const count = typeof countRead.data === "bigint" ? countRead.data : undefined;
+  const totalCount = live && count !== undefined ? Number(count) : undefined;
+  const page = latestFillPage(count ?? BigInt(0), limit);
+
+  const backfill = useReadContract({
+    address: trackRecord,
+    abi: trackRecordAbi,
+    functionName: "getFillsByAgent",
+    args: agentId === undefined
+      ? undefined
+      : [BigInt(agentId), page.offset, page.limit],
+    query: { enabled: live && page.limit > BigInt(0) },
+  });
 
   useWatchContractEvent({
     address: trackRecord,
@@ -173,7 +177,10 @@ export function useFillEvents(agentId?: number): {
   const tokens = [...new Set([...unique.values()].map((fill) => fill.token))];
   const metadata = useTokenMetadata(tokens, live);
 
-  const refetch = () => void backfill.refetch();
+  const refetch = () => {
+    void countRead.refetch();
+    void backfill.refetch();
+  };
   const loadMore = () => setLimit((current) => current + PAGE_SIZE);
 
   if (!live) {
@@ -183,23 +190,18 @@ export function useFillEvents(agentId?: number): {
     return { fills, isLoading: false, refetch, hasMore: false, loadMore };
   }
 
+  // By fill id, not timestamp: fills in the same block share a timestamp,
+  // and the id is the order TrackRecord actually recorded them in.
   const fills = [...unique.values()]
-    .sort((a, b) => Number(b.timestamp - a.timestamp))
+    .sort((a, b) => (a.fillId < b.fillId ? 1 : a.fillId > b.fillId ? -1 : 0))
     .map((fill) => toDisplayFill(fill, metadata.get(fill.token)));
 
-  // The backfill read itself, not the de-duplicated+watched total, is what
-  // "have we fetched everything" has to compare against `limit`, a fill
-  // that arrived live via the watcher was never subject to the offset/limit
-  // window and shouldn't make the button disappear early.
-  const backfillCount = backfill.data?.length ?? 0;
-  const hasMore =
-    totalCount === undefined
-      ? backfillCount >= limit
-      : backfillCount < totalCount;
+  // Older fills exist exactly when the window doesn't reach the first one.
+  const hasMore = page.offset > BigInt(0);
 
   return {
     fills,
-    isLoading: backfill.isLoading,
+    isLoading: countRead.isLoading || backfill.isLoading,
     refetch,
     totalCount,
     hasMore,
