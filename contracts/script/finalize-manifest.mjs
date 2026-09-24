@@ -37,6 +37,73 @@ async function rpc(method, params) {
   return body.result;
 }
 
+function abiWords(value, label) {
+  if (typeof value !== "string" || !/^0x(?:[0-9a-fA-F]{64})+$/.test(value)) {
+    throw new Error(`${label} returned malformed ABI data`);
+  }
+  return value.slice(2).match(/.{64}/g);
+}
+
+function decodeAddress(word, label) {
+  if (!/^0{24}[0-9a-fA-F]{40}$/.test(word)) throw new Error(`${label} returned a malformed address`);
+  return `0x${word.slice(24)}`.toLowerCase();
+}
+
+function decodeBool(word, label) {
+  const value = BigInt(`0x${word}`);
+  if (value !== 0n && value !== 1n) throw new Error(`${label} returned a malformed bool`);
+  return value === 1n;
+}
+
+function addressWord(address, label) {
+  if (typeof address !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
+    throw new Error(`${label} is not an address`);
+  }
+  return address.slice(2).toLowerCase().padStart(64, "0");
+}
+
+function uintWord(value, label) {
+  let parsed;
+  try {
+    parsed = BigInt(value);
+  } catch {
+    throw new Error(`${label} is not an integer`);
+  }
+  if (parsed < 0n || parsed >= 1n << 256n) throw new Error(`${label} is outside uint256`);
+  return parsed.toString(16).padStart(64, "0");
+}
+
+function utf8Hex(value) {
+  return `0x${Buffer.from(value, "utf8").toString("hex")}`;
+}
+
+async function selector(signature) {
+  const hash = await rpc("web3_sha3", [utf8Hex(signature)]);
+  if (typeof hash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(hash)) {
+    throw new Error(`could not derive selector for ${signature}`);
+  }
+  return hash.slice(0, 10);
+}
+
+async function readContract(address, data, label) {
+  const result = await rpc("eth_call", [{ to: address, data }, "latest"]);
+  return abiWords(result, label);
+}
+
+function decodeAgent(words, label) {
+  // Agent contains strings, so its single tuple return value must begin at the
+  // canonical 0x20 offset. Reject anything else instead of guessing at a layout.
+  if (words.length < 7 || BigInt(`0x${words[0]}`) !== 32n) {
+    throw new Error(`${label} returned a malformed Agent tuple`);
+  }
+  const base = 1;
+  return {
+    owner: decodeAddress(words[base], `${label}.owner`),
+    strategyHash: `0x${words[base + 2]}`.toLowerCase(),
+    active: decodeBool(words[base + 5], `${label}.active`),
+  };
+}
+
 const rpcChain = Number.parseInt(await rpc("eth_chainId", []), 16);
 if (rpcChain !== chainId) throw new Error(`RPC chain ${rpcChain} does not match ${chainId}`);
 
@@ -124,6 +191,51 @@ for (const [index, address] of [
   if (actualHash.toLowerCase() !== pending.coreRuntimeCodeHashes[index].toLowerCase()) {
     throw new Error(`runtime bytecode hash mismatch at ${address}`);
   }
+}
+
+if (pending.stockTokens.length !== 3 || pending.agentIds.length !== 3 || pending.strategyHashes.length !== 3) {
+  throw new Error("pending manifest must contain three stocks, agent IDs and strategy hashes");
+}
+
+const [ownerSelector, allowlistSelector, getAgentSelector] = await Promise.all([
+  selector("owner()"),
+  selector("isTokenAllowed(address)"),
+  selector("getAgent(uint256)"),
+]);
+
+const ownerWords = await readContract(pending.policyModule, ownerSelector, "policyModule.owner()");
+if (ownerWords.length !== 1) throw new Error("policyModule.owner() returned the wrong number of words");
+const actualPolicyAdmin = decodeAddress(ownerWords[0], "policyModule.owner()");
+if (actualPolicyAdmin !== pending.policyAdmin.toLowerCase()) {
+  throw new Error(`PolicyModule owner ${actualPolicyAdmin} does not match ${pending.policyAdmin}`);
+}
+
+for (const stock of pending.stockTokens) {
+  const words = await readContract(
+    pending.policyModule,
+    `${allowlistSelector}${addressWord(stock, "stock token")}`,
+    `isTokenAllowed(${stock})`,
+  );
+  if (words.length !== 1 || !decodeBool(words[0], `isTokenAllowed(${stock})`)) {
+    throw new Error(`stock ${stock} is not allowlisted`);
+  }
+}
+
+for (let index = 0; index < pending.agentIds.length; index += 1) {
+  const agentId = pending.agentIds[index];
+  const words = await readContract(
+    pending.agentRegistry,
+    `${getAgentSelector}${uintWord(agentId, `agentIds[${index}]`)}`,
+    `getAgent(${agentId})`,
+  );
+  const agent = decodeAgent(words, `getAgent(${agentId})`);
+  if (agent.owner !== pending.agentRegistrar.toLowerCase()) {
+    throw new Error(`agent ${agentId} owner ${agent.owner} does not match ${pending.agentRegistrar}`);
+  }
+  if (agent.strategyHash !== pending.strategyHashes[index].toLowerCase()) {
+    throw new Error(`agent ${agentId} strategy hash does not match the manifest`);
+  }
+  if (!agent.active) throw new Error(`agent ${agentId} is not active`);
 }
 
 const deploymentBlocks = mined.map(({ receipt }) => Number.parseInt(receipt.blockNumber, 16));

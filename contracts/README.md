@@ -144,9 +144,9 @@ registers agents as the registrar, and then asserts every immutable wiring edge.
 assumed to be 1/2/3.
 
 ```bash
-forge script script/Deploy.s.sol:Deploy --rpc-url rh_testnet --broadcast
+forge script script/Deploy.s.sol:Deploy --rpc-url rh_testnet --broadcast --slow
 node script/finalize-manifest.mjs 46630 "$RH_TESTNET_RPC_URL"
-forge script script/Deploy.s.sol:Deploy --rpc-url arb_sepolia --broadcast
+forge script script/Deploy.s.sol:Deploy --rpc-url arb_sepolia --broadcast --slow
 node script/finalize-manifest.mjs 421614 "$ARB_SEPOLIA_RPC_URL"
 node script/compare-deployments.mjs
 node script/verify-deployment.mjs 46630 "$RH_TESTNET_RPC_URL"
@@ -155,7 +155,10 @@ node script/verify-deployment.mjs 421614 "$ARB_SEPOLIA_RPC_URL"
 
 Only the finalizer writes the committed manifest. It requires a successful mined receipt for every
 creation, allowlist call and registration, verifies their addresses/code through the target RPC,
-and records each transaction hash plus the first mined deployment block.
+reads PolicyModule ownership and all allowlist entries back, reads every registered agent's owner,
+strategy hash and active state back, and records each transaction hash plus the first mined deployment
+block. `--slow` serializes the multi-sender broadcast so admin and registrar calls cannot be mined
+before the contracts they target.
 
 The verification helper reads the finalized manifest, reconstructs every constructor argument,
 waits for all eleven source-verification submissions, and writes non-secret evidence under

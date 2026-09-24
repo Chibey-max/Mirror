@@ -116,10 +116,10 @@ Review predicted addresses, role checks and gas. Obtain explicit broadcast appro
 finalize one chain at a time:
 
 ```sh
-forge script script/Deploy.s.sol:Deploy --rpc-url rh_testnet --broadcast
+forge script script/Deploy.s.sol:Deploy --rpc-url rh_testnet --broadcast --slow
 node script/finalize-manifest.mjs 46630 "$RH_TESTNET_RPC_URL"
 
-forge script script/Deploy.s.sol:Deploy --rpc-url arb_sepolia --broadcast
+forge script script/Deploy.s.sol:Deploy --rpc-url arb_sepolia --broadcast --slow
 node script/finalize-manifest.mjs 421614 "$ARB_SEPOLIA_RPC_URL"
 
 node script/compare-deployments.mjs
@@ -127,9 +127,11 @@ node script/compare-deployments.mjs
 
 `Deploy.s.sol` makes eleven creations, three allowlist calls and three registrations. It deploys
 PolicyModule immediately before CopyVault, asserts the predicted vault, reads every immutable back,
-and writes only a provisional manifest. The finalizer independently retrieves all 17 receipts from
-the target RPC, requires status 1 and the correct sender, validates deployed code/runtime hashes,
-and then promotes the manifest.
+and writes only a provisional manifest. `--slow` waits for each receipt, including across sender
+changes, so allowlist and registration calls cannot overtake contract creation. The finalizer
+independently retrieves all 17 receipts from the target RPC, requires status 1 and the correct sender,
+validates deployed code/runtime hashes, then reads back PolicyModule ownership and allowlist storage
+plus each agent's owner, strategy hash and active state before it promotes the manifest.
 
 If a broadcast is interrupted, preserve `contracts/broadcast/` and the pending manifest. Diagnose
 the RPC or funding failure and resume the same Forge broadcast artifact. Never start a fresh logical
