@@ -17,7 +17,7 @@ export default function NotFound() {
         <PageHeader
           eyebrow="404"
           title="Nothing recorded here"
-          description="This page doesn't exist. Every agent, fill and follow on Mirror lives on-chain, and the ledger below is where to find them."
+          description="This page doesn't exist. Every agent, fill and follow on Mirror lives on-chain; the agent list is the place to start."
         />
         <div className="mt-8 flex flex-wrap gap-2">
           <MetalButton href="/agents" tone="primary">
