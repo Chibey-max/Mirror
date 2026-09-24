@@ -14,7 +14,15 @@ import { txUrl } from "@/lib/chains";
  * you weren't following yet, or a sell clamped to zero held (§7.2), and
  * gets the exact label the briefing specifies, never "blocked".
  */
-export function YourMirrors({ rows }: { rows: MirrorRow[] }) {
+export function YourMirrors({
+  rows,
+  outcomesLoaded = true,
+}: {
+  rows: MirrorRow[];
+  /** False until the vault's past outcomes are in; until then a row with no
+   *  outcome is unknown, not "not mirrored". */
+  outcomesLoaded?: boolean;
+}) {
   if (rows.length === 0) {
     return (
       <div className="panel rounded-3xl p-6 text-sm text-muted">
@@ -63,7 +71,7 @@ export function YourMirrors({ rows }: { rows: MirrorRow[] }) {
                   <span className="text-muted">@ ${row.price}</span>
                 </td>
                 <td className="px-4 py-3">
-                  <MirrorOutcomeCell row={row} />
+                  <MirrorOutcomeCell row={row} outcomesLoaded={outcomesLoaded} />
                 </td>
                 <td className="px-4 py-3">
                   {row.outcome?.status !== "skipped" && row.outcome?.txHash ? (
@@ -108,7 +116,7 @@ export function YourMirrors({ rows }: { rows: MirrorRow[] }) {
               <span className="text-muted">@ ${row.price}</span>
             </p>
             <div className="mt-2 flex items-center justify-between gap-3">
-              <MirrorOutcomeCell row={row} />
+              <MirrorOutcomeCell row={row} outcomesLoaded={outcomesLoaded} />
               {row.outcome?.status !== "skipped" && row.outcome?.txHash && (
                 <a
                   href={txUrl(row.outcome.txHash)}
@@ -127,7 +135,13 @@ export function YourMirrors({ rows }: { rows: MirrorRow[] }) {
   );
 }
 
-function MirrorOutcomeCell({ row }: { row: MirrorRow }) {
+function MirrorOutcomeCell({
+  row,
+  outcomesLoaded,
+}: {
+  row: MirrorRow;
+  outcomesLoaded: boolean;
+}) {
   if (row.outcome?.status === "mirrored") {
     return <span className="text-profit">Mirrored</span>;
   }
@@ -141,6 +155,8 @@ function MirrorOutcomeCell({ row }: { row: MirrorRow }) {
       </div>
     );
   }
+  // Until the vault's past outcomes have loaded, no outcome means unknown.
+  if (!outcomesLoaded) return <span className="text-muted">Checking…</span>;
   // Neither Mirrored nor MirrorRejected: weren't following yet, or a sell
   // clamped to zero held (§7.2). Not a rejection, never "blocked".
   return <span className="text-muted">Not mirrored, nothing held</span>;

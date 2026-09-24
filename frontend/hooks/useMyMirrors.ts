@@ -10,7 +10,12 @@ import {
 import { fixtureFills, type FixtureFill } from "@/lib/fixtures";
 import { relativeTime } from "@/lib/format";
 import { ORACLE_PRICE_DECIMALS } from "@/lib/usdg";
-import { useMirrorOutcomes, type MirrorOutcome } from "@/hooks/useMirrorOutcomes";
+import {
+  useMirrorOutcomes,
+  type MirrorOutcome,
+  type MirrorOutcomes,
+} from "@/hooks/useMirrorOutcomes";
+import { latestFillPage } from "@/lib/onchain";
 import { useTokenMetadata } from "@/hooks/useTokenMetadata";
 
 /** The personal view of the public log (briefing §09.C): every fill from
@@ -74,27 +79,44 @@ function trimZeros(value: string): string {
 export function useMyMirrors(
   agentIds: number[],
   agentNames: Record<number, string>,
-): { rows: MirrorRow[]; isLoading: boolean } {
+): { rows: MirrorRow[]; isLoading: boolean; outcomesLoaded: boolean } {
   const { chainId } = useAccount();
   const addresses = chainId ? addressesFor(chainId) : undefined;
   const live = isDeployed(addresses?.trackRecord) && agentIds.length > 0;
 
-  const fillsRead = useReadContracts({
+  // The tape is oldest first, so each agent's count comes first and the
+  // read asks for its newest FILL_SAMPLE fills, not its first ones.
+  const countsRead = useReadContracts({
     contracts: agentIds.map((id) => ({
       address: addresses?.trackRecord,
       abi: trackRecordAbi,
-      functionName: "getFillsByAgent",
-      args: [BigInt(id), BigInt(0), BigInt(FILL_SAMPLE)],
+      functionName: "fillCountByAgent",
+      args: [BigInt(id)],
     })),
     query: { enabled: live },
   });
+  const pages = agentIds.flatMap((id, index) => {
+    const count = countsRead.data?.[index]?.result;
+    if (typeof count !== "bigint" || count === BigInt(0)) return [];
+    return [{ id, ...latestFillPage(count, FILL_SAMPLE) }];
+  });
 
-  // No agentId: watches every Mirrored/MirrorRejected for this wallet, not
-  // one agent's slice of it.
-  const outcomes = useMirrorOutcomes();
+  const fillsRead = useReadContracts({
+    contracts: pages.map((page) => ({
+      address: addresses?.trackRecord,
+      abi: trackRecordAbi,
+      functionName: "getFillsByAgent",
+      args: [BigInt(page.id), page.offset, page.limit],
+    })),
+    query: { enabled: live && pages.length > 0 },
+  });
+
+  // No agentId: every Mirrored/MirrorRejected for this wallet, not one
+  // agent's slice of it.
+  const { outcomes, historyLoaded } = useMirrorOutcomes();
 
   const liveFills: { fill: RawFill }[] = live
-    ? agentIds.flatMap((_, index) =>
+    ? pages.flatMap((_, index) =>
         asRawFills(fillsRead.data?.[index]?.result).map((fill) => ({ fill })),
       )
     : [];
@@ -103,11 +125,11 @@ export function useMyMirrors(
 
   if (!live) {
     const rows = buildFixtureRows(agentIds, agentNames, outcomes);
-    return { rows, isLoading: false };
+    return { rows, isLoading: false, outcomesLoaded: true };
   }
 
   const rows: MirrorRow[] = liveFills
-    .sort((a, b) => Number(b.fill.timestamp - a.fill.timestamp))
+    .sort((a, b) => (a.fill.fillId < b.fill.fillId ? 1 : a.fill.fillId > b.fill.fillId ? -1 : 0))
     .map(({ fill }) => {
       const token = metadata.get(fill.token);
       const id = `fill-${fill.fillId}`;
@@ -126,13 +148,17 @@ export function useMyMirrors(
       };
     });
 
-  return { rows, isLoading: fillsRead.isLoading };
+  return {
+    rows,
+    isLoading: countsRead.isLoading || fillsRead.isLoading,
+    outcomesLoaded: historyLoaded,
+  };
 }
 
 function buildFixtureRows(
   agentIds: number[],
   agentNames: Record<number, string>,
-  outcomes: ReturnType<typeof useMirrorOutcomes>,
+  outcomes: MirrorOutcomes,
 ): MirrorRow[] {
   const fills: FixtureFill[] = fixtureFills.filter((f) =>
     agentIds.includes(f.agentId),
