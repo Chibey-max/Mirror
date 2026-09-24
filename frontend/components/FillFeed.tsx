@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { Badge } from "@/components/Badge";
 import { MetalButton } from "@/components/MetalButton";
-import type { PolicyRejectReason } from "@/components/PolicyRejectBanner";
+import {
+  enforcedBy,
+  type PolicyRejectReason,
+} from "@/components/PolicyRejectBanner";
 import type { MirrorOutcome, MirrorOutcomes } from "@/hooks/useMirrorOutcomes";
 import { txUrl } from "@/lib/chains";
 import type { FixtureFill } from "@/lib/fixtures";
@@ -104,8 +107,8 @@ export function FillFeed({
                   </p>
                   {outcome?.status === "rejected" && (
                     <p className="mt-0.5 text-xs text-loss/80">
-                      {reasonClause(outcome.reason)} · enforced on-chain by
-                      PolicyModule
+                      {reasonClause(outcome.reason)} · enforced on-chain by{" "}
+                      {enforcedBy(outcome.reason)}
                     </p>
                   )}
                   {outcome?.status === "skipped" && (
@@ -178,5 +181,7 @@ export function reasonClause(reason: PolicyRejectReason): string {
       return "your follow wasn't active";
     case "InsufficientBalance":
       return "not enough free balance in the vault";
+    case "PositionOverflow":
+      return "position would exceed what the vault can record";
   }
 }

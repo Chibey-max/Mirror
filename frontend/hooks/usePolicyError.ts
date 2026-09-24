@@ -44,6 +44,9 @@ const policyErrorsAbi = [
   { type: "error", name: "PolicyInactive", inputs: [] },
   { type: "error", name: "OnlyVault", inputs: [] },
   { type: "error", name: "InsufficientBalance", inputs: [] },
+  // CopyVault's, not PolicyModule's: a per-follower refusal inside
+  // mirrorFill, logged as MirrorRejected like the policy errors.
+  { type: "error", name: "PositionOverflow", inputs: [] },
 ] as const satisfies Abi;
 
 /** Maps a decoded token address to the symbol PolicyRejectBanner renders. */
@@ -75,6 +78,8 @@ function toReason(
       return { type: "PolicyInactive" };
     case "InsufficientBalance":
       return { type: "InsufficientBalance" };
+    case "PositionOverflow":
+      return { type: "PositionOverflow" };
     default:
       // OnlyVault is access control, never user-facing, no banner copy for it.
       return null;
