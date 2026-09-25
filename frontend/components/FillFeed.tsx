@@ -88,7 +88,7 @@ export function FillFeed({
           return (
             <li
               key={fill.id}
-              className={`motion-reduce:animate-none animate-[rowIn_0.25s_ease-out] panel flex items-center justify-between gap-3 rounded-2xl px-4 py-3 ${
+              className={`motion-reduce:animate-none animate-[rowIn_0.25s_ease-out] lift panel flex items-center justify-between gap-3 rounded-2xl px-4 py-3 ${
                 outcome?.status === "rejected" ? "border-loss/40" : ""
               }`}
             >

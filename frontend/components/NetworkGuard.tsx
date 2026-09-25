@@ -75,7 +75,7 @@ export function NetworkGuard({ children }: { children: ReactNode }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="network-guard-title"
-            className="w-full max-w-md panel rounded-3xl p-6"
+            className="w-full max-w-md panel panel-static rounded-3xl p-6"
           >
             <p className="text-sm text-warn">Wrong network</p>
             <h2 id="network-guard-title" className="mt-2 text-xl font-semibold">

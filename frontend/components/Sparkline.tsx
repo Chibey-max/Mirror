@@ -64,7 +64,13 @@ export function Sparkline({
         stroke="var(--color-border)"
         strokeDasharray="2 3"
       />
-      <path d={area} fill={`url(#${gradientId})`} />
+      <path
+        d={area}
+        fill={`url(#${gradientId})`}
+        className="motion-safe:animate-[chartFade_900ms_ease-out_both]"
+      />
+      {/* Draws itself in, and the endpoint swells while the card or row
+          it sits in (the nearest `group`) is hovered. */}
       <path
         d={line}
         fill="none"
@@ -72,8 +78,17 @@ export function Sparkline({
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
+        pathLength={1}
+        strokeDasharray="1"
+        className="motion-safe:animate-[chartDraw_1000ms_cubic-bezier(0.16,1,0.3,1)_both]"
       />
-      <circle cx={x(series.length - 1)} cy={y(last)} r="2.2" fill={color} />
+      <circle
+        cx={x(series.length - 1)}
+        cy={y(last)}
+        r="2.2"
+        fill={color}
+        className="origin-center transition-transform duration-300 ease-out [transform-box:fill-box] group-hover:scale-[1.6]"
+      />
     </svg>
   );
 }

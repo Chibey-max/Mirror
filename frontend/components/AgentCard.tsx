@@ -20,7 +20,7 @@ export function AgentCard({
   return (
     <Link
       href={`/agents/${agent.id}`}
-      className="group block panel transition-colors hover:border-chrome-dim rounded-3xl p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+      className="group lift block panel rounded-3xl p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
