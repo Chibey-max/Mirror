@@ -866,12 +866,21 @@ export function SingularityHorizon({
     let pxScale = 1;
     let sizedW = 0;
     let sizedH = 0;
+    // Dynamic resolution. The same ring that holds 60fps on a desktop GPU
+    // can drop a laptop's integrated one into the 20s, and a slow canvas
+    // starves scrolling and every other animation on the page with it. So
+    // the loop watches its own frame time: sustained slow frames step the
+    // render scale down, sustained headroom steps it back up. Soft sprites
+    // hide the difference well; a stutter can't be hidden.
+    let quality = 1;
+    let avgDt = 1 / 60;
+    let lastQualityChange = 0;
 
     const resize = () => {
       const cssW = Math.max(1, canvas.clientWidth);
       const cssH = Math.max(1, canvas.clientHeight);
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      pxScale = Math.min(dpr, Math.sqrt(pixelBudget / (cssW * cssH)));
+      pxScale = Math.min(dpr, Math.sqrt(pixelBudget / (cssW * cssH))) * quality;
       const w = Math.max(1, Math.round(cssW * pxScale));
       const h = Math.max(1, Math.round(cssH * pxScale));
       // Keyed on the size attempted, not on success: if the targets can't be
@@ -914,6 +923,18 @@ export function SingularityHorizon({
       raf = 0;
       const dt = last ? Math.min((now - last) / 1000, 0.05) : 0.016;
       last = now;
+      // Only a running loop has a frame rate to judge; reduced motion draws
+      // on demand, where the gaps between frames mean nothing.
+      if (!reduced) avgDt += (dt - avgDt) * 0.05;
+      if (!lastQualityChange) lastQualityChange = now;
+      const sinceChange = now - lastQualityChange;
+      if (!reduced && avgDt > 1 / 45 && quality > 0.45 && sinceChange > 1200) {
+        quality = Math.max(0.45, quality * 0.82);
+        lastQualityChange = now;
+      } else if (!reduced && avgDt < 1 / 57 && quality < 1 && sinceChange > 5000) {
+        quality = Math.min(1, quality * 1.1);
+        lastQualityChange = now;
+      }
       resize();
 
       if (!reduced) {

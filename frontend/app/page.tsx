@@ -148,7 +148,7 @@ export default function Home() {
 
       <SiteHeader />
 
-      <main id="main-content" tabIndex={-1} className="outline-none mx-auto flex w-full max-w-7xl flex-1 flex-col gap-12 px-5 py-10 sm:px-10 sm:py-12">
+      <main id="main-content" tabIndex={-1} className="relative z-10 outline-none mx-auto flex w-full max-w-7xl flex-1 flex-col gap-12 px-5 py-10 sm:px-10 sm:py-12">
         <section className="relative flex min-h-[92svh] flex-col items-center pt-[36svh] pb-2 text-center sm:pt-[18svh]">
           {/*
             The copy sits in its own stacking context above the canvas, which
