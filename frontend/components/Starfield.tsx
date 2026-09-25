@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef } from "react";
 import { useReducedMotion } from "@/components/MetalButton";
 
 type Star = {
@@ -45,29 +45,28 @@ function fitFor(aspect: number) {
 type Ring = { cx: number; cy: number; radius: number };
 
 /**
- * Where the hero's body is on screen right now, in viewport pixels.
+ * Where the hero's body sits, in PAGE coordinates (scroll-independent).
  *
  * Measured off the hero's own box rather than recomputed from the vw/svh calc
  * in page.tsx: the camera looks at the origin, so the body always lands dead
- * centre of that box, and reading the live rect keeps this layer pointing at
- * the ring even if the hero is repositioned. It also gives the scroll offset
- * for free, the box sits in page flow, so its rect rises as the page scrolls
- * and the emission point rises with the ring it belongs to.
+ * centre of that box. The box sits in page flow, so its page position only
+ * changes on resize; it is measured then, and each frame subtracts the scroll
+ * offset, instead of reading layout sixty times a second.
  */
-function ringGeometry(): Ring {
+function measureRing(): Ring {
   const el = document.querySelector(".hero-canvas-mask");
   if (!el) {
     // Only before the hero has mounted; roughly where it lands on desktop.
     return {
       cx: window.innerWidth * 0.15,
-      cy: window.innerHeight * 0.47 - window.scrollY,
+      cy: window.innerHeight * 0.47,
       radius: window.innerHeight * 0.45,
     };
   }
   const rect = el.getBoundingClientRect();
   return {
     cx: rect.left + rect.width / 2,
-    cy: rect.top + rect.height / 2,
+    cy: rect.top + rect.height / 2 + window.scrollY,
     radius:
       (rect.height * BODY_RADIUS_FRACTION) / fitFor(rect.width / rect.height),
   };
@@ -122,40 +121,55 @@ const CURL = 0.6;
  * Every star travels out from the ring's centre toward the point it settles
  * at, starting on the rim, which is what makes the field read as coming out
  * of the ring instead of merely appearing over the page. The path starts
- * slightly curled and straightens as it lands. It is recomputed from the
- * ring's live position each frame, so it stays aimed correctly while the hero
- * scrolls away, and it ends at a fixed viewport point, so the settled field
- * stays put instead of scrolling off with the hero.
+ * slightly curled and straightens as it lands. It ends at a fixed viewport
+ * point, so the settled field stays put instead of scrolling off with the
+ * hero.
  *
- * Positions come from a requestAnimationFrame loop in which each
- * star glides toward its scroll-derived target on its own time constant,
- * rather than from a scroll event listener writing raw positions: scroll
- * events arrive in bursts the input device decides on, so writing straight
- * from them snaps between sparse samples instead of flowing.
+ * Drawn on one fixed canvas, layered just above the hero's canvas so a star
+ * can be seen leaving the rim (under it, the opaque planet hid every star
+ * until it had cleared the whole box). It used to be 200 DOM elements, each
+ * restyled every frame plus a CSS twinkle apiece; one 2D canvas does the same
+ * drawing for a fraction of the style and compositing work.
+ *
+ * Positions come from a requestAnimationFrame loop in which each star glides
+ * toward its scroll-derived target on its own time constant, rather than from
+ * scroll events writing raw positions: those arrive in bursts the input
+ * device decides on, so writing straight from them snaps between samples
+ * instead of flowing. While the field is at rest the loop drops to the
+ * twinkle's own pace (~30fps), and it stops entirely while every star is
+ * still inside the ring.
  */
 export function Starfield() {
   const reduced = useReducedMotion();
-  const [stars, setStars] = useState<Star[] | null>(null);
-  const starRefs = useRef<(HTMLSpanElement | null)[]>([]);
-  const rafRef = useRef<number | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    // Deferred into a callback, not called synchronously in the effect body,
-    // so the one-time mount render isn't itself the thing setting state.
-    const raf = requestAnimationFrame(() => setStars(generateStars(STAR_COUNT)));
-    return () => cancelAnimationFrame(raf);
-  }, []);
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
 
-  useEffect(() => {
-    // Reduced motion runs no loop at all, every star is already at rest in
-    // its final spot, placed in the JSX below.
-    if (!stars || reduced) return;
-
-    // How much scrolling it takes to fully spread: a little over one viewport,
-    // so most of the travel happens while the ring is still on screen to be
-    // seen leaving.
-    const range = Math.max(1, window.innerHeight * 1.1);
+    const stars = generateStars(STAR_COUNT);
     const count = stars.length;
+    let vw = 0;
+    let vh = 0;
+    let dpr = 1;
+    let ring = measureRing();
+    // How much scrolling it takes to fully spread: a little over one
+    // viewport, so most of the travel happens while the ring is still on
+    // screen to be seen leaving.
+    let range = 1;
+
+    const size = () => {
+      vw = window.innerWidth;
+      vh = window.innerHeight;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(vw * dpr);
+      canvas.height = Math.round(vh * dpr);
+      ring = measureRing();
+      range = Math.max(1, vh * 1.1);
+    };
+    size();
+
     // Per-star state carried between frames: how far along its path it is
     // showing (NaN until the first frame), where it was drawn, and its
     // smoothed on-screen velocity.
@@ -165,40 +179,56 @@ export function Starfield() {
     const velX = new Float32Array(count);
     const velY = new Float32Array(count);
     let lastTime: number | null = null;
+    let lastDraw = 0;
+    let raf: number | null = null;
+    let settled = false;
 
-    // The loop runs only while something is moving. Once every star has
-    // caught up with the scroll and its streak has relaxed, it stops, and
-    // the next scroll or resize starts it again. Left running, it rewrote 200
-    // transforms and forced a layout read every frame on a page that wasn't
-    // moving, which is main-thread time scrolling had to share.
-    const wake = () => {
-      if (rafRef.current == null) {
-        lastTime = null;
-        rafRef.current = requestAnimationFrame(frame);
+    const twinkle = (star: Star, t: number) =>
+      star.minOpacity +
+      (star.maxOpacity - star.minOpacity) *
+        (0.5 - 0.5 * Math.cos((2 * Math.PI * (t - star.delay)) / star.duration));
+
+    function drawStill() {
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx!.clearRect(0, 0, vw, vh);
+      ctx!.fillStyle = "#dfe1e6";
+      for (const star of stars) {
+        ctx!.globalAlpha = star.maxOpacity;
+        ctx!.beginPath();
+        ctx!.arc(star.x * vw, star.y * vh, star.size / 2, 0, Math.PI * 2);
+        ctx!.fill();
       }
-    };
+    }
 
     function frame(now: number) {
+      raf = null;
       // Real elapsed time, so the glide is the same speed at 60Hz and 120Hz;
       // capped so returning to a background tab doesn't jump a whole second.
       const dt = lastTime == null ? 1 / 60 : Math.min(0.05, (now - lastTime) / 1000);
       lastTime = now;
-      const progress = Math.min(1, Math.max(0, window.scrollY / range));
-
-      // One layout read for the whole frame, before any writes; everything
-      // written below is transform and opacity, which the compositor handles
-      // without invalidating layout, so the next frame's read stays cheap.
-      const ring = ringGeometry();
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
+      const scrollY = window.scrollY;
+      const progress = Math.min(1, Math.max(0, scrollY / range));
+      const cx = ring.cx;
+      const cy = ring.cy - scrollY;
       const velocityFollow = 1 - Math.exp(-dt / 0.12);
+      const seconds = now / 1000;
 
-      const field = stars!;
+      // At rest, the only motion left is the twinkle, which is slow enough
+      // that every other frame is plenty.
+      if (settled && now - lastDraw < 32) {
+        raf = requestAnimationFrame(frame);
+        return;
+      }
+      lastDraw = now;
+
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx!.clearRect(0, 0, vw, vh);
+      ctx!.fillStyle = "#dfe1e6";
+
       let moving = false;
+      let anyVisible = false;
       for (let i = 0; i < count; i++) {
-        const el = starRefs.current[i];
-        if (!el) continue;
-        const star = field[i];
+        const star = stars[i];
 
         // Each star chases its own point on the scroll with its own lag, so
         // the scroll wheel's bursts are absorbed rather than passed through,
@@ -216,13 +246,10 @@ export function Starfield() {
         const eased = easeInOutSine(current);
 
         // Launch point: fixed to the ring itself, in the direction of where
-        // the star lands as seen from the top of the page. Measured in page
-        // coordinates, so it doesn't change as you scroll, until it lifts
-        // off, a star rides with the ring exactly, instead of sliding around
-        // the rim as the ring scrolls past a destination pinned to the screen.
-        const pageCy = ring.cy + window.scrollY;
-        const launchDx = star.x * vw - ring.cx;
-        const launchDy = star.y * vh - pageCy;
+        // the star lands as seen from the top of the page, so until it lifts
+        // off a star rides with the ring exactly.
+        const launchDx = star.x * vw - cx;
+        const launchDy = star.y * vh - ring.cy;
         const launchAngle = Math.atan2(launchDy, launchDx);
         // A star landing close to the centre would have no room to travel if
         // it launched out on the rim, so it starts proportionally further in
@@ -233,27 +260,24 @@ export function Starfield() {
         );
 
         // Landing point: fixed to the screen, seen from where the ring is now.
-        const landDx = star.x * vw - ring.cx;
-        const landDy = star.y * vh - ring.cy;
+        const landDx = star.x * vw - cx;
+        const landDy = star.y * vh - cy;
         const landAngle = Math.atan2(landDy, landDx);
         const landRadius = Math.hypot(landDx, landDy);
 
-        // Travel in polar coordinates around the ring's centre, radius and
-        // angle each blend from launch to landing, so the path arcs out and
-        // around the ring rather than cutting across it, with a slight extra
-        // curl that unwinds as it lands.
+        // Travel in polar coordinates around the ring's centre, so the path
+        // arcs out and around the ring rather than cutting across it, with a
+        // slight extra curl that unwinds as it lands.
         let turn = landAngle - launchAngle;
         turn -= 2 * Math.PI * Math.round(turn / (2 * Math.PI));
-        const angle =
-          launchAngle + turn * eased + CURL * (1 - eased) ** 2 * eased;
+        const angle = launchAngle + turn * eased + CURL * (1 - eased) ** 2 * eased;
         const along = launchRadius + (landRadius - launchRadius) * eased;
-        const x = ring.cx + Math.cos(angle) * along;
-        const y = ring.cy + Math.sin(angle) * along;
+        const x = cx + Math.cos(angle) * along;
+        const y = cy + Math.sin(angle) * along;
 
         // Streak length follows a smoothed velocity rather than this frame's
         // raw step, so it grows and relaxes gradually instead of flickering
-        // with every notch of the wheel, and it points wherever the star is
-        // actually heading, curve included.
+        // with every notch of the wheel.
         if (!Number.isNaN(lastX[i])) {
           velX[i] += (x - lastX[i] - velX[i]) * velocityFollow;
           velY[i] += (y - lastY[i] - velY[i]) * velocityFollow;
@@ -262,79 +286,96 @@ export function Starfield() {
         lastY[i] = y;
         const speed = Math.hypot(velX[i], velY[i]) / (dt * 60);
         if (speed > 0.02) moving = true;
+
+        // Nothing shows inside the body's silhouette; a star fades up over
+        // the next half-radius as it clears the rim, growing into its full
+        // size as it does.
+        // It also fades in over the first stretch of its own journey, so a
+        // star waiting on the rim (the top of the page) isn't drawn at all
+        // and the field reads as leaving the ring, not parked around it.
+        const visible =
+          smoothstep((along - ring.radius) / (ring.radius * 0.5)) *
+          smoothstep(current / 0.12);
+        if (visible <= 0.002) continue;
+        if (x < -20 || y < -20 || x > vw + 20 || y > vh + 20) continue;
+        anyVisible = true;
+
+        const grow = 0.5 + 0.5 * visible;
+        const radius = (star.size / 2) * grow;
         const stretch = 1 + Math.min(speed * 0.3, 3.5);
-        const heading = Math.atan2(velY[i], velX[i]);
-
-        // Visibility is a function of where the star is, not how far along it
-        // is: nothing shows inside the body's silhouette, and it fades up
-        // softly over the next half-radius as it clears the rim, growing into
-        // its full size as it does, so each star is first seen as a faint
-        // speck leaving the ring's edge, and sinks back in on the way up.
-        const visible = smoothstep((along - ring.radius) / (ring.radius * 0.5));
-        const size = 0.5 + 0.5 * visible;
-
-        el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) rotate(${heading.toFixed(3)}rad) scale(${(stretch * size).toFixed(3)}, ${size.toFixed(3)})`;
-        el.style.opacity = visible.toFixed(3);
+        ctx!.globalAlpha = visible * twinkle(star, seconds);
+        ctx!.beginPath();
+        if (stretch < 1.05) {
+          ctx!.arc(x, y, radius, 0, Math.PI * 2);
+        } else {
+          // A streak trailing behind the direction of travel, head at the
+          // star's position.
+          const length = radius * stretch;
+          const heading = Math.atan2(velY[i], velX[i]);
+          ctx!.ellipse(
+            x - Math.cos(heading) * (length - radius),
+            y - Math.sin(heading) * (length - radius),
+            length,
+            radius,
+            heading,
+            0,
+            Math.PI * 2,
+          );
+        }
+        ctx!.fill();
       }
 
-      rafRef.current = moving ? requestAnimationFrame(frame) : null;
+      settled = !moving;
+      // Every star tucked inside the ring (the top of the page) and nothing
+      // in flight: stop until the next scroll.
+      if (!moving && !anyVisible) return;
+      raf = requestAnimationFrame(frame);
     }
 
-    rafRef.current = requestAnimationFrame(frame);
+    if (reduced) {
+      // No loop: every star at rest in its final spot.
+      drawStill();
+      const onResize = () => {
+        size();
+        drawStill();
+      };
+      window.addEventListener("resize", onResize);
+      return () => window.removeEventListener("resize", onResize);
+    }
+
+    const wake = () => {
+      settled = false;
+      if (raf == null) {
+        lastTime = null;
+        raf = requestAnimationFrame(frame);
+      }
+    };
+    const onResize = () => {
+      size();
+      wake();
+    };
+    // The hero's box can move without a window resize (fonts landing,
+    // the header settling), so the ring is re-measured when it does.
+    const hero = document.querySelector(".hero-canvas-mask");
+    const observer = hero ? new ResizeObserver(onResize) : null;
+    if (hero) observer!.observe(hero);
+
+    raf = requestAnimationFrame(frame);
     window.addEventListener("scroll", wake, { passive: true });
-    window.addEventListener("resize", wake);
+    window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("scroll", wake);
-      window.removeEventListener("resize", wake);
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
+      window.removeEventListener("resize", onResize);
+      observer?.disconnect();
+      if (raf != null) cancelAnimationFrame(raf);
     };
-  }, [stars, reduced]);
-
-  if (!stars) return null;
+  }, [reduced]);
 
   return (
-    <div
+    <canvas
+      ref={canvasRef}
       aria-hidden="true"
-      className="pointer-events-none fixed inset-0 -z-20 overflow-hidden"
-    >
-      {stars.map((star, i) => (
-        <span
-          key={i}
-          ref={(el) => {
-            starRefs.current[i] = el;
-          }}
-          className="absolute left-0 top-0 block origin-right"
-          style={{
-            width: `${star.size}px`,
-            height: `${star.size}px`,
-            // Pulls the box back by half its size so the translate above
-            // places the star's centre, not its corner.
-            marginLeft: `${-star.size / 2}px`,
-            marginTop: `${-star.size / 2}px`,
-            transform: reduced
-              ? `translate3d(${star.x * 100}vw, ${star.y * 100}vh, 0)`
-              : undefined,
-            // Starts invisible under motion: the loop's first frame places it
-            // on the rim, so there is never a frame of stars at the origin.
-            opacity: reduced ? star.maxOpacity : 0,
-          }}
-        >
-          {/* The twinkle sits on its own element so the emergence fade on the
-              parent multiplies it instead of fighting it for `opacity`. */}
-          <span
-            className={`block h-full w-full rounded-full bg-chrome ${reduced ? "" : "animate-[twinkle_var(--star-duration)_ease-in-out_infinite]"}`}
-            style={
-              {
-                "--star-min": star.minOpacity,
-                "--star-max": star.maxOpacity,
-                "--star-duration": `${star.duration}s`,
-                animationDelay: `${star.delay}s`,
-              } as CSSProperties
-            }
-          />
-        </span>
-      ))}
-    </div>
+      className="pointer-events-none fixed inset-0 z-[1] h-full w-full"
+    />
   );
 }

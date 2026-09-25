@@ -183,20 +183,6 @@ body {
   }
 }
 
-/* A star's own breathing room, between the two brightnesses Starfield
-   picks for it, never full off, so nothing "disappears", and never
-   perfectly synced with its neighbours, since every star's --star-duration
-   and animation-delay differ. */
-@keyframes twinkle {
-  0%,
-  100% {
-    opacity: var(--star-min);
-  }
-  50% {
-    opacity: var(--star-max);
-  }
-}
-
 /*
  * There is deliberately no ambient background layer. An earlier version had a
  * fixed, full-viewport opaque black div at z-index -1 here, which painted over
@@ -210,15 +196,22 @@ body {
  * a different fraction of the canvas per breakpoint, the camera dollies out
  * on portrait viewports, so the body occupies less of the box there. Hence a
  * media query rather than one inline style.
+ *
+ * A gradient laid over the canvas rather than a CSS mask on it. The page is
+ * black, so fading to black looks identical, but a mask on a box several
+ * screens in size made the compositor re-mask the whole animated canvas
+ * every frame. An overlay is painted once.
  */
-.hero-canvas-mask {
-  mask-image: linear-gradient(to bottom, #000 74%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, #000 74%, transparent 100%);
+.hero-canvas-mask::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent 74%, #000 100%);
 }
 @media (min-width: 640px) {
-  .hero-canvas-mask {
-    mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
+  .hero-canvas-mask::after {
+    background: linear-gradient(to bottom, transparent 82%, #000 100%);
   }
 }
 

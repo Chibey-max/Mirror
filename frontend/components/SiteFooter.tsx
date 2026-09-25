@@ -5,7 +5,7 @@
  */
 export function SiteFooter({ wide = false }: { wide?: boolean }) {
   return (
-    <footer className="px-5 pb-8 pt-4 sm:px-10">
+    <footer className="relative z-10 px-5 pb-8 pt-4 sm:px-10">
       <div
         className={`mx-auto flex flex-wrap items-center justify-between gap-2 border-t border-border pt-5 font-mono text-[11px] uppercase tracking-[0.08em] text-muted ${
           wide ? "max-w-7xl" : "max-w-6xl"
