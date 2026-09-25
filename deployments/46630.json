@@ -1,0 +1,67 @@
+{
+  "agentIds": [
+    1,
+    2,
+    3
+  ],
+  "agentRegistrar": "0x88e496e1B4E22D3d19C19E7457D9d09B9247ac23",
+  "agentRegistry": "0x8261CD47Cd22A96Aa169a8381ff5d825797215f3",
+  "chainId": 46630,
+  "copyVault": "0xf47B9234Ba4aF39Ec28bF3C303B3EDEa3AbE1061",
+  "coreRuntimeCodeHashes": [
+    "0xa2e7db3a2437ed525135be76b6c743731f1ac35d17c6750ca01ebcfe67f6baf8",
+    "0x1205e4fa5ea1f31797f09ab6d5d597ca93444b18f0a7f5415c7d6194a2f0383c",
+    "0xe9bb1304e570dec04b3af5dce1cd392981048ec41eff21cd4eddfe7398973458",
+    "0x6acdf36ca9d84df4a78834327731e322cb6534ad3634993b501bdcda9fc1dbd4"
+  ],
+  "deployer": "0x7bf8A7BaDB5449A518563576043102584Fb4D1A0",
+  "deploymentBlock": 124326741,
+  "policyAdmin": "0xA9A9105D00E2385b90e4df04d3A97E903078F52b",
+  "policyModule": "0x3694428E4b527826d168FC7BF3e2e6e26cFE538f",
+  "priceFeeds": [
+    "0x0cb238e3e9071bF870D6424Dcb7b66A97Ce21693",
+    "0xaf0629b16732667B7B5A01cF87851797cF9622Ba",
+    "0x541E24b0aB45252d72771eDB09505fB4f68cE729"
+  ],
+  "runner": "0x23061d839Ce94AbfeD9814164aA1Bcb34D808261",
+  "schema": "mirror.deployments.v1",
+  "stockTokens": [
+    "0x8C43eFA2F3f255ba9BEacAe4DBb118149C5D70fD",
+    "0x5b2E65BB2FFD2911A637d178Af3fe39D700F57A9",
+    "0xf2Af5A52F5257094AC49a4F5F3BCD4953E4629d9"
+  ],
+  "strategyHashes": [
+    "0x8d32353838e901b918e9d1fb1d50c19fe0ac35a9dbe82da1b3c755033c91d0c3",
+    "0xacbf6fccaf5e4c5dad8c8cc2d66c13cd3cfe57b9070cea12262b2d09efe869f9",
+    "0xe394056ed936fd2705b87058e1c331ba6fac94d5e090505f3753bfbc096aa573"
+  ],
+  "trackRecord": "0xb1B17711ee5c8737E573156561850DAA9e9799ed",
+  "usdg": "0xC9e3E8d3e259Bf33318996AFDe2a5EC134BB3b50",
+  "transactions": {
+    "agentRegistry": "0x068799be019e372bc342bba05e0b2013e04da25f07eb803d7171369434cdc3c1",
+    "trackRecord": "0x70cd44861883fd3d5a76385dbfb5f14d1bf8b0533ad441f08f222fd2f4cefcb6",
+    "usdg": "0x89d4f4f3120f16c3be18e431df8c28b25d425a1d83eda154ee2b90903dd1bb54",
+    "stockTokens": [
+      "0x84c16e059aebfbefc0f80ddecb4a991c917d14391cb27bf402f06fab0232cba2",
+      "0xc50553c3a78d3ea5f11bbca9ba92e7962d7560a33b0c4e1daa736017560a5bd1",
+      "0xf08e65e7c746801bc5b98422760ead24f1442c6cd902c464b659feb439dc8eaa"
+    ],
+    "priceFeeds": [
+      "0x5d25a7455df2170a9c8977997b6f0ff418ddd9752e6de98cea5eb9ed1ea67c1a",
+      "0x2df40be486e8cbd563e56271c4ecc5a7e675801ee37bcf8bebdc5902410b3835",
+      "0xb1e0565c649a6cc1c393f9267fd3fc0d574285fd35119f21e6fd4855afed80d4"
+    ],
+    "policyModule": "0x29fc6dc2742777768374cf58e9648b1f22d100c57a5cfe62239502b1187234e0",
+    "copyVault": "0x2ad17098c21011d10f5c2e5659216b572d3d2b4424aaa5cb395419d1574139f0",
+    "tokenAllowlist": [
+      "0x3325333be9ff6c83c37c391cd309feb963fe6fad801cec6450b7adffc29f9930",
+      "0xf7d440da104674576e893829f069f0cab5f0e425e8b2451eca06ce33262a93d0",
+      "0x786aa3d02f43c643886275a2cbd571661ce88389ee025802f515cd446c75f67b"
+    ],
+    "agentRegistrations": [
+      "0x339192470c2fa45299e378640d182426474d8b9f4d79751cac9c6b6f75d4bf89",
+      "0x81b2b2c88ff63320b9ba4846e00ff3e2a19e411ebaec4429ecc75b1fb322afbf",
+      "0x067181045e5d4b446d277d16a72577d445933719c515e93baf6155e42a6acaef"
+    ]
+  }
+}
