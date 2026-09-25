@@ -13,6 +13,10 @@ import { MetalButton } from "@/components/MetalButton";
  *   CapExceeded(attempted, cap) · TokenNotAllowed(token) ·
  *   PolicyInactive() · InsufficientBalance()
  *
+ * plus CopyVault's own PositionOverflow(), a per-follower refusal logged the
+ * same way (PRD v2.2 amendment §6c). It's practically unreachable, but
+ * without it that rejection decoded to nothing and read as "not mirrored".
+ *
  * The link points at a SUCCESSFUL transaction, not a failed one: under PRD
  * v2.2 §7.1 the vault catches a policy rejection and logs MirrorRejected, so
  * the mirrorFill that carried it went through for everyone else. Hence
@@ -22,7 +26,13 @@ export type PolicyRejectReason =
   | { type: "CapExceeded"; attempted: number; cap: number }
   | { type: "TokenNotAllowed"; token: string }
   | { type: "PolicyInactive" }
-  | { type: "InsufficientBalance" };
+  | { type: "InsufficientBalance" }
+  | { type: "PositionOverflow" };
+
+/** Which contract refused it: every reason is PolicyModule's but one. */
+export function enforcedBy(reason: PolicyRejectReason): string {
+  return reason.type === "PositionOverflow" ? "CopyVault" : "PolicyModule";
+}
 
 function copyFor(reason: PolicyRejectReason): string {
   switch (reason.type) {
@@ -37,6 +47,8 @@ function copyFor(reason: PolicyRejectReason): string {
       return "You're not currently following this agent (or you've already killed the follow).";
     case "InsufficientBalance":
       return "You don't have enough free balance in the vault for that.";
+    case "PositionOverflow":
+      return "Blocked: this buy would take your position past the largest amount the vault can record.";
   }
 }
 
@@ -68,7 +80,7 @@ export function PolicyRejectBanner({
         <div className="flex-1">
           <p className="text-sm font-medium text-text">{copyFor(reason)}</p>
           <div className="mt-2 flex items-center gap-3 text-xs">
-            <span className="text-loss/80">Enforced on-chain by PolicyModule</span>
+            <span className="text-loss/80">Enforced on-chain by {enforcedBy(reason)}</span>
             {txHash && (
               <a
                 href={txUrl(txHash)}

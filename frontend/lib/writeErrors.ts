@@ -7,17 +7,11 @@ import {
   InsufficientFundsError,
   UserRejectedRequestError,
 } from "viem";
+import { TransactionRevertedError } from "@/lib/onchain";
 
-/**
- * Thrown by `confirm` when a transaction was mined but reverted. A receipt
- * comes back either way, so without this a reverted write reads as success.
- */
-export class TransactionRevertedError extends Error {
-  constructor(readonly txHash: string) {
-    super(`Transaction ${txHash} reverted`);
-    this.name = "TransactionRevertedError";
-  }
-}
+// One class app-wide: `confirm` throws it (via assertSuccessfulReceipt) when a
+// transaction was mined but reverted, and describeWriteError explains it.
+export { TransactionRevertedError } from "@/lib/onchain";
 
 /**
  * A write refused before it was sent, because what the screen had cached no

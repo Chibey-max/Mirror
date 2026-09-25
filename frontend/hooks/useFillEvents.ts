@@ -7,8 +7,7 @@ import { addressesFor, isDeployed, trackRecordAbi } from "@/lib/contracts";
 import { fixtureFills, type FixtureFill } from "@/lib/fixtures";
 import { relativeTime } from "@/lib/format";
 import { shortAddress, type TokenMetadata } from "@/lib/tokens";
-import { ORACLE_PRICE_DECIMALS } from "@/lib/usdg";
-import { latestFillPage } from "@/lib/onchain";
+import { formatRecordedPrice, latestFillPage } from "@/lib/onchain";
 import { useTokenMetadata } from "@/hooks/useTokenMetadata";
 
 /**
@@ -100,7 +99,7 @@ const PAGE_SIZE = 50;
  * Sizes are formatted with the token's own decimals, read from the token
  * itself, the same `size` is 0.42 shares or 4.2e17 depending on them, and
  * the stock tokens' decimals aren't frozen in any doc. Prices are the raw
- * 8-decimal oracle price TrackRecord stores (ORACLE_PRICE_DECIMALS), not a
+ * 8-decimal oracle price TrackRecord stores (formatRecordedPrice), not a
  * USDG amount.
  *
  * `getFillsByAgent` needs an agent, so the all-agents case stays on
@@ -221,10 +220,7 @@ function toDisplayFill(
     sizeFormatted: token
       ? trimZeros(formatUnits(fill.size, token.decimals))
       : "n/a",
-    // fill.price is TrackRecord's raw oracle price (8-decimal, matches
-    // MockAggregatorV3), not a USDG amount. Formatting it with
-    // USDG_DECIMALS renders every price 100x too large.
-    priceFormatted: formatUnits(fill.price, ORACLE_PRICE_DECIMALS),
+    priceFormatted: formatRecordedPrice(fill.price),
     timeFormatted: relativeTime(Number(fill.timestamp)),
     // Only a watched fill has one. A row without it renders without the
     // explorer link rather than linking somewhere wrong.

@@ -11,3 +11,7 @@ Thumbs.db
 *.swp
 .idea/
 .vscode/
+
+# Local rehearsal and provisional deployment artifacts
+deployments/31337.json
+deployments/.pending/

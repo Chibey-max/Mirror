@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { NetworkGuard } from "@/components/NetworkGuard";
+import { mirrorMode } from "@/lib/config";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -57,7 +58,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           Skip to content
         </a>
         <Providers>
-          <NetworkGuard>{children}</NetworkGuard>
+          <NetworkGuard>
+            {mirrorMode === "fixture" && (
+              <div className="bg-warn px-3 py-1 text-center font-mono text-xs font-bold tracking-wide text-black">
+                FIXTURE MODE — simulated data; no live contract writes
+              </div>
+            )}
+            {children}
+          </NetworkGuard>
         </Providers>
       </body>
     </html>

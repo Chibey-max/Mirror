@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import { useAccount } from "wagmi";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useAccount, useConnect } from "wagmi";
 
 /**
  * Gates an action on being connected, without gating the screen around it.
@@ -16,19 +15,18 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
  *
  * One wrapper rather than a connected check duplicated at every call site:
  * wrap the handler that opens a modal or starts a write, and it either runs
- * as normal or waits for a connection and then runs.
+ * as normal or waits for the injected-wallet connection and then runs.
  *
  * The action is held rather than dropped in two cases. After a reload, wagmi
  * spends a few seconds restoring the remembered wallet; the header already
  * shows the address, so a click in that window must not ask the user to
- * connect a wallet that's visibly connected. And a disconnected click opens
- * the connect modal, then carries on once they connect, so Deposit doesn't
- * need pressing twice. Closing the modal without connecting drops it, so
- * nothing opens later out of nowhere.
+ * connect a wallet that's visibly connected. A disconnected click starts the
+ * injected connector and carries on after it succeeds, so Deposit doesn't
+ * need pressing twice. A rejected or failed connection drops the action.
  */
 export function useRequireConnection() {
   const { isConnected, status, address } = useAccount();
-  const { openConnectModal, connectModalOpen } = useConnectModal();
+  const { connectors, connectAsync } = useConnect();
   const pending = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -38,13 +36,6 @@ export function useRequireConnection() {
       action();
     }
   }, [isConnected]);
-
-  // Closed without connecting: drop it. Keyed on the address rather than
-  // wagmi's status, which reads "connecting" for a while after load even
-  // with no wallet authorised at all.
-  useEffect(() => {
-    if (!connectModalOpen && !address) pending.current = null;
-  }, [connectModalOpen, address]);
 
   const requireConnection = useCallback(
     (action: () => void) => {
@@ -58,9 +49,18 @@ export function useRequireConnection() {
       const restoring =
         !!address && (status === "reconnecting" || status === "connecting");
       if (restoring) return;
-      openConnectModal?.();
+
+      const injected = connectors.find((connector) => connector.id === "injected");
+      const connector = injected ?? connectors[0];
+      if (!connector) {
+        pending.current = null;
+        return;
+      }
+      void connectAsync({ connector }).catch(() => {
+        pending.current = null;
+      });
     },
-    [isConnected, status, address, openConnectModal],
+    [isConnected, status, address, connectAsync, connectors],
   );
 
   return { isConnected, requireConnection };

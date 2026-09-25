@@ -65,6 +65,16 @@ export function useFollow(initialFreeBalance: number, agentIds: number[] = []) {
     query: { enabled: live && !!address && agentIds.length > 0 },
   });
 
+  const followerReads = useReadContracts({
+    contracts: agentIds.map((id) => ({
+      address: addresses?.copyVault,
+      abi: copyVaultAbi,
+      functionName: "followersOf",
+      args: [BigInt(id)],
+    })),
+    query: { enabled: live && !!address && agentIds.length > 0 },
+  });
+
   const liveAllocated: Record<number, number> = {};
   agentIds.forEach((id, index) => {
     const result = allocationReads.data?.[index]?.result;
@@ -75,6 +85,17 @@ export function useFollow(initialFreeBalance: number, agentIds: number[] = []) {
   });
 
   const allocatedByAgent = live ? liveAllocated : mockAllocated;
+  const followingByAgent: Record<number, boolean> = {};
+  agentIds.forEach((id, index) => {
+    const result = followerReads.data?.[index]?.result;
+    if (Array.isArray(result) && address) {
+      followingByAgent[id] = result.some(
+        (follower) =>
+          typeof follower === "string" &&
+          follower.toLowerCase() === address.toLowerCase(),
+      );
+    }
+  });
   const freeBalance = live ? fromUsdg(freeRead.data ?? BigInt(0)) : mockFreeBalance;
 
   async function follow(
@@ -82,7 +103,9 @@ export function useFollow(initialFreeBalance: number, agentIds: number[] = []) {
     onProgress?: WriteProgress,
   ): Promise<{ txHash: string }> {
     const { agentId, capAmount, maxSlippageBps } = input;
-    const alreadyFollowing = (allocatedByAgent[agentId] ?? 0) > 0;
+    const alreadyFollowing = live
+      ? followingByAgent[agentId] === true
+      : Object.hasOwn(mockAllocated, agentId);
 
     if (
       alreadyFollowing ||
@@ -115,7 +138,11 @@ export function useFollow(initialFreeBalance: number, agentIds: number[] = []) {
     });
     onProgress?.({ stage: "submitted", txHash });
     await confirm(txHash);
-    await Promise.all([freeRead.refetch(), allocationReads.refetch()]);
+    await Promise.all([
+      freeRead.refetch(),
+      allocationReads.refetch(),
+      followerReads.refetch(),
+    ]);
     return { txHash };
   }
 
@@ -154,7 +181,11 @@ export function useFollow(initialFreeBalance: number, agentIds: number[] = []) {
     });
     onProgress?.({ stage: "submitted", txHash });
     await confirm(txHash);
-    await Promise.all([freeRead.refetch(), allocationReads.refetch()]);
+    await Promise.all([
+      freeRead.refetch(),
+      allocationReads.refetch(),
+      followerReads.refetch(),
+    ]);
     return { txHash };
   }
 

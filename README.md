@@ -2,7 +2,7 @@
 
 A tamper-proof, on-chain track record and a hard-capped copy vault for trading agents on Robinhood Chain Stock Tokens.
 
-**Tracks:** Overall Prize Track + Promising Products Track, deployed on Robinhood Chain (testnet 46630, mirrored to Arbitrum Sepolia 421614).
+**Tracks:** Overall Prize Track + Promising Products Track. The release targets Robinhood Chain testnet 46630 and an identical-bytecode mirror on Arbitrum Sepolia 421614; live deployment is still a release gate.
 
 You want exposure to a trading agent's Stock Token strategy, and all you have to go on is a PnL screenshot someone could have edited. Mirror replaces the screenshot with a ledger and the promise with a constraint. Every fill the agent makes is an on-chain event that nobody, including us, can edit. You copy it only inside a daily cap you set yourself. And the kill switch is guaranteed to free your funds, full stop.
 
@@ -12,7 +12,7 @@ A retail Robinhood user who wants exposure to a specific agent's Stock Token str
 
 ## The primitive
 
-Mirror writes every agent fill to an append-only on-chain ledger: no edit or delete function exists, by design, not by permission check. A follower copies an agent's trades only within a hard on-chain daily cap, a token allowlist, and a kill switch they set and control themselves. PolicyModule is programmable escrow over agent-directed spending: the agent never gets custody beyond that self-set number.
+Mirror writes runner-reported agent fills to an append-only on-chain ledger: no edit or delete function exists, by design, not by permission check. The V1 runner decides which fills and prices are reported; immutability begins once a fill is recorded. A follower's vault mirrors those fills only within a hard on-chain daily cap, a token allowlist, and a kill switch they set and control themselves. PolicyModule is programmable escrow over agent-directed spending: the agent never gets custody beyond that self-set number. V1 returns principal only; mirrored PnL is not withdrawable.
 
 A refusal is proof, not an error. When a fill would breach a follower's cap, the vault logs `MirrorRejected` with the exact reason on a mirroring transaction that succeeds for everyone else. The refusal lives on the same ledger as the trades.
 
@@ -44,7 +44,7 @@ Stated up front, not left for a judge to find:
 
 | Criterion | How Mirror addresses it |
 |---|---|
-| Smart contract quality & security | 4 contracts (AgentRegistry, TrackRecord, PolicyModule, CopyVault) with SafeERC20 and reentrancy guards. Foundry suites for append-only enforcement, the daily cap end to end, drain-beyond-cap, vault lifecycle, custody regression and withdraw, plus invariant runs on the registry, the track record and the policy module. |
+| Smart contract quality & security | 4 contracts (AgentRegistry, TrackRecord, PolicyModule, CopyVault) with SafeERC20 and reentrancy guards. Foundry suites for append-only enforcement, isolated over-cap rejection, the daily cap end to end, drain-beyond-cap, vault lifecycle, custody regression, withdrawal and solvency, plus invariant runs on the registry, the track record and the policy module. |
 | Product-market fit | A named user: a retail Robinhood user following an agent's Stock Token strategy, on Robinhood Chain's live Stock Tokens product. |
 | Innovation & creativity | A new on-chain rule, not a new UI on an old one: an append-only fill ledger plus programmable escrow over agent-directed spending. |
 | Real problem-solving | The loop closes live: a disallowed trade is refused on-chain and logged as `MirrorRejected`, the kill frees the principal, and every step has an explorer link. |
@@ -80,16 +80,12 @@ docs/         Design prompt, decisions, demo script, frontend gap list
 
 ## Local development
 
-Contracts and frontend are independent workspaces; see `contracts/README.md` for the contracts.
+See `contracts/README.md`, `frontend/README.md`, `runner/README.md`, and the
+[deployment/frontend handoff runbook](docs/deployment-frontend-handoff.md). Fixture mode is explicit
+and visibly bannered. A live frontend build fails until both finalized deployment manifests have
+generated non-zero address configuration.
 
-The frontend reads contract addresses from `deployments/<chainId>.json`, copied in automatically by `npm run dev` and `npm run build`. While those files hold zero addresses the app runs on fixture data, so it works with no chain at all. On a testnet, "Get test USDG" on the vault page mints MockUSDG to the connected wallet.
-
-To run the frontend against the real contracts on a local chain:
-
-1. `anvil --chain-id 46630`
-2. Deploy `MockUSDG`, `AgentRegistry`, `TrackRecord(registry, runner)`, then `PolicyModule(predictedVault, admin)` and `CopyVault(trackRecord, policyModule, usdg, runner)`. PolicyModule needs the vault's address before the vault exists, so predict it from the deployer's nonce (`cast compute-address <deployer> --nonce <n>`).
-3. Put the addresses in `deployments/46630.json` (don't commit them).
-4. `NEXT_PUBLIC_RH_RPC_URL=http://127.0.0.1:8545 npm run dev` in `frontend/`.
+On a testnet, "Get test USDG" on the vault page mints MockUSDG to the connected wallet.
 
 ## License
 

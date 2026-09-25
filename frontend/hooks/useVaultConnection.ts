@@ -3,7 +3,7 @@
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import type { Hex } from "viem";
 import { addressesFor, isDeployed, type MirrorAddresses } from "@/lib/contracts";
-import { TransactionRevertedError } from "@/lib/writeErrors";
+import { assertSuccessfulReceipt } from "@/lib/onchain";
 
 /**
  * How far along a write is, reported as it happens.
@@ -29,7 +29,7 @@ export type WriteProgress = (
  * publishes deployments/46630.json, and a write to the zero address doesn't
  * error, it succeeds, does nothing, and leaves the UI showing a balance
  * that never moved. `live` is false until every address a write touches is
- * real, and each hook keeps its mock path for that case.
+ * real, and each hook keeps its mock path only in explicit fixture mode.
  */
 export function useVaultConnection(): {
   live: boolean;
@@ -70,12 +70,12 @@ export function useVaultConnection(): {
   }) as typeof send;
 
   async function confirm(hash: Hex) {
-    if (!publicClient) return;
+    if (!publicClient) throw new Error("No public client is available to confirm the transaction");
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     // A reverted transaction still produces a receipt; without this check it
     // resolved like a success and the screen reported a change that never
     // happened.
-    if (receipt.status !== "success") throw new TransactionRevertedError(hash);
+    assertSuccessfulReceipt(receipt, hash);
   }
 
   return { live, address, addresses, writeContractAsync, publicClient, confirm };

@@ -1,0 +1,26 @@
+{
+  "schema": "mirror.strategy.v1",
+  "agent": "Drift",
+  "modelVersion": "drift-v1.0",
+  "strategyType": "pairs-rotation",
+  "description": "Rotate long-only exposure into the lagging side of the mAAPL/mTSLA ratio and exit on convergence.",
+  "universe": ["mAAPL", "mTSLA"],
+  "priceInput": {
+    "source": "MockAggregatorV3.latestRoundData",
+    "decimals": 8,
+    "tickOrder": "ascending-round-id"
+  },
+  "signal": {
+    "pair": ["mAAPL", "mTSLA"],
+    "ratioLookbackTicks": 5,
+    "enterAbsoluteDeviationBpsGreaterThan": 150,
+    "exitAbsoluteDeviationBpsLessThanOrEqual": 50
+  },
+  "execution": {
+    "longOnly": true,
+    "buySizeTokenUnits": "180000000000000000",
+    "sellSize": "full-held-position",
+    "maxFillsPerTokenPerOracleRound": 1,
+    "tieBreakSeed": "mirror:drift:v1.0"
+  }
+}

@@ -1,14 +1,12 @@
 import type { Abi, Address } from "viem";
-import robinhoodTestnetDeployment from "./deployments/46630.json";
-import anvilDeployment from "./deployments/31337.json";
+import { mirrorMode } from "@/lib/config";
+import { deployedAddresses } from "@/lib/deployments.generated";
 
 /**
- * Contract addresses per chain, read from /deployments/<chainId>.json.
+ * Contract addresses per chain.
  *
- * Jason owns those files (PRD §2). Going live is dropping the published file
- * in: no frontend edit, no hand-copied address, and a typo can't be
- * introduced in transit. Both files ship with zero addresses, which keeps the
- * app on its fixture path until they're filled in.
+ * Finalized /deployments manifests are copied into deployments.generated.ts
+ * by `npm run sync:deployments`. Until then live builds fail on these zeros.
  */
 export type MirrorAddresses = {
   agentRegistry: Address;
@@ -20,40 +18,17 @@ export type MirrorAddresses = {
 
 const ZERO = "0x0000000000000000000000000000000000000000" as Address;
 
-type DeploymentFile = {
-  chainId: number;
-  agentRegistry: string;
-  trackRecord: string;
-  policyModule: string;
-  copyVault: string;
-  usdg: string;
-};
-
-/**
- * Anything that isn't a 20-byte hex address becomes the zero address, so a
- * half-filled or malformed deployment file leaves the app on fixtures rather
- * than sending writes at a nonsense address.
- */
-function asAddress(value: string): Address {
-  return /^0x[0-9a-fA-F]{40}$/.test(value) ? (value as Address) : ZERO;
-}
-
-function fromDeployment(file: DeploymentFile): MirrorAddresses {
-  return {
-    agentRegistry: asAddress(file.agentRegistry),
-    trackRecord: asAddress(file.trackRecord),
-    policyModule: asAddress(file.policyModule),
-    copyVault: asAddress(file.copyVault),
-    usdg: asAddress(file.usdg),
-  };
-}
-
 export const addresses: Record<number, MirrorAddresses> = {
-  [robinhoodTestnetDeployment.chainId]: fromDeployment(
-    robinhoodTestnetDeployment,
-  ),
-  // Local anvil, for running the real contracts against a local chain.
-  [anvilDeployment.chainId]: fromDeployment(anvilDeployment),
+  46630: deployedAddresses[46630],
+  421614: deployedAddresses[421614],
+  // Local anvil: deploy stubs here while waiting for the testnet deploy.
+  31337: {
+    agentRegistry: ZERO,
+    trackRecord: ZERO,
+    policyModule: ZERO,
+    copyVault: ZERO,
+    usdg: ZERO,
+  },
 };
 
 export function addressesFor(chainId: number): MirrorAddresses | undefined {
@@ -67,7 +42,15 @@ export function addressesFor(chainId: number): MirrorAddresses | undefined {
  * rather than look live while doing nothing.
  */
 export function isDeployed(address?: Address): boolean {
-  return !!address && address !== ZERO;
+  return mirrorMode === "live" && !!address && address !== ZERO;
+}
+
+if (mirrorMode === "live") {
+  for (const [name, address] of Object.entries(addresses[46630])) {
+    if (address === ZERO) {
+      throw new Error(`Live Mirror build has no Robinhood address for ${name}`);
+    }
+  }
 }
 
 export const agentRegistryAbi = [
@@ -139,19 +122,16 @@ export const trackRecordAbi = [
   },
   {
     type: "function",
-    name: "fillCount",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    // The real total for one agent, what "Showing 50 of {N}" needs.
-    // fillCount() is global; useAgents' own fill counts are capped at
-    // whatever sample it read, not this.
-    type: "function",
     name: "fillCountByAgent",
     stateMutability: "view",
     inputs: [{ name: "agentId", type: "uint256" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "fillCount",
+    stateMutability: "view",
+    inputs: [],
     outputs: [{ name: "", type: "uint256" }],
   },
   {

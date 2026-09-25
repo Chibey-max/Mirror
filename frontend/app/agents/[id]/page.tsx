@@ -56,7 +56,7 @@ export default function AgentDetailPage({
   // deployed; the simulate buttons below are the demo stand-in until then.
   const { rejection, clear: clearRejection } = useMirrorRejection(agentId);
   // Per-fill: mirrored, blocked, or never touched this vault (§7.1).
-  const mirrorOutcomes = useMirrorOutcomes(agentId);
+  const { outcomes: mirrorOutcomes } = useMirrorOutcomes(agentId);
 
   const {
     walletBalance,

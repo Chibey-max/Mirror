@@ -62,7 +62,7 @@ export default function VaultPage() {
   );
 
   const agentNames = Object.fromEntries(agents.map((a) => [a.id, a.name]));
-  const { rows: mirrorRows } = useMyMirrors(followedIds, agentNames);
+  const { rows: mirrorRows, outcomesLoaded } = useMyMirrors(followedIds, agentNames);
 
   const [depositOpen, setDepositOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
@@ -212,7 +212,7 @@ export default function VaultPage() {
             description="Every fill from every agent you follow, and what it did to your vault."
           />
           <Reveal>
-            <YourMirrors rows={mirrorRows} />
+            <YourMirrors rows={mirrorRows} outcomesLoaded={outcomesLoaded} />
           </Reveal>
         </section>
       </main>

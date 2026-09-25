@@ -10,12 +10,13 @@ Recorded for submission (PRD §10). Copy freezes on Day 17 (Sun 27 Sep). Structu
 | 0:25–0:35 | Follow | Follow Pulse with a 50 USDG cap. Hold on the safety sentence above the sign button. | "Pulse can move at most fifty dollars of my vault a day, and I can kill it any time." | `FollowModal` |
 | 0:35–0:45 | Fill | A fill lands and the row reads "mirrored to your vault". Cut to the explorer on the real event. | "Every fill is an on-chain event nobody can edit, including us." | `FillFeed`, `TrustBadge` |
 | 0:45–1:00 | Reject | A disallowed buy: the fill lands for everyone else, your row reads "blocked by your policy", the banner shows the exact cause. Open the explorer on the `MirrorRejected` log of the successful `mirrorFill` transaction. | "The refusal isn't an error, it's on the ledger. Pact bounds risk between agents. Mirror bounds a human's risk when copying one." | `PolicyRejectBanner`, `FillFeed` |
-| 1:00–1:15 | Unlock | "Kill follow · release principal", the chain reads go green, principal is back in free balance, withdraw to wallet. | "The kill switch is guaranteed to free your funds, full stop." | `KillButton`, `WithdrawModal` |
+| 1:00–1:15 | Unlock | "Kill follow · release principal", then the three fresh reads go green (`getPolicy().active` false, `allocationOf` zero, wallet gone from `followersOf`), principal is back in free balance, withdraw to wallet. | "The kill switch is guaranteed to free your funds, full stop." | `KillButton`, `WithdrawModal` |
 | 1:15–1:30 | Primitive | Logo card, then one roadmap line. | "If you deleted this UI right now, the ledger and the cap would still exist as infrastructure anyone on Robinhood Chain could build on. That's the part that is new." Then: "Next: mainnet in 30 days, a keeper network instead of our runner in 60." | n/a |
 
 ## Rehearsal notes
 
-- The app goes live on its own once `deployments/46630.json` has real addresses: `npm run dev` should print `chain 46630 -> 5/5 addresses`. With zero addresses it silently runs on fixtures, so check that line before recording.
-- The fill and reject beats need `CopyVault.mirrorFill` implemented and the runner seeding fills. Until then, the reject beat can use the "Simulate {reason}" buttons on `/agents/[id]`. They sit in a box labelled "Demo controls · not part of the product"; keep them looking like that on camera.
+- Record in live mode (`NEXT_PUBLIC_MIRROR_MODE=live`) with explorer-backed transactions. Fixture mode is for rehearsal only, and its banner says so on screen.
+- The kill proof is the three fresh reads, not a rejection: after `unfollow` the wallet is out of the follower loop, so a later fill emits no `PolicyInactive` for it.
+- The fill and reject beats need the runner seeding fills on the live deployment. For rehearsal, the "Simulate {reason}" buttons on `/agents/[id]` stand in for the reject beat. They sit in a box labelled "Demo controls · not part of the product"; keep them looking like that on camera.
 - The unlock beat's line is the pitch. Don't soften it to "capital safety".
 - Leaderboard isn't in the 90-second cut, but `/leaderboard` shows Red's loss with a "Losing agent" badge if the edit needs a cutaway.

@@ -28,7 +28,7 @@ Study these for layout, interaction patterns and overall feel. Mirror keeps its 
 | **Uniswap**: https://app.uniswap.org | Minimal centered action cards (amount input, Max, one primary button), inline validation, and how the flow goes from approval to transaction to confirmation |
 | **Hyperliquid**: https://app.hyperliquid.xyz | Dense but readable trading tables, live trade feeds, mono numerals, and leaderboard presentation |
 | **Polymarket**: https://polymarket.com | Card grids for browsing items (our agent cards), big % figures, and a leaderboard page |
-| **Rainbow / RainbowKit**: https://rainbowkit.com | The wallet-connect modal and the wrong-network "switch chain" pattern. We use RainbowKit, so match its structure |
+| **Wagmi + WalletConnect**: https://wagmi.sh | The wallet picker and wrong-network switch pattern use the app's own UI over Wagmi connectors |
 | **Etherscan / Blockscout**: https://arbitrum.blockscout.com | What the explorer link lands on. Our tx and fill links should feel like a natural hand-off to it |
 
 ## Visual direction
@@ -47,9 +47,9 @@ Blend the references above into Mirror's own look: **dark, calm, confident, very
 - **Network**: Robinhood Chain Testnet (chain ID 46630)
 - **Stablecoin**: USDG (6 decimals). **Stock tokens**: mNVDA, mAAPL, mTSLA
 - **Agents** (exactly 3):
-  - **Pulse**: momentum strategy, **winner**. +18.4% all-time, 142 fills. Model version `pulse-v1.2`, strategy hash `0x7a3f…c91e`
-  - **Red**: mean-reversion strategy, **the loser, shown honestly**. −11.7% all-time, 128 fills. Model version `red-v1.0`, strategy hash `0x4be0…2d07`
-  - **Drift**: pairs strategy, roughly flat. +1.2%, 37 fills
+  - **Pulse**: momentum strategy, **winner**. +18.4% all-time, 142 fills. Model version `pulse-v1.2`, strategy hash `0x8d32…d0c3`
+  - **Red**: mean-reversion strategy, **the loser, shown honestly**. −11.7% all-time, 128 fills. Model version `red-v1.0`, strategy hash `0xacbf…69f9`
+  - **Drift**: pairs strategy, roughly flat. +1.2%, 37 fills. Model version `drift-v1.0`, strategy hash `0xe394…a573`
 - **Wallet**: `0x9F2c…41aB`. Wallet USDG 250.00, vault free balance 150.00, allocated to Pulse 50.00
 - **Example fill**: BUY 0.42 mNVDA @ $128.41 · 2 min ago · block #1,284,392 · tx `0x5c1e…a9f0`
 
@@ -61,7 +61,7 @@ Blend the references above into Mirror's own look: **dark, calm, confident, very
 - A live strip shows the three agents with sparkline, PnL and fill count, including Red in red.
 - A "How it works" section with three beats matching the three claims: Verifiable, Capped, Honest.
 - A trust footer: "Deployed on Robinhood Chain testnet · Contracts verified · Open source", with explorer links.
-- **Connect wallet modal**: a wallet picker in RainbowKit style, with MetaMask, Rabby, Coinbase Wallet and WalletConnect.
+- **Connect wallet control**: offer an injected browser wallet and WalletConnect, with an explicit wrong-network switch state.
 
 ### 2. Wrong-network guard
 - If the wallet is on the wrong chain (for example Ethereum mainnet), block the whole app with an overlay: "You're on Ethereum. Mirror runs on Robinhood Chain testnet." It needs one big button, **Switch to Robinhood Chain testnet**. No instructions to read.
@@ -118,7 +118,7 @@ Blend the references above into Mirror's own look: **dark, calm, confident, very
 ### 10. Kill switch / unfollow
 - A **Kill follow** button in coral with a confirmation step: "Stop following Pulse? Your 50 USDG allocation returns to your free balance immediately."
 - States: confirm, signing, pending, then **Killed**. After confirmation show a solid badge: **"This agent can no longer move your funds"**, with a small "Verified on-chain just now" note (from a fresh contract read) and a tx link.
-- Also show a **blocked mirror attempt after the kill**: the PolicyInactive banner appears on the killed follow, proving the kill works.
+- After kill, prove the exit with fresh reads: policy inactive, allocation zero, and the wallet absent from the follower list. The killed follower is no longer in the mirror loop, so no later PolicyInactive event is expected.
 
 ### 11. Withdraw modal
 - Amount input with Max (free balance only). Any amount above the free balance disables the button, with the inline message "Max withdrawable is 150.00 USDG".
@@ -138,11 +138,11 @@ Blend the references above into Mirror's own look: **dark, calm, confident, very
 - A pending-transaction indicator in the header.
 
 ## Prototype flow to wire up
-Landing → Connect → Wrong network → Switch → Agents → Pulse detail → Deposit (approve → deposit → success) → Follow Pulse with a $50 cap → a live fill lands and the balance updates → a trade over the cap is blocked by the **CapExceeded banner** → Leaderboard (Red in the red) → back to Pulse → **Kill follow** → "This agent can no longer move your funds" → **PolicyInactive** banner on a mirror attempt → **Withdraw** → success.
+Landing → Connect → Wrong network → Switch → Agents → Pulse detail → Deposit (approve → deposit → success) → Follow Pulse with a $50 cap → a live fill lands and the balance updates → a trade over the cap is blocked by the **CapExceeded banner** → Leaderboard (Red in the red) → back to Pulse → **Kill follow** → "This agent can no longer move your funds" → show inactive policy, zero allocation and follower-list absence → **Withdraw** → success.
 
 ## Deliverables
 1. Every screen and state above, desktop and mobile, arranged as a flow on the canvas.
 2. A small **design-system sheet**: color tokens, type scale, buttons (primary, secondary, destructive, disabled, loading), inputs (default, focus, error), badges (Verified, Following, Losing agent, Killed), table rows, toasts, modals/bottom sheets and the chart component.
 3. Use the exact copy given for error messages and badges. Use the sample data above everywhere else and label it as sample.
 
-The target stack is Next.js + Tailwind + RainbowKit, so keep components practical to build: standard spacing, 8px base radius, 44px minimum tap targets on mobile.
+The target stack is Next.js + Tailwind + Wagmi/Viem, so keep components practical to build: standard spacing, 8px base radius, 44px minimum tap targets on mobile.

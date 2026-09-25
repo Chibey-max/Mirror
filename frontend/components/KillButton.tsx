@@ -135,19 +135,17 @@ export function KillButton({
 
   if (stage === "error") {
     return (
-      <div>
+      <div className="space-y-2">
+        <p role="alert" className="text-sm text-loss">
+          {errorMessage ?? "Kill did not confirm on-chain."}
+        </p>
         <MetalButton
           tone="danger"
           fullWidth
           onClick={() => setStage("confirming")}
         >
-          Kill didn&apos;t confirm. Try again
+          Try again
         </MetalButton>
-        {errorMessage && (
-          <p role="alert" className="mt-2 text-xs text-loss">
-            {errorMessage}
-          </p>
-        )}
       </div>
     );
   }

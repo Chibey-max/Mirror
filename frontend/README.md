@@ -1,36 +1,31 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mirror frontend
 
-## Getting Started
+Next.js 16 frontend for the Mirror registry, tape, policies, and vault. It uses Wagmi/Viem with injected-wallet and WalletConnect connectors; RainbowKit was removed to eliminate its vulnerable production dependency tree.
 
-First, run the development server:
+## Local fixture mode
 
 ```bash
+cp .env.example .env.local
+npm ci
+npm run lint
+npm test
+npm run build
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Keep `NEXT_PUBLIC_MIRROR_MODE=fixture` until live manifests exist. Fixture mode has an unavoidable page banner and `isDeployed` remains false, so simulated content cannot be mistaken for contract-backed state.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Live mode
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+These integration steps belong to the frontend owner. The contract/deployment owner hands off
+the finalized manifests and verified contract addresses; they do not own frontend configuration
+or wallet/UI smoke testing.
 
-## Learn More
+1. Confirm the deployment owner has committed finalized `deployments/46630.json` and `deployments/421614.json` manifests derived from mined receipts.
+2. Run `npm run sync:deployments`; do not edit `lib/deployments.generated.ts` by hand.
+3. Set `NEXT_PUBLIC_MIRROR_MODE=live`, a real WalletConnect project ID, and the public RPC/explorer endpoints.
+4. Run `npm run check:abi`, `npm audit --omit=dev`, tests, lint, and a production build.
 
-To learn more about Next.js, take a look at the following resources:
+Live mode throws during build if any Robinhood core address remains zero or WalletConnect configuration is absent. The frontend never receives deployer, admin, runner, or registrar keys.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Prices from TrackRecord use 8 decimals. USDG balances, caps, and notional use 6. Every wallet write requires a successful mined receipt; a status-0 receipt is shown as failure.
