@@ -69,6 +69,12 @@ export type SingularityHorizonProps = {
   particles?: number;
   /** Drag to orbit the camera. */
   interactive?: boolean;
+  /**
+   * Most render pixels allowed, see PIXEL_BUDGET. A dimmed background copy
+   * can take far fewer: at 40% opacity under a mask, nobody can tell a
+   * lower-resolution ring from a sharp one.
+   */
+  pixelBudget?: number;
   className?: string;
 };
 
@@ -132,7 +138,7 @@ const FOV = (20 * Math.PI) / 180;
  * are soft sprites; rendering slightly under native and letting CSS scale up
  * costs almost nothing visually.
  */
-const PIXEL_BUDGET = 4_200_000;
+const PIXEL_BUDGET = 3_200_000;
 
 /**
  * The ring's radial structure: [radius, spread, share]. Particles are drawn
@@ -614,6 +620,7 @@ export function SingularityHorizon({
   hud = false,
   particles = 64000,
   interactive = false,
+  pixelBudget = PIXEL_BUDGET,
   className = "",
 }: SingularityHorizonProps) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
@@ -621,6 +628,20 @@ export function SingularityHorizon({
   const [index, setIndex] = React.useState(0);
   const [generation, setGeneration] = React.useState(0);
   const [failed, setFailed] = React.useState(false);
+  // WebGL setup (shader compile, tens of thousands of particles built on the
+  // CPU) is the heaviest thing a page does, and running it in the same task
+  // as navigation held the new page's first paint back and stuttered the
+  // route change. It waits for an idle moment instead, after the page has
+  // painted, and the canvas fades in once its first frame is drawn.
+  const [ready, setReady] = React.useState(false);
+  React.useEffect(() => {
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(() => setReady(true), { timeout: 600 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = window.setTimeout(() => setReady(true), 120);
+    return () => window.clearTimeout(id);
+  }, []);
 
   const cycle = states.length ? states : MIRROR_SINGULARITY_STATES;
   const current = cycle[index % cycle.length];
@@ -643,7 +664,7 @@ export function SingularityHorizon({
 
   React.useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !ready) return;
 
     const gl = canvas.getContext("webgl2", {
       antialias: false,
@@ -850,7 +871,7 @@ export function SingularityHorizon({
       const cssW = Math.max(1, canvas.clientWidth);
       const cssH = Math.max(1, canvas.clientHeight);
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      pxScale = Math.min(dpr, Math.sqrt(PIXEL_BUDGET / (cssW * cssH)));
+      pxScale = Math.min(dpr, Math.sqrt(pixelBudget / (cssW * cssH)));
       const w = Math.max(1, Math.round(cssW * pxScale));
       const h = Math.max(1, Math.round(cssH * pxScale));
       // Keyed on the size attempted, not on success: if the targets can't be
@@ -1010,13 +1031,35 @@ export function SingularityHorizon({
       }
       gl.bindVertexArray(null);
 
-      if (!reduced) raf = requestAnimationFrame(draw);
+      if (!shown) {
+        shown = true;
+        canvas.style.opacity = "1";
+      }
+      if (!reduced && onScreen) raf = requestAnimationFrame(draw);
     };
 
     // Under reduced motion nothing loops: frames are drawn on demand.
     const kick = () => {
       if (!raf) raf = requestAnimationFrame(draw);
     };
+    let shown = false;
+    // Off screen, the loop stops outright. On inner pages the planet is
+    // scrolled away within a screen, and drawing a full HDR frame plus bloom
+    // every vsync behind content nobody can see was most of the page's GPU
+    // time, time the browser needed for scrolling. `last` is reset so the
+    // first frame back doesn't jump by the time spent away.
+    let onScreen = true;
+    const visibility = new IntersectionObserver(([entry]) => {
+      onScreen = entry.isIntersecting;
+      if (onScreen) {
+        last = 0;
+        kick();
+      } else if (raf) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+      }
+    });
+    visibility.observe(canvas);
     kick();
 
     const observer = new ResizeObserver(kick);
@@ -1067,6 +1110,7 @@ export function SingularityHorizon({
     return () => {
       cancelAnimationFrame(raf);
       observer.disconnect();
+      visibility.disconnect();
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
@@ -1092,7 +1136,7 @@ export function SingularityHorizon({
       gl.deleteVertexArray(coreVao);
       gl.deleteVertexArray(screenVao);
     };
-  }, [particles, interactive, reduced, generation]);
+  }, [particles, interactive, reduced, generation, ready, pixelBudget]);
 
   return (
     <div
@@ -1115,7 +1159,7 @@ export function SingularityHorizon({
         <canvas
           ref={canvasRef}
           aria-hidden="true"
-          className={`absolute inset-0 block h-full w-full ${
+          className={`absolute inset-0 block h-full w-full opacity-0 transition-opacity duration-700 ease-out motion-reduce:transition-none ${
             interactive ? "cursor-grab touch-none active:cursor-grabbing" : ""
           }`}
         />

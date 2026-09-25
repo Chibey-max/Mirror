@@ -127,7 +127,7 @@ const CURL = 0.6;
  * scrolls away, and it ends at a fixed viewport point, so the settled field
  * stays put instead of scrolling off with the hero.
  *
- * Positions come from a persistent requestAnimationFrame loop in which each
+ * Positions come from a requestAnimationFrame loop in which each
  * star glides toward its scroll-derived target on its own time constant,
  * rather than from a scroll event listener writing raw positions: scroll
  * events arrive in bursts the input device decides on, so writing straight
@@ -166,6 +166,18 @@ export function Starfield() {
     const velY = new Float32Array(count);
     let lastTime: number | null = null;
 
+    // The loop runs only while something is moving. Once every star has
+    // caught up with the scroll and its streak has relaxed, it stops, and
+    // the next scroll or resize starts it again. Left running, it rewrote 200
+    // transforms and forced a layout read every frame on a page that wasn't
+    // moving, which is main-thread time scrolling had to share.
+    const wake = () => {
+      if (rafRef.current == null) {
+        lastTime = null;
+        rafRef.current = requestAnimationFrame(frame);
+      }
+    };
+
     function frame(now: number) {
       // Real elapsed time, so the glide is the same speed at 60Hz and 120Hz;
       // capped so returning to a background tab doesn't jump a whole second.
@@ -182,6 +194,7 @@ export function Starfield() {
       const velocityFollow = 1 - Math.exp(-dt / 0.12);
 
       const field = stars!;
+      let moving = false;
       for (let i = 0; i < count; i++) {
         const el = starRefs.current[i];
         if (!el) continue;
@@ -199,6 +212,7 @@ export function Starfield() {
           ? target
           : previous + (target - previous) * (1 - Math.exp(-dt / star.glide));
         shown[i] = current;
+        if (Math.abs(target - current) > 1e-4) moving = true;
         const eased = easeInOutSine(current);
 
         // Launch point: fixed to the ring itself, in the direction of where
@@ -247,6 +261,7 @@ export function Starfield() {
         lastX[i] = x;
         lastY[i] = y;
         const speed = Math.hypot(velX[i], velY[i]) / (dt * 60);
+        if (speed > 0.02) moving = true;
         const stretch = 1 + Math.min(speed * 0.3, 3.5);
         const heading = Math.atan2(velY[i], velX[i]);
 
@@ -262,12 +277,17 @@ export function Starfield() {
         el.style.opacity = visible.toFixed(3);
       }
 
-      rafRef.current = requestAnimationFrame(frame);
+      rafRef.current = moving ? requestAnimationFrame(frame) : null;
     }
 
     rafRef.current = requestAnimationFrame(frame);
+    window.addEventListener("scroll", wake, { passive: true });
+    window.addEventListener("resize", wake);
     return () => {
+      window.removeEventListener("scroll", wake);
+      window.removeEventListener("resize", wake);
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
     };
   }, [stars, reduced]);
 
