@@ -35,7 +35,7 @@ export function InfoTooltip({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-10 mt-2 w-64 panel rounded-2xl p-3 text-xs text-muted">
+        <div className="absolute left-0 top-full z-10 mt-2 w-64 panel panel-static rounded-2xl p-3 text-xs text-muted">
           {text}
         </div>
       )}

@@ -100,7 +100,7 @@ export default function AgentsPage() {
         {isLoading && (
           <div className="mt-8 grid gap-4 md:grid-cols-3" aria-label="Loading agents">
             {Array.from({ length: 3 }).map((_, index) => (
-              <div key={index} className="h-56 panel rounded-3xl" />
+              <div key={index} className="h-56 panel panel-static rounded-3xl" />
             ))}
           </div>
         )}

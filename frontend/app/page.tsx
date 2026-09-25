@@ -256,7 +256,7 @@ export default function Home() {
             {claims.map(({ title, contract, body, Icon }) => (
               <div
                 key={title}
-                className="panel flex flex-col gap-3 rounded-3xl p-6"
+                className="lift panel flex flex-col gap-3 rounded-3xl p-6"
               >
                 <span className="flex h-10 w-10 items-center justify-center rounded-full border border-border text-chrome">
                   <Icon />
@@ -311,7 +311,7 @@ export default function Home() {
           <div className="mt-8 grid gap-4 sm:grid-cols-3">
             {contrasts.map((row, index) => (
               <Reveal key={row.category} delayMs={index * 90}>
-                <div className="panel flex h-full flex-col gap-3 rounded-3xl p-6">
+                <div className="lift panel flex h-full flex-col gap-3 rounded-3xl p-6">
                   <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted">
                     {row.category}
                   </p>

@@ -165,7 +165,7 @@ export default function VaultPage() {
 
                 return (
                   <Reveal key={id} delayMs={index * 70}>
-                    <li className="panel rounded-2xl p-4">
+                    <li className="group lift panel rounded-2xl p-4">
                       <div className="flex items-center justify-between gap-3">
                         <Link
                           href={`/agents/${id}`}

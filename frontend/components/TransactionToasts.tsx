@@ -175,7 +175,7 @@ function TransactionToastHost() {
       {records.map((record) => (
         <div
           key={record.id}
-          className={`panel pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl px-4 py-3 ${
+          className={`panel panel-static pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl px-4 py-3 ${
             record.status === "error" ? "border-loss/40" : ""
           }`}
         >

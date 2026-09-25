@@ -93,7 +93,7 @@ export function WithdrawModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="withdraw-title"
-        className="animate-[sheetUp_0.2s_ease-out] w-full max-w-sm panel rounded-t-3xl p-6 sm:rounded-3xl"
+        className="animate-[sheetUp_0.2s_ease-out] w-full max-w-sm panel panel-static rounded-t-3xl p-6 sm:rounded-3xl"
       >
         {stage === "success" ? (
           <>
