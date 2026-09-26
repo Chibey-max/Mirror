@@ -67,9 +67,10 @@ function connectorHint(connector: Connector): string {
 export function WalletConnectButton({
   menuAlign = "end",
 }: {
-  /** Where the menu opens: under the button's right edge (the header) or
-   *  centred under it (the hero, where the button isn't at a screen edge). */
-  menuAlign?: "end" | "center";
+  /** Which of the button's edges the menu lines up with: the right in the
+   *  header (the button sits at the right of the screen), the left in the
+   *  hero (it's the left of a centred pair, so centring ran off screen). */
+  menuAlign?: "end" | "start";
 } = {}) {
   const { address, chainId, isConnected } = useAccount();
   const { connectors, connect, isPending, error: connectError } = useConnect();
@@ -125,7 +126,7 @@ function ConnectMenu({
   options: { key: string; label: string; hint: string; onSelect: () => void }[];
   disabled: boolean;
   error?: string;
-  align: "end" | "center";
+  align: "end" | "start";
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -164,7 +165,7 @@ function ConnectMenu({
           id={menuId}
           role="menu"
           className={`panel panel-static absolute top-full z-40 mt-2 w-64 max-w-[calc(100vw-2rem)] rounded-2xl p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.6)] motion-safe:animate-[tipIn_140ms_ease-out] ${
-            align === "center" ? "left-1/2 -translate-x-1/2" : "right-0"
+            align === "start" ? "left-0" : "right-0"
           }`}
         >
           {options.length === 0 && (
