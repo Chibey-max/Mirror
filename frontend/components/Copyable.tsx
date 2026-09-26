@@ -27,7 +27,7 @@ export function InfoTooltip({
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         onBlur={() => setOpen(false)}
-        className="text-muted transition hover:text-text"
+        className="-m-2.5 p-2.5 text-muted transition hover:text-text"
       >
         <span className="flex h-4 w-4 items-center justify-center rounded-full border border-chrome-dim text-[10px] leading-none">
           i
@@ -35,7 +35,7 @@ export function InfoTooltip({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-10 mt-2 w-64 panel panel-static rounded-2xl p-3 text-xs text-muted">
+        <div className="absolute right-0 top-full z-10 mt-2 w-64 max-w-[calc(100vw-2rem)] panel panel-static rounded-2xl p-3 text-xs text-muted">
           {text}
         </div>
       )}
@@ -92,7 +92,7 @@ export function CopyableHash({
       onClick={handleCopy}
       aria-label={copied ? "Copied" : label}
       title={value}
-      className="tabular inline-flex items-center gap-1.5 text-inherit outline-none transition-colors hover:text-text focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent/60 focus-visible:outline-offset-2"
+      className="tabular -my-2 inline-flex items-center gap-1.5 py-2 text-inherit outline-none transition-colors hover:text-text focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent/60 focus-visible:outline-offset-2"
     >
       <span className="truncate">{copied ? "Copied" : shown}</span>
       <svg

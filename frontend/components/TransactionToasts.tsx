@@ -170,7 +170,7 @@ function TransactionToastHost() {
   return (
     <div
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex flex-col items-center gap-2 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:items-end sm:px-6"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex flex-col items-center gap-2 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+5.75rem)] sm:items-end sm:pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:px-6"
     >
       {records.map((record) => (
         <div

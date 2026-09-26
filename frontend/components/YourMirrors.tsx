@@ -100,7 +100,7 @@ export function YourMirrors({
             <div className="flex items-center justify-between gap-3">
               <a
                 href={`/agents/${row.agentId}`}
-                className="font-medium text-text hover:text-accent"
+                className="-my-2 py-2 font-medium text-text hover:text-accent"
               >
                 {row.agentName}
               </a>
@@ -115,14 +115,14 @@ export function YourMirrors({
               {row.size} {row.token}{" "}
               <span className="text-muted">@ ${row.price}</span>
             </p>
-            <div className="mt-2 flex items-center justify-between gap-3">
+            <div className="mt-2 flex items-start justify-between gap-3">
               <MirrorOutcomeCell row={row} outcomesLoaded={outcomesLoaded} />
               {row.outcome?.status !== "skipped" && row.outcome?.txHash && (
                 <a
                   href={txUrl(row.outcome.txHash)}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-xs text-accent hover:underline"
+                  className="-my-2 flex-none whitespace-nowrap py-3 text-xs text-accent hover:underline"
                 >
                   Open tx
                 </a>

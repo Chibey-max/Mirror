@@ -45,6 +45,14 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Room at the foot of every page on a phone for the fixed bottom tab bar
+   (SiteHeader), so the footer and the last row aren't hidden behind it. */
+@media (max-width: 639px) {
+  body {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 /* Numbers (prices, sizes, balances) line up column to column. */
 .tabular {
   font-family: var(--font-mono);

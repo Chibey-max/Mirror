@@ -18,8 +18,16 @@ export function TrustBadge({
   return (
     <div className="inline-flex items-center gap-2">
       <Badge variant="verified">
-        ✓ {fillCount} fills · 0 edits · verified through block #
-        {verifiedThroughBlock.toLocaleString()}
+        {/* Shorter on a phone, where the full sentence wrapped into a
+            two-line pill. */}
+        <span className="sm:hidden">
+          ✓ {fillCount} fills · 0 edits · block #
+          {verifiedThroughBlock.toLocaleString()}
+        </span>
+        <span className="hidden sm:inline">
+          ✓ {fillCount} fills · 0 edits · verified through block #
+          {verifiedThroughBlock.toLocaleString()}
+        </span>
       </Badge>
       <InfoTooltip text="The ledger has no edit or delete function. Fills can only be appended, so a track record cannot be revised after the fact." />
     </div>

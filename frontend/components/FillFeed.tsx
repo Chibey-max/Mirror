@@ -91,40 +91,54 @@ export function FillFeed({
           return (
             <li
               key={fill.id}
-              className={`motion-reduce:animate-none animate-[rowIn_0.25s_ease-out] lift panel flex items-center justify-between gap-3 rounded-2xl px-4 py-3 ${
+              className={`motion-reduce:animate-none animate-[rowIn_0.25s_ease-out] lift panel flex items-start gap-3 rounded-2xl px-4 py-3 sm:items-center ${
                 outcome?.status === "rejected" ? "border-loss/40" : ""
               }`}
             >
-              <div className="flex items-center gap-3">
-                <Badge variant={fill.side === "BUY" ? "buy" : "sell"}>
-                  {fill.side}
-                </Badge>
-                <div>
-                  <p className="text-sm text-text">
-                    {fill.size} {fill.token}{" "}
-                    <span className="tabular text-muted">@ ${fill.price}</span>
-                    <OutcomeTag outcome={outcome} />
+              <Badge variant={fill.side === "BUY" ? "buy" : "sell"}>
+                {fill.side}
+              </Badge>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-text">
+                  {fill.size} {fill.token}{" "}
+                  <span className="tabular text-muted">@ ${fill.price}</span>
+                  <OutcomeTag outcome={outcome} />
+                </p>
+                {outcome?.status === "rejected" && (
+                  <p className="mt-0.5 text-xs text-loss/80">
+                    {reasonClause(outcome.reason)} · enforced on-chain by{" "}
+                    {enforcedBy(outcome.reason)}
                   </p>
-                  {outcome?.status === "rejected" && (
-                    <p className="mt-0.5 text-xs text-loss/80">
-                      {reasonClause(outcome.reason)} · enforced on-chain by{" "}
-                      {enforcedBy(outcome.reason)}
-                    </p>
-                  )}
-                  {outcome?.status === "skipped" && (
-                    <p className="mt-0.5 text-xs text-muted">{outcome.note}</p>
+                )}
+                {outcome?.status === "skipped" && (
+                  <p className="mt-0.5 text-xs text-muted">{outcome.note}</p>
+                )}
+                {/* On a phone the time and link drop under the text, a
+                    right-hand column squeezed the sentence into a sliver. */}
+                <div className="mt-1.5 flex items-center gap-3 text-xs text-muted sm:hidden">
+                  <span>{fill.time}</span>
+                  {fill.txHash && (
+                    <a
+                      href={txUrl(fill.txHash)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="-my-2 py-2 text-accent hover:underline"
+                    >
+                      Open tx ↗
+                    </a>
                   )}
                 </div>
               </div>
 
-              <div className="flex flex-none items-center gap-3 text-xs text-muted">
+              <div className="hidden flex-none items-center gap-1 text-xs text-muted sm:flex">
                 <span>{fill.time}</span>
                 {fill.txHash && (
                   <a
                     href={txUrl(fill.txHash)}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-accent hover:underline"
+                    aria-label="Open transaction"
+                    className="inline-flex size-8 items-center justify-center rounded-full text-accent transition-colors hover:bg-accent/10"
                   >
                     ↗
                   </a>

@@ -136,7 +136,7 @@ export default function AgentsPage() {
                   type="button"
                   aria-pressed={sort === key}
                   onClick={() => setSort(key)}
-                  className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                  className={`h-9 rounded-full border px-3.5 text-xs transition-colors sm:h-auto sm:py-1 ${
                     sort === key
                       ? "border-accent/50 bg-accent/10 text-accent"
                       : "border-border text-muted hover:text-text"
