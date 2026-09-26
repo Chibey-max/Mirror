@@ -148,7 +148,7 @@ export default function Home() {
 
       <SiteHeader />
 
-      <main id="main-content" tabIndex={-1} className="outline-none mx-auto flex w-full max-w-7xl flex-1 flex-col gap-12 px-5 py-10 sm:px-10 sm:py-12">
+      <main id="main-content" tabIndex={-1} className="relative z-10 outline-none mx-auto flex w-full max-w-7xl flex-1 flex-col gap-12 px-5 py-10 sm:px-10 sm:py-12">
         <section className="relative flex min-h-[92svh] flex-col items-center pt-[36svh] pb-2 text-center sm:pt-[18svh]">
           {/*
             The copy sits in its own stacking context above the canvas, which
@@ -256,7 +256,7 @@ export default function Home() {
             {claims.map(({ title, contract, body, Icon }) => (
               <div
                 key={title}
-                className="panel flex flex-col gap-3 rounded-3xl p-6"
+                className="lift panel flex flex-col gap-3 rounded-3xl p-6"
               >
                 <span className="flex h-10 w-10 items-center justify-center rounded-full border border-border text-chrome">
                   <Icon />
@@ -311,7 +311,7 @@ export default function Home() {
           <div className="mt-8 grid gap-4 sm:grid-cols-3">
             {contrasts.map((row, index) => (
               <Reveal key={row.category} delayMs={index * 90}>
-                <div className="panel flex h-full flex-col gap-3 rounded-3xl p-6">
+                <div className="lift panel flex h-full flex-col gap-3 rounded-3xl p-6">
                   <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted">
                     {row.category}
                   </p>

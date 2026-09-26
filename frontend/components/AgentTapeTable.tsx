@@ -26,8 +26,12 @@ export function AgentTapeTable({ fills }: { fills: AgentFill[] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {fills.map((fill) => (
-              <tr key={fill.id}>
+            {fills.map((fill, index) => (
+              <tr
+                key={fill.id}
+                style={{ animationDelay: `${Math.min(index, 12) * 40}ms` }}
+                className="data-row motion-safe:animate-[rowIn_0.4s_ease-out_backwards]"
+              >
                 <td className="px-4 py-3">
                   <Badge variant={fill.side === "BUY" ? "buy" : "sell"}>
                     {fill.side}

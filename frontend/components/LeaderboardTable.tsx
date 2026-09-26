@@ -51,7 +51,7 @@ export function LeaderboardTable({ agents }: { agents: FixtureAgent[] }) {
               <tr
                 key={agent.id}
                 style={{ animationDelay: `${i * 60}ms` }}
-                className="motion-reduce:animate-none animate-[rowIn_0.4s_ease-out_backwards] border-b border-border last:border-0"
+                className="motion-reduce:animate-none animate-[rowIn_0.4s_ease-out_backwards] data-row group border-b border-border last:border-0"
               >
                 <td className="px-4 py-3 tabular text-muted">{i + 1}</td>
                 <td className="px-4 py-3">
@@ -96,7 +96,7 @@ export function LeaderboardTable({ agents }: { agents: FixtureAgent[] }) {
           <div
             key={agent.id}
             style={{ animationDelay: `${i * 60}ms` }}
-            className="motion-reduce:animate-none animate-[rowIn_0.4s_ease-out_backwards] panel rounded-2xl p-4"
+            className="motion-reduce:animate-none animate-[rowIn_0.4s_ease-out_backwards] group lift panel rounded-2xl p-4"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">

@@ -96,7 +96,7 @@ export function YourMirrors({
       {/* Mobile cards */}
       <ul className="flex flex-col gap-2 sm:hidden">
         {rows.map((row) => (
-          <li key={row.id} className="panel rounded-2xl p-4">
+          <li key={row.id} className="group lift panel rounded-2xl p-4">
             <div className="flex items-center justify-between gap-3">
               <a
                 href={`/agents/${row.agentId}`}

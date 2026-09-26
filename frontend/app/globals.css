@@ -112,6 +112,45 @@ body {
     border: 1px solid var(--color-border);
   }
 
+  /*
+   * Motion for everything that carries information. A panel answers the
+   * pointer: its hairline brightens and it catches a faint copper light from
+   * below. Repeated items tagged .lift (agent cards, follow cards, feed rows)
+   * also rise a few pixels. Only border colour, shadow and transform move,
+   * so hovering never triggers layout.
+   *
+   * Opt-out rather than opt-in, so a new panel animates without anyone
+   * remembering to ask for it. Overlays (modals, toasts, tooltips) aren't
+   * content to point at and carry .panel-static.
+   */
+  .panel {
+    transition:
+      border-color 240ms ease,
+      box-shadow 360ms ease,
+      background-color 240ms ease,
+      transform 360ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @media (hover: hover) {
+    .panel:not(.panel-static):hover {
+      border-color: #43454d;
+      box-shadow:
+        inset 0 1px 0 rgba(223, 225, 230, 0.05),
+        0 24px 48px -32px rgba(226, 169, 127, 0.3);
+    }
+    .lift:hover {
+      transform: translateY(-3px);
+    }
+  }
+
+  /* A row in a table or a ruled list lighting up under the pointer, so the
+     eye can hold a line across wide columns. */
+  .data-row {
+    transition: background-color 180ms ease;
+  }
+  .data-row:hover {
+    background-color: rgba(255, 255, 255, 0.03);
+  }
+
   /* Input fields: a shade below the panel they sit in; the rule lifts on focus. */
   .field {
     background: #030303;
@@ -144,20 +183,6 @@ body {
   }
 }
 
-/* A star's own breathing room, between the two brightnesses Starfield
-   picks for it, never full off, so nothing "disappears", and never
-   perfectly synced with its neighbours, since every star's --star-duration
-   and animation-delay differ. */
-@keyframes twinkle {
-  0%,
-  100% {
-    opacity: var(--star-min);
-  }
-  50% {
-    opacity: var(--star-max);
-  }
-}
-
 /*
  * There is deliberately no ambient background layer. An earlier version had a
  * fixed, full-viewport opaque black div at z-index -1 here, which painted over
@@ -171,15 +196,22 @@ body {
  * a different fraction of the canvas per breakpoint, the camera dollies out
  * on portrait viewports, so the body occupies less of the box there. Hence a
  * media query rather than one inline style.
+ *
+ * A gradient laid over the canvas rather than a CSS mask on it. The page is
+ * black, so fading to black looks identical, but a mask on a box several
+ * screens in size made the compositor re-mask the whole animated canvas
+ * every frame. An overlay is painted once.
  */
-.hero-canvas-mask {
-  mask-image: linear-gradient(to bottom, #000 74%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, #000 74%, transparent 100%);
+.hero-canvas-mask::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent 74%, #000 100%);
 }
 @media (min-width: 640px) {
-  .hero-canvas-mask {
-    mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
+  .hero-canvas-mask::after {
+    background: linear-gradient(to bottom, transparent 82%, #000 100%);
   }
 }
 
@@ -187,4 +219,46 @@ body {
   font-family: var(--font-serif);
   font-weight: 700;
   letter-spacing: -0.01em;
+}
+
+/* The PnL chart drawing itself in: the line traces left to right (its
+   pathLength is 1, so the dash maths is unit-free), the fill fades up
+   under it, and the hover readout pops in. */
+@keyframes chartDraw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes chartFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* A stat or figure settling in: a short rise, used staggered on ruled
+   stat cells so a row of numbers reads left to right. */
+@keyframes statIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes tipIn {
+  from {
+    opacity: 0;
+    scale: 0.96;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
 }

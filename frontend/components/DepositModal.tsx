@@ -118,7 +118,7 @@ export function DepositModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="deposit-title"
-        className="w-full max-w-md panel rounded-t-3xl p-6 sm:rounded-3xl"
+        className="w-full max-w-md panel panel-static rounded-t-3xl p-6 sm:rounded-3xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">

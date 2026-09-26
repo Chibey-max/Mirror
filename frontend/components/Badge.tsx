@@ -24,7 +24,7 @@ export function Badge({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium tracking-wide ${VARIANTS[variant]}`}
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium tracking-wide transition-[filter,box-shadow] duration-200 hover:shadow-[0_0_12px_-2px_currentColor] hover:brightness-125 ${VARIANTS[variant]}`}
     >
       {children}
     </span>

@@ -95,6 +95,7 @@ export function SiteHeader() {
 
   const [hidden, setHidden] = useState(false);
   const lastY = useRef(0);
+  const hiddenRef = useRef(false);
 
   useEffect(() => {
     lastY.current = window.scrollY;
@@ -103,7 +104,13 @@ export function SiteHeader() {
       const goingDown = y > lastY.current;
       // Never hide near the top, there's nothing to reclaim yet, and a
       // header that vanishes on the first pixel of scroll reads as broken.
-      setHidden(goingDown && y > 96);
+      // Only a change re-renders: scroll fires dozens of times a second,
+      // and setting the same value still costs a render pass.
+      const next = goingDown && y > 96;
+      if (next !== hiddenRef.current) {
+        hiddenRef.current = next;
+        setHidden(next);
+      }
       lastY.current = y;
     }
     window.addEventListener("scroll", onScroll, { passive: true });
