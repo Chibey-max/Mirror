@@ -149,7 +149,7 @@ export default function Home() {
       <SiteHeader />
 
       <main id="main-content" tabIndex={-1} className="relative z-10 outline-none mx-auto flex w-full max-w-7xl flex-1 flex-col gap-12 px-5 py-10 sm:px-10 sm:py-12">
-        <section className="relative flex min-h-[92svh] flex-col items-center pt-[36svh] pb-2 text-center sm:pt-[18svh]">
+        <section className="relative flex min-h-[92svh] flex-col items-center pt-[15svh] pb-2 text-center sm:pt-[18svh]">
           {/*
             The copy sits in its own stacking context above the canvas, which
             is positioned at z-0 and would otherwise paint over ordinary
@@ -186,10 +186,15 @@ export default function Home() {
               always returns exactly what you put in.
             </p>
 
-            <div className="relative z-10 mt-9 flex flex-wrap items-center justify-center gap-3">
-              <WalletConnectButton />
+            {/* Always exactly two buttons on one row: the wallet list sits
+                behind Connect wallet, however many wallets the browser
+                announces, and the second label shortens on a phone so the
+                pair still fits side by side at 320px. */}
+            <div className="relative z-10 mt-8 flex items-center justify-center gap-3 sm:mt-9">
+              <WalletConnectButton menuAlign="start" />
               <MetalButton href="/agents">
-                Browse agents, read-only
+                <span className="sm:hidden">Browse agents</span>
+                <span className="hidden sm:inline">Browse agents, read-only</span>
               </MetalButton>
             </div>
 

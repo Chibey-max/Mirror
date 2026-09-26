@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useId, useRef, useState } from "react";
 import {
   useAccount,
   useConnect,
@@ -45,13 +46,32 @@ function shortAccount(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
+/** One line under each wallet's name in the menu, saying what picking it does. */
+function connectorHint(connector: Connector): string {
+  if (connector.id === "walletConnect") return "Scan or open in a mobile wallet app";
+  if (connector.id === "injected") return "The wallet built into this browser";
+  return "Browser extension";
+}
+
 /**
  * Minimal connector UI over Wagmi 3. Two connection methods are configured,
  * injected and WalletConnect, but wagmi also announces one connector per
- * EIP-6963 wallet extension the visitor has installed, so the rendered list
- * is whatever that browser offers and every entry must carry its own name.
+ * EIP-6963 wallet extension the visitor has installed, so the list is
+ * whatever that browser offers and every entry must carry its own name.
+ *
+ * That list has no fixed length, so it lives behind a single "Connect
+ * wallet" button rather than as a row of buttons: a visitor with three
+ * extensions got four buttons, which pushed the header off a phone and broke
+ * the hero's call to action into ragged rows.
  */
-export function WalletConnectButton() {
+export function WalletConnectButton({
+  menuAlign = "end",
+}: {
+  /** Which of the button's edges the menu lines up with: the right in the
+   *  header (the button sits at the right of the screen), the left in the
+   *  hero (it's the left of a centred pair, so centring ran off screen). */
+  menuAlign?: "end" | "start";
+} = {}) {
   const { address, chainId, isConnected } = useAccount();
   const { connectors, connect, isPending, error: connectError } = useConnect();
   const { disconnect } = useDisconnect();
@@ -79,18 +99,98 @@ export function WalletConnectButton() {
   }
 
   return (
-    <div className="flex items-center gap-2">
-      {connectOptions(connectors).map((connector, index) => (
-        <MetalButton
-          key={connector.uid}
-          tone={index === 0 ? "primary" : "neutral"}
-          onClick={() => connect({ connector })}
-          disabled={isPending}
-          title={connectError?.message}
+    <ConnectMenu
+      align={menuAlign}
+      options={connectOptions(connectors).map((connector) => ({
+        key: connector.uid,
+        label: connectorLabel(connector),
+        hint: connectorHint(connector),
+        onSelect: () => connect({ connector }),
+      }))}
+      disabled={isPending}
+      error={connectError?.message}
+    />
+  );
+}
+
+/**
+ * A single "Connect wallet" button that opens the wallets as a small menu
+ * under it. Closes on a choice, Escape, or a tap anywhere else.
+ */
+function ConnectMenu({
+  options,
+  disabled,
+  error,
+  align,
+}: {
+  options: { key: string; label: string; hint: string; onSelect: () => void }[];
+  disabled: boolean;
+  error?: string;
+  align: "end" | "start";
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const menuId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (event: PointerEvent) => {
+      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <MetalButton
+        tone="primary"
+        onClick={() => setOpen((o) => !o)}
+        disabled={disabled}
+        aria-expanded={open}
+        aria-controls={menuId}
+        aria-haspopup="menu"
+      >
+        {disabled ? "Connecting…" : "Connect wallet"}
+      </MetalButton>
+      {open && (
+        <div
+          id={menuId}
+          role="menu"
+          className={`panel panel-static absolute top-full z-40 mt-2 w-64 max-w-[calc(100vw-2rem)] rounded-2xl p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.6)] motion-safe:animate-[tipIn_140ms_ease-out] ${
+            align === "start" ? "left-0" : "right-0"
+          }`}
         >
-          {connectorLabel(connector)}
-        </MetalButton>
-      ))}
+          {options.length === 0 && (
+            <p className="px-3 py-2.5 text-sm text-muted">
+              No wallet found in this browser.
+            </p>
+          )}
+          {options.map((option) => (
+            <button
+              key={option.key}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                option.onSelect();
+              }}
+              className="flex w-full flex-col items-start rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-white/[0.05] focus-visible:bg-white/[0.05] focus-visible:outline-none"
+            >
+              <span className="text-sm font-semibold text-text">{option.label}</span>
+              <span className="text-xs text-muted">{option.hint}</span>
+            </button>
+          ))}
+          {error && <p className="px-3 pb-2 pt-1 text-xs text-loss">{error}</p>}
+        </div>
+      )}
     </div>
   );
 }
