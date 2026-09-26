@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { WriteProgress } from "@/hooks/useVaultConnection";
 import { txUrl } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
+import { useNotify } from "@/components/TransactionToasts";
 import { describeWriteError } from "@/lib/writeErrors";
 
 type Stage = "idle" | "confirming" | "signing" | "pending" | "killed" | "error";
@@ -35,7 +36,7 @@ export function KillButton({
 }) {
   const [stage, setStage] = useState<Stage>("idle");
   const [txHash, setTxHash] = useState<string>();
-  const [errorMessage, setErrorMessage] = useState<string>();
+  const notify = useNotify();
 
   async function handleConfirm() {
     setStage("signing");
@@ -50,9 +51,13 @@ export function KillButton({
       // Only now is the unfollow mined, so the reads below see its effect.
       const confirmed = await verify();
       if (!confirmed) {
-        setErrorMessage(
-          "The unfollow was mined, but the chain still shows this follow as active. Check the vault page before trying again.",
-        );
+        // Not a failed transaction, so the tracked write's toast said
+        // "Confirmed"; this is the one thing it can't know.
+        notify({
+          title: "Follow still shows as active",
+          detail:
+            "The unfollow was mined, but the chain still shows this follow as active. Check the vault page before trying again.",
+        });
       }
       setStage(confirmed ? "killed" : "error");
     } catch (error) {
@@ -61,7 +66,7 @@ export function KillButton({
         setStage("confirming");
         return;
       }
-      setErrorMessage(failure.message);
+      // The toast from the tracked write already says what went wrong.
       setStage("error");
     }
   }
@@ -136,9 +141,6 @@ export function KillButton({
   if (stage === "error") {
     return (
       <div className="space-y-2">
-        <p role="alert" className="text-sm text-loss">
-          {errorMessage ?? "Kill did not confirm on-chain."}
-        </p>
         <MetalButton
           tone="danger"
           fullWidth

@@ -9,6 +9,7 @@ import {
 } from "wagmi";
 import { targetChain } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
+import { useNotify, type NoticeTone } from "@/components/TransactionToasts";
 
 type Connector = ReturnType<typeof useConnect>["connectors"][number];
 
@@ -42,6 +43,45 @@ function connectOptions(connectors: readonly Connector[]): Connector[] {
     });
 }
 
+/**
+ * A failed connection, in words: which wallet, what went wrong, and what to
+ * do next. A request closed in the wallet isn't a failure, so it reads as a
+ * note rather than an error.
+ */
+function describeConnectError(
+  error: Error,
+  walletName: string,
+): { title: string; detail: string; tone: NoticeTone } {
+  const text = `${error.name} ${error.message} ${(error as { code?: number }).code ?? ""}`;
+  if (/UserRejected|4001|reject|denied|cancel/i.test(text)) {
+    return {
+      tone: "info",
+      title: "Connection cancelled",
+      detail: `You closed the request in ${walletName}. Connect again whenever you're ready.`,
+    };
+  }
+  if (/-32002|already pending/i.test(text)) {
+    return {
+      tone: "info",
+      title: `Check ${walletName}`,
+      detail: "A connection request is already waiting in your wallet.",
+    };
+  }
+  if (/ConnectorNotFound|Provider not found|not installed|no provider/i.test(text)) {
+    return {
+      tone: "error",
+      title: `${walletName} not found`,
+      detail: `${walletName} isn't available in this browser. Install it, or pick WalletConnect to use a mobile wallet.`,
+    };
+  }
+  const short = (error as { shortMessage?: string }).shortMessage ?? error.message;
+  return {
+    tone: "error",
+    title: `Couldn't connect ${walletName}`,
+    detail: short.split("\n")[0],
+  };
+}
+
 function shortAccount(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
@@ -73,7 +113,8 @@ export function WalletConnectButton({
   menuAlign?: "end" | "start";
 } = {}) {
   const { address, chainId, isConnected } = useAccount();
-  const { connectors, connect, isPending, error: connectError } = useConnect();
+  const { connectors, connect, isPending } = useConnect();
+  const notify = useNotify();
   const { disconnect } = useDisconnect();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
   const onWrongChain = isConnected && chainId !== targetChain.id;
@@ -82,7 +123,31 @@ export function WalletConnectButton({
     return (
       <MetalButton
         tone="danger"
-        onClick={() => switchChain({ chainId: targetChain.id })}
+        onClick={() =>
+          switchChain(
+            { chainId: targetChain.id },
+            {
+              onError: (error) => {
+                const cancelled = /UserRejected|4001|reject|denied/i.test(
+                  `${error.name} ${error.message}`,
+                );
+                notify(
+                  cancelled
+                    ? {
+                        tone: "info",
+                        title: "Network switch cancelled",
+                        detail: `Mirror runs on ${targetChain.name}. Switch whenever you're ready.`,
+                      }
+                    : {
+                        tone: "error",
+                        title: `Couldn't switch to ${targetChain.name}`,
+                        detail: "Your wallet refused the switch. Pick the network in the wallet itself, then come back.",
+                      },
+                );
+              },
+            },
+          )
+        }
         disabled={isSwitching}
       >
         {isSwitching ? "Switching…" : "Wrong network"}
@@ -105,10 +170,16 @@ export function WalletConnectButton({
         key: connector.uid,
         label: connectorLabel(connector),
         hint: connectorHint(connector),
-        onSelect: () => connect({ connector }),
+        onSelect: () =>
+          connect(
+            { connector },
+            {
+              onError: (error) =>
+                notify(describeConnectError(error, connectorLabel(connector))),
+            },
+          ),
       }))}
       disabled={isPending}
-      error={connectError?.message}
     />
   );
 }
@@ -120,12 +191,10 @@ export function WalletConnectButton({
 function ConnectMenu({
   options,
   disabled,
-  error,
   align,
 }: {
   options: { key: string; label: string; hint: string; onSelect: () => void }[];
   disabled: boolean;
-  error?: string;
   align: "end" | "start";
 }) {
   const [open, setOpen] = useState(false);
@@ -188,7 +257,6 @@ function ConnectMenu({
               <span className="text-xs text-muted">{option.hint}</span>
             </button>
           ))}
-          {error && <p className="px-3 pb-2 pt-1 text-xs text-loss">{error}</p>}
         </div>
       )}
     </div>

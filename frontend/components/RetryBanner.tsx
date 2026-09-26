@@ -20,12 +20,25 @@ export function RetryBanner({
   return (
     <div
       role="alert"
-      className={`rounded-2xl border border-loss/40 bg-loss/10 p-5 ${className}`}
+      className={`panel panel-static relative flex items-start gap-4 overflow-hidden rounded-2xl border-loss/35 p-5 ${className}`}
     >
-      <p className="text-sm text-loss">{message}</p>
-      <MetalButton tone="quiet" size="sm" className="mt-3" onClick={onRetry}>
-        Retry
-      </MetalButton>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-loss/12 to-transparent"
+      />
+      <span
+        aria-hidden="true"
+        className="relative flex size-8 flex-none items-center justify-center rounded-full border border-loss/50 text-sm font-bold text-loss"
+      >
+        !
+      </span>
+      <div className="relative min-w-0 flex-1">
+        <p className="text-sm font-semibold text-text">Couldn&apos;t reach the chain</p>
+        <p className="mt-1 text-sm text-muted">{message}</p>
+        <MetalButton tone="quiet" size="sm" className="mt-3" onClick={onRetry}>
+          Retry
+        </MetalButton>
+      </div>
     </div>
   );
 }
