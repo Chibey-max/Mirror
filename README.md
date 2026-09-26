@@ -2,7 +2,7 @@
 
 A tamper-proof, on-chain track record and a hard-capped copy vault for trading agents on Robinhood Chain Stock Tokens.
 
-**Tracks:** Overall Prize Track + Promising Products Track. The release targets Robinhood Chain testnet 46630 and an identical-bytecode mirror on Arbitrum Sepolia 421614; live deployment is still a release gate.
+**Tracks:** Overall Prize Track + Promising Products Track. Deployed and verified on Robinhood Chain testnet 46630, with an identical-bytecode mirror on Arbitrum Sepolia 421614.
 
 You want exposure to a trading agent's Stock Token strategy, and all you have to go on is a PnL screenshot someone could have edited. Mirror replaces the screenshot with a ledger and the promise with a constraint. Every fill the agent makes is an on-chain event that nobody, including us, can edit. You copy it only inside a daily cap you set yourself. And the kill switch is guaranteed to free your funds, full stop.
 
@@ -48,6 +48,33 @@ Stated up front, not left for a judge to find:
 | Product-market fit | A named user: a retail Robinhood user following an agent's Stock Token strategy, on Robinhood Chain's live Stock Tokens product. |
 | Innovation & creativity | A new on-chain rule, not a new UI on an old one: an append-only fill ledger plus programmable escrow over agent-directed spending. |
 | Real problem-solving | The loop closes live: a disallowed trade is refused on-chain and logged as `MirrorRejected`, the kill frees the principal, and every step has an explorer link. |
+
+## Live deployment
+
+Same addresses on both chains — one deployer at nonce zero, identical bytecode, confirmed by
+`contracts/script/compare-deployments.mjs`.
+
+| Contract | Address | 46630 | 421614 |
+|---|---|---|---|
+| AgentRegistry | `0x8261CD47Cd22A96Aa169a8381ff5d825797215f3` | [verified](https://explorer.testnet.chain.robinhood.com/address/0x8261CD47Cd22A96Aa169a8381ff5d825797215f3) | [verified](https://arbitrum-sepolia.blockscout.com/address/0x8261CD47Cd22A96Aa169a8381ff5d825797215f3) |
+| TrackRecord | `0xb1B17711ee5c8737E573156561850DAA9e9799ed` | [verified](https://explorer.testnet.chain.robinhood.com/address/0xb1B17711ee5c8737E573156561850DAA9e9799ed) | [verified](https://arbitrum-sepolia.blockscout.com/address/0xb1B17711ee5c8737E573156561850DAA9e9799ed) |
+| PolicyModule | `0x3694428E4b527826d168FC7BF3e2e6e26cFE538f` | [verified](https://explorer.testnet.chain.robinhood.com/address/0x3694428E4b527826d168FC7BF3e2e6e26cFE538f) | [verified](https://arbitrum-sepolia.blockscout.com/address/0x3694428E4b527826d168FC7BF3e2e6e26cFE538f) |
+| CopyVault | `0xf47B9234Ba4aF39Ec28bF3C303B3EDEa3AbE1061` | [verified](https://explorer.testnet.chain.robinhood.com/address/0xf47B9234Ba4aF39Ec28bF3C303B3EDEa3AbE1061) | [verified](https://arbitrum-sepolia.blockscout.com/address/0xf47B9234Ba4aF39Ec28bF3C303B3EDEa3AbE1061) |
+| MockUSDG | `0xC9e3E8d3e259Bf33318996AFDe2a5EC134BB3b50` | [verified](https://explorer.testnet.chain.robinhood.com/address/0xC9e3E8d3e259Bf33318996AFDe2a5EC134BB3b50) | [verified](https://arbitrum-sepolia.blockscout.com/address/0xC9e3E8d3e259Bf33318996AFDe2a5EC134BB3b50) |
+
+Full manifests, including the mock stock tokens, price feeds, role addresses and every deployment
+transaction hash, are in [`deployments/46630.json`](deployments/46630.json) and
+[`deployments/421614.json`](deployments/421614.json).
+
+### The loop, on chain
+
+Three transactions on 46630 that show the product doing what it claims:
+
+| Step | What it proves | Transaction |
+|---|---|---|
+| **Fill recorded** | The runner wrote an agent's trade to the append-only ledger. `TrackRecord` has no edit or delete function, so this row is permanent. | [`0xd582a6b0…`](https://explorer.testnet.chain.robinhood.com/tx/0xd582a6b0327a158fa84cef9d4a42a9569d076aade1077d1b4dd4601404855833) |
+| **Cap enforced** | A follower with a $1/day cap was protected from a $54.68 trade. `MirrorRejected` carries `CapExceeded(54684000, 1000000)` — the refusal is a fact on chain, not a UI message. | [`0x3adfc5a5…`](https://explorer.testnet.chain.robinhood.com/tx/0x3adfc5a5db872274144dd04c933207301ca69ad32cd0aa19cf382d4d10ef2733) |
+| **Principal returned** | After `unfollow`, the follower withdrew all 100 USDG. Vault balance zero, wallet whole. | [`0x0ae0bb66…`](https://explorer.testnet.chain.robinhood.com/tx/0x0ae0bb66b6af11349140b0130792f13bb3ccd10a058f42fc51e78dc6e2c0cf37) |
 
 ## Roadmap
 

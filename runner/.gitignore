@@ -3,3 +3,4 @@ dist/
 .env
 *.journal.json
 *.tmp
+.mirror-runner.*.json
