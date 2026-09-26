@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "./providers";
 import { NetworkGuard } from "@/components/NetworkGuard";
+import { Aurora } from "@/components/Aurora";
 import { mirrorMode } from "@/lib/config";
 
 /*
@@ -90,6 +91,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         >
           Skip to content
         </a>
+        <Aurora />
         <Providers>
           <NetworkGuard>
             {mirrorMode === "fixture" && (

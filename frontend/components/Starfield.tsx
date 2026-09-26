@@ -22,9 +22,35 @@ type Star = {
    *  star, so a single flick sends them out as a drifting cloud rather than
    *  a rigid pattern moving in lockstep. */
   glide: number;
+  /** 0 far .. 1 near: how much the star slides with the scroll once it has
+   *  landed, so the field has depth instead of sitting on one flat plane. */
+  depth: number;
+  /** Its slow wander around the landing point: radius in px, angular speed
+   *  in rad/s, and where on that loop it starts. */
+  driftR: number;
+  driftW: number;
+  driftPhase: number;
+  /** A few stars burn warm, in the buttons' copper, not all chrome. */
+  warm: boolean;
 };
 
 const STAR_COUNT = 200;
+/** Fewer on the inner pages, where the field is atmosphere behind tables. */
+const AMBIENT_COUNT = 150;
+/** How far a near star slides per pixel scrolled. */
+const PARALLAX = 0.12;
+const CHROME = "#dfe1e6";
+const COPPER = "#f2c9a6";
+
+type Meteor = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  age: number;
+  life: number;
+  length: number;
+};
 
 /**
  * The body's on-screen radius as a fraction of the hero canvas box's height.
@@ -90,6 +116,11 @@ function generateStars(count: number): Star[] {
       delay: -Math.random() * 6,
       startAt: Math.random() * 0.45,
       glide: 0.35 + Math.random() * 0.6,
+      depth: 0.15 + Math.random() * 0.85,
+      driftR: 2 + Math.random() * 7,
+      driftW: (2 * Math.PI) / (18 + Math.random() * 24),
+      driftPhase: Math.random() * Math.PI * 2,
+      warm: Math.random() < 0.16,
     };
   });
 }
@@ -135,11 +166,35 @@ const CURL = 0.6;
  * toward its scroll-derived target on its own time constant, rather than from
  * scroll events writing raw positions: those arrive in bursts the input
  * device decides on, so writing straight from them snaps between samples
- * instead of flowing. While the field is at rest the loop drops to the
- * twinkle's own pace (~30fps), and it stops entirely while every star is
- * still inside the ring.
+ * instead of flowing. While nothing is in flight the loop drops to half
+ * rate (~30fps), which the twinkle, the drift and the depth slide all
+ * carry smoothly.
  */
-export function Starfield() {
+/**
+ * A shooting star, now and then: a thin streak with a bright head crossing
+ * the upper part of the sky, launched at a random angle.
+ */
+function spawnMeteor(vw: number, vh: number): Meteor {
+  const fromLeft = Math.random() < 0.5;
+  const angle = ((18 + Math.random() * 22) * Math.PI) / 180;
+  const speed = 900 + Math.random() * 600;
+  return {
+    x: fromLeft ? Math.random() * vw * 0.5 : vw * 0.5 + Math.random() * vw * 0.5,
+    y: Math.random() * vh * 0.45,
+    vx: Math.cos(angle) * speed * (fromLeft ? 1 : -1),
+    vy: Math.sin(angle) * speed,
+    age: 0,
+    life: 0.6 + Math.random() * 0.5,
+    length: 110 + Math.random() * 120,
+  };
+}
+
+/**
+ * `ambient` is the inner pages' version: no ring to come out of, the field
+ * is simply there, drifting, sliding with the scroll by depth, with the odd
+ * shooting star, sitting behind the content rather than above the planet.
+ */
+export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
   const reduced = useReducedMotion();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -148,7 +203,7 @@ export function Starfield() {
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
 
-    const stars = generateStars(STAR_COUNT);
+    const stars = generateStars(ambient ? AMBIENT_COUNT : STAR_COUNT);
     const count = stars.length;
     let vw = 0;
     let vh = 0;
@@ -182,6 +237,58 @@ export function Starfield() {
     let lastDraw = 0;
     let raf: number | null = null;
     let settled = false;
+    let meteor: Meteor | null = null;
+    let nextMeteorAt = performance.now() + 3500 + Math.random() * 4000;
+
+    // Where a star rests right now: its landing point, wandering on its own
+    // slow loop, and slid up the screen with the scroll by its depth,
+    // wrapping at the edges so the field never empties.
+    const restX = (star: Star, t: number) =>
+      star.x * vw + Math.cos(t * star.driftW + star.driftPhase) * star.driftR;
+    const restY = (star: Star, t: number, scrollY: number, weight: number) => {
+      const span = vh + 40;
+      const slid = star.y * vh - scrollY * PARALLAX * star.depth * weight;
+      const wrapped = ((((slid + 20) % span) + span) % span) - 20;
+      return wrapped + Math.sin(t * star.driftW * 0.8 + star.driftPhase) * star.driftR;
+    };
+
+    function drawMeteor(dt: number, now: number) {
+      if (!meteor && now >= nextMeteorAt) meteor = spawnMeteor(vw, vh);
+      if (!meteor) return false;
+      const m = meteor;
+      m.age += dt;
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+      const life = m.age / m.life;
+      if (life >= 1 || m.x < -300 || m.x > vw + 300 || m.y > vh + 300) {
+        meteor = null;
+        nextMeteorAt = now + 7000 + Math.random() * 9000;
+        return false;
+      }
+      // Fades in fast and out slow, like a real one burning up.
+      const alpha = Math.min(1, life * 6) * (1 - life) ** 1.4;
+      const speed = Math.hypot(m.vx, m.vy);
+      const tailX = m.x - (m.vx / speed) * m.length;
+      const tailY = m.y - (m.vy / speed) * m.length;
+      const gradient = ctx!.createLinearGradient(m.x, m.y, tailX, tailY);
+      gradient.addColorStop(0, `rgba(255,236,220,${0.95 * alpha})`);
+      gradient.addColorStop(0.25, `rgba(242,201,166,${0.45 * alpha})`);
+      gradient.addColorStop(1, "rgba(223,225,230,0)");
+      ctx!.globalAlpha = 1;
+      ctx!.strokeStyle = gradient;
+      ctx!.lineWidth = 1.3;
+      ctx!.lineCap = "round";
+      ctx!.beginPath();
+      ctx!.moveTo(m.x, m.y);
+      ctx!.lineTo(tailX, tailY);
+      ctx!.stroke();
+      ctx!.globalAlpha = alpha;
+      ctx!.fillStyle = "#fff4ea";
+      ctx!.beginPath();
+      ctx!.arc(m.x, m.y, 1.4, 0, Math.PI * 2);
+      ctx!.fill();
+      return true;
+    }
 
     const twinkle = (star: Star, t: number) =>
       star.minOpacity +
@@ -191,8 +298,8 @@ export function Starfield() {
     function drawStill() {
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx!.clearRect(0, 0, vw, vh);
-      ctx!.fillStyle = "#dfe1e6";
       for (const star of stars) {
+        ctx!.fillStyle = star.warm ? COPPER : CHROME;
         ctx!.globalAlpha = star.maxOpacity;
         ctx!.beginPath();
         ctx!.arc(star.x * vw, star.y * vh, star.size / 2, 0, Math.PI * 2);
@@ -213,8 +320,8 @@ export function Starfield() {
       const velocityFollow = 1 - Math.exp(-dt / 0.12);
       const seconds = now / 1000;
 
-      // At rest, the only motion left is the twinkle, which is slow enough
-      // that every other frame is plenty.
+      // At rest, the only motion left is the twinkle and the slow drift,
+      // which every other frame carries fine.
       if (settled && now - lastDraw < 32) {
         raf = requestAnimationFrame(frame);
         return;
@@ -223,20 +330,17 @@ export function Starfield() {
 
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx!.clearRect(0, 0, vw, vh);
-      ctx!.fillStyle = "#dfe1e6";
 
       let moving = false;
-      let anyVisible = false;
       for (let i = 0; i < count; i++) {
         const star = stars[i];
 
         // Each star chases its own point on the scroll with its own lag, so
         // the scroll wheel's bursts are absorbed rather than passed through,
         // and the field fans out unevenly the way a real cloud would.
-        const target = Math.min(
-          1,
-          Math.max(0, (progress - star.startAt) / (1 - star.startAt)),
-        );
+        const target = ambient
+          ? 1
+          : Math.min(1, Math.max(0, (progress - star.startAt) / (1 - star.startAt)));
         const previous = shown[i];
         const current = Number.isNaN(previous)
           ? target
@@ -259,9 +363,14 @@ export function Starfield() {
           Math.hypot(launchDx, launchDy) * 0.55,
         );
 
-        // Landing point: fixed to the screen, seen from where the ring is now.
-        const landDx = star.x * vw - cx;
-        const landDy = star.y * vh - cy;
+        // Landing point: fixed to the screen, seen from where the ring is now,
+        // plus the star's drift, and its depth slide once it has mostly
+        // landed (weighted by how far along it is, so a star in flight
+        // isn't pulled around by it).
+        const landX = restX(star, seconds);
+        const landY = restY(star, seconds, scrollY, ambient ? 1 : eased);
+        const landDx = landX - cx;
+        const landDy = landY - cy;
         const landAngle = Math.atan2(landDy, landDx);
         const landRadius = Math.hypot(landDx, landDy);
 
@@ -272,8 +381,8 @@ export function Starfield() {
         turn -= 2 * Math.PI * Math.round(turn / (2 * Math.PI));
         const angle = launchAngle + turn * eased + CURL * (1 - eased) ** 2 * eased;
         const along = launchRadius + (landRadius - launchRadius) * eased;
-        const x = cx + Math.cos(angle) * along;
-        const y = cy + Math.sin(angle) * along;
+        const x = ambient ? landX : cx + Math.cos(angle) * along;
+        const y = ambient ? landY : cy + Math.sin(angle) * along;
 
         // Streak length follows a smoothed velocity rather than this frame's
         // raw step, so it grows and relaxes gradually instead of flickering
@@ -285,7 +394,8 @@ export function Starfield() {
         lastX[i] = x;
         lastY[i] = y;
         const speed = Math.hypot(velX[i], velY[i]) / (dt * 60);
-        if (speed > 0.02) moving = true;
+        // The drift alone never counts as moving: it's always on.
+        if (speed > 0.35) moving = true;
 
         // Nothing shows inside the body's silhouette; a star fades up over
         // the next half-radius as it clears the rim, growing into its full
@@ -293,16 +403,17 @@ export function Starfield() {
         // It also fades in over the first stretch of its own journey, so a
         // star waiting on the rim (the top of the page) isn't drawn at all
         // and the field reads as leaving the ring, not parked around it.
-        const visible =
-          smoothstep((along - ring.radius) / (ring.radius * 0.5)) *
-          smoothstep(current / 0.12);
+        const visible = ambient
+          ? 1
+          : smoothstep((along - ring.radius) / (ring.radius * 0.5)) *
+            smoothstep(current / 0.12);
         if (visible <= 0.002) continue;
         if (x < -20 || y < -20 || x > vw + 20 || y > vh + 20) continue;
-        anyVisible = true;
 
         const grow = 0.5 + 0.5 * visible;
         const radius = (star.size / 2) * grow;
         const stretch = 1 + Math.min(speed * 0.3, 3.5);
+        ctx!.fillStyle = star.warm ? COPPER : CHROME;
         ctx!.globalAlpha = visible * twinkle(star, seconds);
         ctx!.beginPath();
         if (stretch < 1.05) {
@@ -325,10 +436,11 @@ export function Starfield() {
         ctx!.fill();
       }
 
+      if (drawMeteor(dt, now)) moving = true;
+      // The loop keeps running for the drift and the shooting stars (the
+      // browser pauses it with the tab), at half rate while nothing is in
+      // flight.
       settled = !moving;
-      // Every star tucked inside the ring (the top of the page) and nothing
-      // in flight: stop until the next scroll.
-      if (!moving && !anyVisible) return;
       raf = requestAnimationFrame(frame);
     }
 
@@ -369,13 +481,13 @@ export function Starfield() {
       observer?.disconnect();
       if (raf != null) cancelAnimationFrame(raf);
     };
-  }, [reduced]);
+  }, [reduced, ambient]);
 
   return (
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-[1] h-full w-full"
+      className={`pointer-events-none fixed inset-0 h-full w-full ${ambient ? "-z-20" : "z-[1]"}`}
     />
   );
 }

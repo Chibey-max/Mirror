@@ -56,13 +56,14 @@ export function LeaderboardTable({ agents }: { agents: FixtureAgent[] }) {
                 <td className="px-4 py-3 tabular text-muted">{i + 1}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-text">{agent.name}</span>
+                    <span className="pop origin-left font-medium text-text">{agent.name}</span>
                     {agent.isLosing && <Badge variant="losing">Losing agent</Badge>}
                   </div>
                   <span className="text-xs text-muted">{agent.strategy}</span>
                 </td>
                 <td className="px-4 py-3">
                   <Sparkline
+                    className="pop origin-left"
                     id={`board-rank-${agent.id}`}
                     series={agent.pnlSeries}
                     width={88}
@@ -72,8 +73,10 @@ export function LeaderboardTable({ agents }: { agents: FixtureAgent[] }) {
                 <td
                   className={`tabular px-4 py-3 font-semibold ${agent.pnlPct >= 0 ? "text-profit" : "text-loss"}`}
                 >
-                  {agent.pnlPct >= 0 ? "+" : ""}
-                  {agent.pnlPct.toFixed(1)}%
+                  <span className="pop origin-left">
+                    {agent.pnlPct >= 0 ? "+" : ""}
+                    {agent.pnlPct.toFixed(1)}%
+                  </span>
                 </td>
                 <td className="tabular px-4 py-3 text-muted">
                   {agent.pnlUsd >= 0 ? "+" : ""}
@@ -96,12 +99,12 @@ export function LeaderboardTable({ agents }: { agents: FixtureAgent[] }) {
           <div
             key={agent.id}
             style={{ animationDelay: `${i * 60}ms` }}
-            className="motion-reduce:animate-none animate-[rowIn_0.4s_ease-out_backwards] group lift panel rounded-2xl p-4"
+            className="motion-reduce:animate-none animate-[rowIn_0.4s_ease-out_backwards] group tilt panel rounded-2xl p-4"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="tabular text-muted">#{i + 1}</span>
-                <span className="font-medium text-text">{agent.name}</span>
+                <span className="pop origin-left font-medium text-text">{agent.name}</span>
                 {agent.isLosing && <Badge variant="losing">Losing agent</Badge>}
               </div>
               <span

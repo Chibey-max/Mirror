@@ -23,7 +23,7 @@ export function AgentTapeTable({ fills }: { fills: AgentFill[] }) {
             className="lift panel flex items-center justify-between gap-3 rounded-2xl px-4 py-3 motion-safe:animate-[rowIn_0.4s_ease-out_backwards]"
           >
             <div className="flex min-w-0 items-center gap-3">
-              <Badge variant={fill.side === "BUY" ? "buy" : "sell"}>{fill.side}</Badge>
+              <span className="pop"><Badge variant={fill.side === "BUY" ? "buy" : "sell"}>{fill.side}</Badge></span>
               <div className="min-w-0">
                 <p className="text-sm text-text">
                   <span className="tabular">{fill.size}</span> {fill.token}{" "}
@@ -68,9 +68,11 @@ export function AgentTapeTable({ fills }: { fills: AgentFill[] }) {
                   className="data-row motion-safe:animate-[rowIn_0.4s_ease-out_backwards]"
                 >
                   <td className="px-4 py-3">
-                    <Badge variant={fill.side === "BUY" ? "buy" : "sell"}>
-                      {fill.side}
-                    </Badge>
+                    <span className="pop">
+                      <Badge variant={fill.side === "BUY" ? "buy" : "sell"}>
+                        {fill.side}
+                      </Badge>
+                    </span>
                   </td>
                   <td className="px-4 py-3 font-medium text-text">{fill.token}</td>
                   <td className="tabular px-4 py-3 text-text">{fill.size}</td>

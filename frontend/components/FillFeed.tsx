@@ -95,9 +95,11 @@ export function FillFeed({
                 outcome?.status === "rejected" ? "border-loss/40" : ""
               }`}
             >
-              <Badge variant={fill.side === "BUY" ? "buy" : "sell"}>
-                {fill.side}
-              </Badge>
+              <span className="pop">
+                <Badge variant={fill.side === "BUY" ? "buy" : "sell"}>
+                  {fill.side}
+                </Badge>
+              </span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-text">
                   {fill.size} {fill.token}{" "}

@@ -7,6 +7,14 @@
  * copper as the one warm accent (from the primary button's tint). Chrome only
  * where it means something: the buttons and the planet.
  */
+/* Lets the panels' light fade in and out rather than switch. Inherits so
+   the ::before/::after glow layers read their panel's value. */
+@property --lit {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
 @theme {
   --color-bg: #000000;
   --color-surface: #0c0c0e;
@@ -115,38 +123,136 @@ body {
    * In the components layer so a Tailwind utility on the same element (a
    * radius, a hover border) still wins.
    */
-  .panel {
-    background: #09090a;
-    border: 1px solid var(--color-border);
-  }
-
   /*
-   * Motion for everything that carries information. A panel answers the
-   * pointer: its hairline brightens and it catches a faint copper light from
-   * below. Repeated items tagged .lift (agent cards, follow cards, feed rows)
-   * also rise a few pixels. Only border colour, shadow and transform move,
-   * so hovering never triggers layout.
+   * A panel is a slab of the same dark metal as the buttons' faces: a faint
+   * sheen down from the top edge, and a rim that catches light along the top
+   * like the chrome on the buttons, much quieter.
    *
-   * Opt-out rather than opt-in, so a new panel animates without anyone
-   * remembering to ask for it. Overlays (modals, toasts, tooltips) aren't
-   * content to point at and carry .panel-static.
+   * Under the pointer it comes alive (SurfaceMotion feeds it --gx/--gy):
+   *   - a copper spotlight follows the cursor across the face (::before,
+   *     behind the content, so text is never tinted),
+   *   - the rim lights up nearest the cursor, a moving glint on the edge
+   *     (::after, a 1px ring cut out with a mask),
+   *   - the hairline brightens and a copper glow gathers underneath.
+   *
+   * Opt-out rather than opt-in, so a new panel gets all of it without anyone
+   * remembering to ask. Overlays (modals, toasts, menus) carry .panel-static.
    */
   .panel {
+    position: relative;
+    isolation: isolate;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 42%),
+      #09090a;
+    border: 1px solid var(--color-border);
     transition:
       border-color 240ms ease,
       box-shadow 360ms ease,
       background-color 240ms ease,
-      transform 360ms cubic-bezier(0.16, 1, 0.3, 1);
+      --lit 420ms ease,
+      transform 500ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .panel:not(.panel-static)::before,
+  .panel:not(.panel-static)::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+  .panel:not(.panel-static)::before {
+    z-index: -1;
+    background: radial-gradient(
+      520px circle at var(--gx, 50%) var(--gy, 0%),
+      rgb(226 169 127 / calc(var(--lit) * 0.11)),
+      transparent 42%
+    );
+  }
+  .panel:not(.panel-static)::after {
+    padding: 1px;
+    background:
+      radial-gradient(
+        240px circle at var(--gx, 50%) var(--gy, 0%),
+        rgb(255 226 199 / calc(var(--lit) * 0.85)),
+        rgb(223 225 230 / calc(var(--lit) * 0.25)) 35%,
+        transparent 65%
+      ),
+      linear-gradient(
+        180deg,
+        rgb(223 225 230 / 0.16),
+        transparent 30%
+      );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
   }
   @media (hover: hover) {
     .panel:not(.panel-static):hover {
+      --lit: 1;
       border-color: #43454d;
       box-shadow:
         inset 0 1px 0 rgba(223, 225, 230, 0.05),
         0 24px 48px -32px rgba(226, 169, 127, 0.3);
     }
+  }
+
+  /*
+   * Cards tilt toward the pointer (--rx/--ry from SurfaceMotion), the way a
+   * card lying on a table tips when pressed near an edge; .lift cards rise.
+   * One transform for both so neither cancels the other.
+   */
+  .tilt,
+  .lift {
+    transform: perspective(1100px) rotateX(var(--rx, 0deg))
+      rotateY(var(--ry, 0deg)) translateY(var(--rise, 0px));
+    transition:
+      border-color 240ms ease,
+      box-shadow 360ms ease,
+      --lit 420ms ease,
+      transform 500ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @media (hover: hover) {
+    .tilt:hover,
     .lift:hover {
-      transform: translateY(-3px);
+      --rise: -4px;
+    }
+  }
+
+  /*
+   * The figures that matter in a card (its PnL, sparkline, icon, heading)
+   * come forward when their card or row is the one under the pointer: a
+   * little larger, drifting with the cursor (--px/--py) and leaning on the
+   * diagonal, with a shadow that lifts them off the face. Keyed on data-hot,
+   * which SurfaceMotion sets on the innermost surface only, so hovering one
+   * row of a table doesn't pop every row.
+   */
+  .pop {
+    transition:
+      transform 450ms cubic-bezier(0.16, 1, 0.3, 1),
+      filter 450ms ease;
+  }
+  [data-hot] .pop {
+    transform: translate3d(
+        calc(var(--px, 0) * 5px),
+        calc(var(--py, 0) * 4px - 1px),
+        0
+      )
+      scale(1.07) skewX(calc(var(--px, 0) * -2.5deg));
+    filter: drop-shadow(0 8px 14px rgb(0 0 0 / 0.55));
+  }
+  /* Inline figures pop too; a transform needs a box to act on. */
+  span.pop,
+  a.pop {
+    display: inline-block;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tilt,
+    .lift,
+    [data-hot] .pop {
+      transform: none;
     }
   }
 
@@ -201,25 +307,22 @@ body {
 /*
  * Fades the ring field out below the body so it doesn't run into the headline
  * at full strength. The stop sits where the body's lower limb lands, which is
- * a different fraction of the canvas per breakpoint, the camera dollies out
- * on portrait viewports, so the body occupies less of the box there. Hence a
- * media query rather than one inline style.
- *
- * A gradient laid over the canvas rather than a CSS mask on it. The page is
- * black, so fading to black looks identical, but a mask on a box several
- * screens in size made the compositor re-mask the whole animated canvas
- * every frame. An overlay is painted once.
+ * a different fraction of the planet's box per breakpoint (the camera dollies
+ * out on portrait viewports, so the body fills less of it), hence the media
+ * query. The wrapper ends exactly where the box does (box top + height, from
+ * the classes in app/page.tsx), and the stops are the box's 74% / 82% marks
+ * in the wrapper's own coordinates. Change the box, change these.
  */
-.hero-canvas-mask::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(to bottom, transparent 74%, #000 100%);
+.hero-fade {
+  height: calc(84.3svh + 20px);
+  mask-image: linear-gradient(to bottom, #000 calc(54.4svh + 20px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(54.4svh + 20px), transparent 100%);
 }
 @media (min-width: 640px) {
-  .hero-canvas-mask::after {
-    background: linear-gradient(to bottom, transparent 82%, #000 100%);
+  .hero-fade {
+    height: calc(119.4svh + 20px);
+    mask-image: linear-gradient(to bottom, #000 calc(93.3svh + 20px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(93.3svh + 20px), transparent 100%);
   }
 }
 
@@ -295,5 +398,23 @@ body {
   }
   to {
     transform: scaleX(0);
+  }
+}
+
+/* The background light pools (Aurora): a slow wander and breathe. */
+.aurora-pool {
+  position: absolute;
+  border-radius: 9999px;
+  will-change: transform;
+}
+@keyframes auroraDrift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(8vw, -6vh, 0) scale(1.12);
+  }
+  100% {
+    transform: translate3d(-6vw, 8vh, 0) scale(0.94);
   }
 }

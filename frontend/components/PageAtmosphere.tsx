@@ -1,4 +1,5 @@
 import { SingularityHorizon } from "@/components/SingularityHorizon";
+import { Starfield } from "@/components/Starfield";
 
 /**
  * The hero's body and ring, dimmed right down, behind an inner page.
@@ -15,17 +16,21 @@ import { SingularityHorizon } from "@/components/SingularityHorizon";
  */
 export function PageAtmosphere() {
   return (
-    <div
-      aria-hidden="true"
-      className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[78svh] overflow-hidden opacity-40"
-    >
-      <div className="absolute left-[calc(50%-20vw)] top-[calc(20px-30.7svh)] h-[115svh] w-[170vw] -translate-x-1/2 sm:left-[calc(50%-35vw)] sm:top-[calc(20px-25.6svh)] sm:h-[145svh] sm:w-[180vw]">
-        <SingularityHorizon height="100%" particles={18000} pixelBudget={1_200_000} />
+    <>
+      {/* The same star field as the landing page, settled, drifting and
+          sliding by depth as the page scrolls, behind everything. */}
+      <Starfield ambient />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[78svh] overflow-hidden opacity-40 [mask-image:linear-gradient(to_bottom,#000_20%,transparent_88%)]"
+      >
+        <div className="absolute left-[calc(50%-20vw)] top-[calc(20px-30.7svh)] h-[115svh] w-[170vw] -translate-x-1/2 sm:left-[calc(50%-35vw)] sm:top-[calc(20px-25.6svh)] sm:h-[145svh] sm:w-[180vw]">
+          <SingularityHorizon height="100%" particles={18000} pixelBudget={1_200_000} />
+        </div>
+        {/* The fade is a real mask on this screen-sized wrapper (not on the
+            several-screen canvas box inside it), so the aurora and stars
+            behind the page show through instead of meeting a black edge. */}
       </div>
-      {/* Fades to the page's black before the content. An overlay rather
-          than a CSS mask: identical on black, and a mask made the
-          compositor re-mask the animated canvas every frame. */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_20%,#000_88%)]" />
-    </div>
+    </>
   );
 }

@@ -20,11 +20,11 @@ export function AgentCard({
   return (
     <Link
       href={`/agents/${agent.id}`}
-      className="group lift block panel rounded-3xl p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+      className="group tilt block panel rounded-3xl p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-text">
+          <h2 className="pop origin-left text-lg font-semibold tracking-tight text-text">
             {agent.name}
           </h2>
           <p className="mt-1 text-sm text-muted">{agent.strategy}</p>
@@ -56,7 +56,7 @@ export function AgentCard({
         <div>
           <dt className="text-muted">PnL</dt>
           <dd
-            className={`tabular mt-1 font-semibold ${
+            className={`pop origin-left tabular mt-1 font-semibold ${
               agent.pnlPct < 0 ? "text-loss" : "text-profit"
             }`}
           >
@@ -73,7 +73,7 @@ export function AgentCard({
       </dl>
 
       <div className="mt-4 flex items-end justify-between gap-3">
-        <Sparkline id={`card-${agent.id}`} series={agent.pnlSeries} width={112} height={32} />
+        <Sparkline id={`card-${agent.id}`} series={agent.pnlSeries} width={112} height={32} className="pop origin-left" />
         {latest && (
           <p className="min-w-0 truncate text-right text-xs text-muted">
             <span

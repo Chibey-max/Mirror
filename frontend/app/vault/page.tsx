@@ -165,15 +165,15 @@ export default function VaultPage() {
 
                 return (
                   <Reveal key={id} delayMs={index * 70}>
-                    <li className="group lift panel rounded-2xl p-4">
+                    <li className="group tilt panel rounded-2xl p-4">
                       <div className="flex items-center justify-between gap-3">
                         <Link
                           href={`/agents/${id}`}
-                          className="font-medium text-text hover:text-accent"
+                          className="pop origin-left font-medium text-text hover:text-accent"
                         >
                           {agent?.name ?? `Agent #${id}`}
                         </Link>
-                        <span className="tabular text-xs text-muted">
+                        <span className="pop origin-right tabular text-xs text-muted">
                           {pct >= 100
                             ? "Cap reached: buys will reject, sells still pass"
                             : `$${spent.toFixed(2)} / $${cap.toFixed(2)} today`}

@@ -342,7 +342,7 @@ export default function AgentDetailPage({
                       className="data-row -mx-2 flex items-baseline justify-between gap-3 rounded-lg px-2 py-2.5"
                     >
                       <dt className="text-sm text-muted">{row.label}</dt>
-                      <dd className="tabular font-semibold">
+                      <dd className="pop origin-right tabular font-semibold">
                         {row.value.toFixed(2)}{" "}
                         <span className="text-xs text-muted">USDG</span>
                       </dd>
