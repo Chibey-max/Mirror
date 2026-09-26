@@ -28,7 +28,7 @@ export function PageAtmosphere() {
           <SingularityHorizon height="100%" particles={18000} pixelBudget={1_200_000} />
         </div>
         {/* The fade is a real mask on this screen-sized wrapper (not on the
-            several-screen canvas box inside it), so the aurora and stars
+            several-screen canvas box inside it), so the stars
             behind the page show through instead of meeting a black edge. */}
       </div>
     </>

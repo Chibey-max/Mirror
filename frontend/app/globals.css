@@ -404,21 +404,3 @@ body {
     transform: scaleX(0);
   }
 }
-
-/* The background light pools (Aurora): a slow wander and breathe. */
-.aurora-pool {
-  position: absolute;
-  border-radius: 9999px;
-  will-change: transform;
-}
-@keyframes auroraDrift {
-  0% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(8vw, -6vh, 0) scale(1.12);
-  }
-  100% {
-    transform: translate3d(-6vw, 8vh, 0) scale(0.94);
-  }
-}
