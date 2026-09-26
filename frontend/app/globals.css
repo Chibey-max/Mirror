@@ -103,12 +103,13 @@ body {
     color: transparent;
   }
 
-  /* A soft bloom of the signature, for sitting behind a panel or a heading. */
+  /* A soft bloom of chrome light, for sitting behind a panel or a heading.
+     Neutral on purpose: the copper version cast orange over the page. */
   .accent-glow {
     background: radial-gradient(
       ellipse at center,
-      color-mix(in srgb, var(--color-chrome) 24%, transparent) 0%,
-      color-mix(in srgb, var(--color-accent) 14%, transparent) 45%,
+      color-mix(in srgb, var(--color-chrome) 20%, transparent) 0%,
+      color-mix(in srgb, var(--color-chrome) 7%, transparent) 45%,
       transparent 72%
     );
   }
@@ -129,11 +130,14 @@ body {
    * like the chrome on the buttons, much quieter.
    *
    * Under the pointer it comes alive (SurfaceMotion feeds it --gx/--gy):
-   *   - a copper spotlight follows the cursor across the face (::before,
+   *   - a soft chrome spotlight follows the cursor across the face (::before,
    *     behind the content, so text is never tinted),
    *   - the rim lights up nearest the cursor, a moving glint on the edge
    *     (::after, a 1px ring cut out with a mask),
-   *   - the hairline brightens and a copper glow gathers underneath.
+   *   - the hairline brightens and a deeper shadow gathers underneath.
+   *
+   * All neutral light, the planet's chrome: warm copper here read as an
+   * orange cast over everything the pointer touched.
    *
    * Opt-out rather than opt-in, so a new panel gets all of it without anyone
    * remembering to ask. Overlays (modals, toasts, menus) carry .panel-static.
@@ -164,7 +168,7 @@ body {
     z-index: -1;
     background: radial-gradient(
       520px circle at var(--gx, 50%) var(--gy, 0%),
-      rgb(226 169 127 / calc(var(--lit) * 0.11)),
+      rgb(223 225 230 / calc(var(--lit) * 0.055)),
       transparent 42%
     );
   }
@@ -173,7 +177,7 @@ body {
     background:
       radial-gradient(
         240px circle at var(--gx, 50%) var(--gy, 0%),
-        rgb(255 226 199 / calc(var(--lit) * 0.85)),
+        rgb(242 244 248 / calc(var(--lit) * 0.8)),
         rgb(223 225 230 / calc(var(--lit) * 0.25)) 35%,
         transparent 65%
       ),
@@ -194,7 +198,7 @@ body {
       border-color: #43454d;
       box-shadow:
         inset 0 1px 0 rgba(223, 225, 230, 0.05),
-        0 24px 48px -32px rgba(226, 169, 127, 0.3);
+        0 26px 50px -30px rgba(0, 0, 0, 0.85);
     }
   }
 

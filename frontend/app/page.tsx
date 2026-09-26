@@ -272,7 +272,7 @@ export default function Home() {
                 key={title}
                 className="tilt panel flex flex-col gap-3 rounded-3xl p-6"
               >
-                <span className="pop flex h-10 w-10 items-center justify-center rounded-full border border-border text-chrome transition-colors [[data-hot]_&]:border-accent/60 [[data-hot]_&]:text-accent">
+                <span className="pop flex h-10 w-10 items-center justify-center rounded-full border border-border text-chrome transition-colors [[data-hot]_&]:border-chrome-dim [[data-hot]_&]:text-text">
                   <Icon />
                 </span>
                 <h3 className="pop origin-left font-display text-2xl">{title}</h3>

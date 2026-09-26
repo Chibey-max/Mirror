@@ -30,8 +30,6 @@ type Star = {
   driftR: number;
   driftW: number;
   driftPhase: number;
-  /** A few stars burn warm, in the buttons' copper, not all chrome. */
-  warm: boolean;
 };
 
 const STAR_COUNT = 200;
@@ -40,7 +38,6 @@ const AMBIENT_COUNT = 150;
 /** How far a near star slides per pixel scrolled. */
 const PARALLAX = 0.12;
 const CHROME = "#dfe1e6";
-const COPPER = "#f2c9a6";
 
 type Meteor = {
   x: number;
@@ -120,7 +117,6 @@ function generateStars(count: number): Star[] {
       driftR: 2 + Math.random() * 7,
       driftW: (2 * Math.PI) / (18 + Math.random() * 24),
       driftPhase: Math.random() * Math.PI * 2,
-      warm: Math.random() < 0.16,
     };
   });
 }
@@ -271,8 +267,8 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
       const tailX = m.x - (m.vx / speed) * m.length;
       const tailY = m.y - (m.vy / speed) * m.length;
       const gradient = ctx!.createLinearGradient(m.x, m.y, tailX, tailY);
-      gradient.addColorStop(0, `rgba(255,236,220,${0.95 * alpha})`);
-      gradient.addColorStop(0.25, `rgba(242,201,166,${0.45 * alpha})`);
+      gradient.addColorStop(0, `rgba(248,249,252,${0.95 * alpha})`);
+      gradient.addColorStop(0.25, `rgba(223,225,230,${0.45 * alpha})`);
       gradient.addColorStop(1, "rgba(223,225,230,0)");
       ctx!.globalAlpha = 1;
       ctx!.strokeStyle = gradient;
@@ -283,7 +279,7 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
       ctx!.lineTo(tailX, tailY);
       ctx!.stroke();
       ctx!.globalAlpha = alpha;
-      ctx!.fillStyle = "#fff4ea";
+      ctx!.fillStyle = "#f8f9fc";
       ctx!.beginPath();
       ctx!.arc(m.x, m.y, 1.4, 0, Math.PI * 2);
       ctx!.fill();
@@ -299,7 +295,7 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx!.clearRect(0, 0, vw, vh);
       for (const star of stars) {
-        ctx!.fillStyle = star.warm ? COPPER : CHROME;
+        ctx!.fillStyle = CHROME;
         ctx!.globalAlpha = star.maxOpacity;
         ctx!.beginPath();
         ctx!.arc(star.x * vw, star.y * vh, star.size / 2, 0, Math.PI * 2);
@@ -413,7 +409,7 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
         const grow = 0.5 + 0.5 * visible;
         const radius = (star.size / 2) * grow;
         const stretch = 1 + Math.min(speed * 0.3, 3.5);
-        ctx!.fillStyle = star.warm ? COPPER : CHROME;
+        ctx!.fillStyle = CHROME;
         ctx!.globalAlpha = visible * twinkle(star, seconds);
         ctx!.beginPath();
         if (stretch < 1.05) {

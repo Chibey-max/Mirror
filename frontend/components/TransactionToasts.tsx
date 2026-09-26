@@ -27,9 +27,21 @@ type TxRecord = {
   notice?: boolean;
   /** Playing its exit animation; removed once that finishes. */
   leaving?: boolean;
+  /** The words on the explorer link, when "View tx" isn't the right name
+   *  (a rejection's tx is the evidence, not the user's own write). */
+  linkLabel?: string;
 };
 
 export type NoticeTone = "error" | "success" | "info";
+
+export type Notice = {
+  title: string;
+  detail?: string;
+  tone?: NoticeTone;
+  /** Adds an explorer link to this transaction. */
+  txHash?: string;
+  linkLabel?: string;
+};
 
 type TransactionsContextValue = {
   records: TxRecord[];
@@ -51,7 +63,7 @@ type TransactionsContextValue = {
    *  that wouldn't connect, a network that couldn't be added. Every error
    *  in the app surfaces here rather than as a line of red text somewhere
    *  the user may not be looking. */
-  notify: (notice: { title: string; detail?: string; tone?: NoticeTone }) => void;
+  notify: (notice: Notice) => void;
 };
 
 const TransactionsContext = createContext<TransactionsContextValue | null>(
@@ -110,7 +122,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   );
 
   const notify = useCallback(
-    ({ title, detail, tone = "error" }: { title: string; detail?: string; tone?: NoticeTone }) => {
+    ({ title, detail, tone = "error", txHash, linkLabel }: Notice) => {
       const id = `notice-${++nextId}`;
       const status: TxStatus =
         tone === "error" ? "error" : tone === "success" ? "success" : "cancelled";
@@ -120,7 +132,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         ...current.filter(
           (record) => !(record.notice && record.label === title && record.detail === detail),
         ),
-        { id, label: title, status, detail, notice: true },
+        { id, label: title, status, detail, notice: true, txHash, linkLabel },
       ]);
       const timer = setTimeout(() => dismiss(id), AUTO_DISMISS_MS + 2000);
       timers.current.set(id, timer);
@@ -290,7 +302,7 @@ function TransactionToastHost() {
                   rel="noreferrer"
                   className="mt-1 inline-block text-xs font-medium text-accent hover:underline"
                 >
-                  View tx ↗
+                  {record.linkLabel ?? "View tx"} ↗
                 </a>
               )}
             </div>

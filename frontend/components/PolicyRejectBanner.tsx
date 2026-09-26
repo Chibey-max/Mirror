@@ -1,13 +1,13 @@
 "use client";
 
-import { txUrl } from "@/lib/chains";
-import { MetalButton } from "@/components/MetalButton";
+import { useCallback } from "react";
+import { useNotify } from "@/components/TransactionToasts";
 
 /**
  * The demo centerpiece (PRD §5.3, design prompt §9). Never a generic
- * "transaction failed" toast, never a raw revert string, always the exact
- * copy below, framed as the system *protecting* the user, with an inline
- * explorer link. Renders one of the four PolicyModule custom errors
+ * "transaction failed" message, never a raw revert string, always the exact
+ * copy below, framed as the system *protecting* the user, with an explorer
+ * link. Renders one of the four PolicyModule custom errors
  * (PRD §4.6):
  *
  *   CapExceeded(attempted, cap) · TokenNotAllowed(token) ·
@@ -34,7 +34,7 @@ export function enforcedBy(reason: PolicyRejectReason): string {
   return reason.type === "PositionOverflow" ? "CopyVault" : "PolicyModule";
 }
 
-function copyFor(reason: PolicyRejectReason): string {
+export function rejectionCopy(reason: PolicyRejectReason): string {
   switch (reason.type) {
     case "CapExceeded":
       // `attempted` is spentToday + this trade, a running total, not the
@@ -52,58 +52,24 @@ function copyFor(reason: PolicyRejectReason): string {
   }
 }
 
-export function PolicyRejectBanner({
-  reason,
-  txHash,
-  onDismiss,
-}: {
-  reason: PolicyRejectReason;
-  txHash?: string;
-  onDismiss: () => void;
-}) {
-  return (
-    <div
-      role="alert"
-      className="animate-[fadeIn_0.2s_ease-out] rounded-2xl border border-loss/40 bg-loss/10 p-4"
-    >
-      <div className="flex items-start gap-3">
-        <span
-          aria-hidden
-          className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full bg-loss/20 text-loss"
-        >
-          {/* shield icon, protecting, not failing */}
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 2 4 5v6c0 5 3.4 8.7 8 9 4.6-.3 8-4 8-9V5l-8-3Z" />
-          </svg>
-        </span>
-
-        <div className="flex-1">
-          <p className="text-sm font-medium text-text">{copyFor(reason)}</p>
-          <div className="mt-2 flex items-center gap-3 text-xs">
-            <span className="text-loss/80">Enforced on-chain by {enforcedBy(reason)}</span>
-            {txHash && (
-              <a
-                href={txUrl(txHash)}
-                target="_blank"
-                rel="noreferrer"
-                className="text-accent hover:underline"
-              >
-                View the rejection on-chain ↗
-              </a>
-            )}
-          </div>
-        </div>
-
-        <MetalButton
-          tone="quiet"
-          size="icon-sm"
-          className="flex-none"
-          onClick={onDismiss}
-          aria-label="Dismiss"
-        >
-          ✕
-        </MetalButton>
-      </div>
-    </div>
+/**
+ * Announces a rejection as a notification, like every other error: the
+ * exact copy above as the headline, which contract enforced it, and the
+ * mirrorFill transaction that logged it. It used to be a banner parked
+ * under the feed until dismissed; a rejection is an event, and it clears
+ * itself like one. The fill feed keeps the permanent record.
+ */
+export function useRejectionNotice() {
+  const notify = useNotify();
+  return useCallback(
+    (reason: PolicyRejectReason, txHash?: string) =>
+      notify({
+        tone: "error",
+        title: rejectionCopy(reason),
+        detail: `Enforced on-chain by ${enforcedBy(reason)}`,
+        txHash,
+        linkLabel: "View the rejection on-chain",
+      }),
+    [notify],
   );
 }

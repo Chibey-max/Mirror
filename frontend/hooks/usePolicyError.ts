@@ -179,6 +179,8 @@ export type MirrorRejection = {
 export function useMirrorRejection(
   agentId?: number,
   resolveSymbol?: TokenSymbolResolver,
+  /** Called once per new rejection, as it arrives. */
+  onRejection?: (rejection: MirrorRejection) => void,
 ) {
   const { address, chainId } = useAccount();
   const vault = chainId ? addressesFor(chainId)?.copyVault : undefined;
@@ -198,12 +200,14 @@ export function useMirrorRejection(
       if (!log?.args?.reason) return;
       const reason = decodePolicyReason(log.args.reason, resolveSymbol);
       if (!reason) return;
-      setRejection({
+      const next = {
         reason,
         txHash: log.transactionHash ?? undefined,
         fillId: log.args.fillId,
         agentId: log.args.agentId,
-      });
+      };
+      setRejection(next);
+      onRejection?.(next);
     },
   });
 
