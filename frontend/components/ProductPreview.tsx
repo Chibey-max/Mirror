@@ -144,7 +144,10 @@ export function ProductPreview() {
                   mirror for you.
                 </p>
               </div>
-              <div className="text-right">
+              {/* Label and figure on one line when this wraps under the
+                  sentence on a phone; right-aligned in a column beside it
+                  where there's room. */}
+              <div className="flex items-baseline gap-3 sm:block sm:text-right">
                 <div className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">
                   Daily cap
                 </div>

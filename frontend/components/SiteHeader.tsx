@@ -46,7 +46,7 @@ function NavLink({
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      className={`group relative flex items-center gap-1.5 py-1 font-mono text-[11px] uppercase tracking-[0.12em] outline-none transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent/60 focus-visible:outline-offset-4 ${
+      className={`group relative flex items-center gap-1.5 ${compact ? "py-2.5" : "py-1"} font-mono text-[11px] uppercase tracking-[0.12em] outline-none transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent/60 focus-visible:outline-offset-4 ${
         active ? "text-text" : "text-muted hover:text-text"
       }`}
     >
@@ -61,7 +61,7 @@ function NavLink({
       {label}
       <span
         aria-hidden="true"
-        className={`pointer-events-none absolute -bottom-1 left-0 right-0 h-px origin-center bg-[linear-gradient(90deg,transparent,var(--color-chrome)_30%,var(--color-accent)_50%,var(--color-chrome)_70%,transparent)] transition-[transform,opacity] duration-300 ease-out ${
+        className={`pointer-events-none absolute ${compact ? "bottom-1.5" : "-bottom-1"} left-0 right-0 h-px origin-center bg-[linear-gradient(90deg,transparent,var(--color-chrome)_30%,var(--color-accent)_50%,var(--color-chrome)_70%,transparent)] transition-[transform,opacity] duration-300 ease-out ${
           active
             ? "scale-x-100 opacity-90"
             : "scale-x-0 opacity-0 group-hover:scale-x-100 group-hover:opacity-100 group-focus-visible:scale-x-100 group-focus-visible:opacity-100"
@@ -119,11 +119,11 @@ export function SiteHeader() {
 
   return (
     <header
-      className={`sticky top-3 z-30 flex flex-col items-center px-4 transition-transform ${
+      className={`sticky top-0 z-30 flex flex-col items-center px-4 pt-3 pb-3 transition-transform ${
         reduced ? "duration-0" : "duration-300"
       } ease-out ${hidden ? "-translate-y-[calc(100%+1rem)]" : "translate-y-0"}`}
     >
-      <div className="relative isolate flex h-16 items-center gap-6 rounded-full pr-2.5 pl-7">
+      <div className="relative isolate flex h-16 max-w-full items-center gap-3 rounded-full pr-2.5 pl-5 sm:gap-6 sm:pl-7">
         <MetalLayers shader={shader} speed={reduced ? 0 : 0.45} strip />
 
         <div className="relative z-10">
@@ -156,7 +156,7 @@ export function SiteHeader() {
         they sit under it rather than disappearing, without this there is no
         way off the landing page on mobile at all.
       */}
-      <nav className="mt-2 flex items-center gap-4 sm:hidden">
+      <nav className="mt-1 flex items-center gap-4 sm:hidden">
         {NAV.map(({ href, label }) => (
           <NavLink key={href} href={href} label={label} active={isActive(href)} compact />
         ))}

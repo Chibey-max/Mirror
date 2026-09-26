@@ -186,7 +186,7 @@ export default function Home() {
               always returns exactly what you put in.
             </p>
 
-            <div className="relative z-10 mt-9 flex flex-wrap items-center justify-center gap-3">
+            <div className="relative z-10 mt-9 flex flex-col items-center gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
               <WalletConnectButton />
               <MetalButton href="/agents">
                 Browse agents, read-only

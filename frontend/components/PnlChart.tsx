@@ -51,7 +51,7 @@ export function PnlChart({ points }: { points: TimedPnlPoint[] }) {
             type="button"
             aria-pressed={range === r}
             onClick={() => setRange(r)}
-            className={`rounded-full border px-2.5 py-1 font-mono text-[11px] transition-colors ${
+            className={`h-9 min-w-11 rounded-full border px-3 font-mono text-[11px] transition-colors sm:h-auto sm:min-w-0 sm:px-2.5 sm:py-1 ${
               range === r
                 ? "border-accent/50 bg-accent/10 text-accent"
                 : "border-border text-muted hover:text-text"
