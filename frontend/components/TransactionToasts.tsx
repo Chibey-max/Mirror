@@ -262,7 +262,7 @@ function TransactionToastHost() {
           <div
             key={record.id}
             role={record.status === "error" ? "alert" : "status"}
-            className={`panel panel-static pointer-events-auto relative flex w-full max-w-sm items-start gap-3 overflow-hidden rounded-2xl px-4 py-3.5 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.7)] ${
+            className={`panel panel-static pointer-events-auto relative flex w-full max-w-sm bg-surface items-start gap-3 overflow-hidden rounded-2xl px-4 py-3.5 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.7)] ${
               record.status === "error" ? "border-loss/40" : ""
             } ${
               record.leaving
@@ -310,7 +310,7 @@ function TransactionToastHost() {
               type="button"
               onClick={() => dismiss(record.id)}
               aria-label="Dismiss"
-              className="relative -m-1.5 flex size-8 flex-none items-center justify-center rounded-full text-muted transition-colors hover:bg-white/5 hover:text-text"
+              className="relative -m-1.5 flex size-8 flex-none items-center justify-center rounded-full text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-text"
             >
               ✕
             </button>

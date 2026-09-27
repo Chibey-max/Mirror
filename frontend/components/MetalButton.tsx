@@ -62,8 +62,8 @@ const TINT: Record<Tone, string> = {
 };
 
 const LABEL: Record<Tone, string> = {
-  primary: "text-white",
-  neutral: "text-[#d6d6d6]",
+  primary: "text-[var(--button-label-primary)]",
+  neutral: "text-chrome",
   danger: "text-loss",
   quiet: "text-muted transition-colors group-hover:text-text",
 };
@@ -163,7 +163,7 @@ export function MetalLayers({
     <>
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 overflow-hidden rounded-full shadow-[0_0_0_1px_rgba(0,0,0,0.5),0_2px_5px_rgba(0,0,0,0.35),0_9px_9px_rgba(0,0,0,0.25)]"
+        className="pointer-events-none absolute inset-0 overflow-hidden rounded-full shadow-[0_0_0_1px_rgba(0,0,0,0.24),0_2px_5px_rgba(0,0,0,0.26),0_9px_9px_rgba(0,0,0,0.18)]"
         style={shader ? undefined : { background: CHROME[tone] }}
       >
         {shader && (
@@ -195,7 +195,7 @@ export function MetalLayers({
       </span>
       <span
         aria-hidden="true"
-        className={`pointer-events-none absolute inset-[2px] rounded-full bg-[linear-gradient(180deg,#232323_0%,#050505_100%)] ${
+        className={`pointer-events-none absolute inset-[2px] rounded-full bg-[image:var(--metal-face)] ${
           pressable
             ? "transition-shadow duration-150 group-active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.45),inset_0_1px_2px_rgba(0,0,0,0.3)]"
             : ""
@@ -268,13 +268,13 @@ export function MetalButton({
          */
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 rounded-full border border-border bg-[#0f0f11] transition-colors group-hover:border-chrome-dim group-hover:bg-[#15151a]"
+          className="pointer-events-none absolute inset-0 rounded-full border border-border bg-[var(--metal-quiet)] transition-colors group-hover:border-chrome-dim group-hover:bg-[var(--metal-quiet-hover)]"
         />
       ) : (
         <MetalLayers shader={shader} speed={speed} tone={tone} pressable />
       )}
       <span
-        className={`relative z-10 inline-flex items-center justify-center gap-2 whitespace-nowrap [text-shadow:0_1px_2px_rgba(0,0,0,0.5)] ${LABEL[tone]}`}
+        className={`relative z-10 inline-flex items-center justify-center gap-2 whitespace-nowrap [text-shadow:var(--button-text-shadow)] ${LABEL[tone]}`}
       >
         {children}
       </span>

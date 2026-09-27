@@ -4,9 +4,9 @@ import { fixtureAgents, fixtureFills } from "@/lib/fixtures";
  * The verified tape as a ticker, Mirror's own artifact, not decoration.
  *
  * Every field is a real field of a fill, newest block first. Type follows the
- * rest of the page rather than a terminal: agent names in Geist, numbers in
- * tabular mono, sides in the P&L colours. No visible label, the rows speak
- * for themselves; screen readers get one via aria-label.
+ * rest of the page rather than a terminal: agent names in the interface face,
+ * numbers in tabular mono, sides in the P&L colours. No visible label, the
+ * rows speak for themselves; screen readers get one via aria-label.
  *
  * The pill's rim is a near-invisible hairline on purpose. A full chrome rim
  * on a strip this long turned into two heavy stripes that competed with the
@@ -49,7 +49,7 @@ export function TapeTicker({ className = "" }: { className?: string }) {
       aria-label="Recent verified fills"
       // The fade is a mask over the whole pill, rim, face and text together
       //, so both ends dissolve rather than stopping on a hard cap.
-      className={`relative h-11 w-[92vw] rounded-full border border-white/[0.06] bg-[linear-gradient(180deg,#111113_0%,#060607_100%)] [mask-image:linear-gradient(90deg,transparent,#000_9%,#000_91%,transparent)] sm:w-[86vw] ${className}`}
+      className={`relative h-11 w-[92vw] rounded-full border border-[var(--ticker-border)] bg-[image:var(--ticker-bg)] [mask-image:linear-gradient(90deg,transparent,#000_9%,#000_91%,transparent)] sm:w-[86vw] ${className}`}
     >
       {/*
         Two copies of the list in one track that slides left by exactly half
