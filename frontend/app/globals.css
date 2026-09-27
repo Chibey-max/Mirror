@@ -448,6 +448,40 @@ body::before {
   }
 
   /*
+   * On touch screens the same light comes from SurfaceMotion's touch mode:
+   * data-pressed under a finger, data-hot on whatever is crossing the middle
+   * of the screen as the page scrolls.
+   */
+  @media (hover: none) {
+    .panel:not(.panel-static)[data-pressed],
+    .panel:not(.panel-static)[data-hot] {
+      --lit: 1;
+      border-color: color-mix(in srgb, var(--color-chrome) 30%, var(--color-border));
+      box-shadow:
+        inset 0 1px 0 rgba(223, 225, 230, 0.05),
+        0 26px 50px -30px var(--panel-hover-shadow);
+    }
+    .tilt[data-hot],
+    .lift[data-hot],
+    .tilt[data-pressed],
+    .lift[data-pressed] {
+      --rise: -3px;
+    }
+    .data-row[data-hot] {
+      background-color: var(--row-hover);
+    }
+  }
+  [data-pressed] .pop {
+    transform: translate3d(
+        calc(var(--px, 0) * 4px),
+        calc(var(--py, 0) * 3px - 1px),
+        0
+      )
+      scale(1.07);
+    filter: drop-shadow(0 8px 14px rgb(0 0 0 / 0.55));
+  }
+
+  /*
    * Cards tilt toward the pointer (--rx/--ry from SurfaceMotion), the way a
    * card lying on a table tips when pressed near an edge; .lift cards rise.
    * One transform for both so neither cancels the other.
@@ -647,5 +681,84 @@ body::before {
   }
   to {
     transform: scaleX(0);
+  }
+}
+
+/*
+ * The six-step loop's active number: a drop of liquid metal. Its outline
+ * wobbles like a droplet settling (liquidBlob animates the radius, and the
+ * rim inherits it), a chrome rim turns around it like the buttons' metal,
+ * and becoming active sends a ring splashing out once.
+ */
+.step-liquid {
+  border-color: transparent;
+  background:
+    radial-gradient(circle at 34% 28%, color-mix(in srgb, var(--color-chrome) 22%, transparent), transparent 62%),
+    var(--color-surface);
+  box-shadow: 0 8px 22px -8px color-mix(in srgb, var(--color-chrome) 35%, transparent);
+  animation: liquidBlob 3.4s ease-in-out infinite;
+}
+.step-liquid::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 2px;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--mirror-metal, 0deg),
+    #3b3b40, #f2f2f6 11%, #6a6a72 23%, #d6d6dc 37%, #2c2c33 51%, #fafaff 64%, #77777f 78%, #cbcbd3 91%, #3b3b40
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: metalTurn 4.5s linear infinite;
+}
+.step-liquid::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  border: 1px solid var(--color-chrome);
+  pointer-events: none;
+  animation: stepSplash 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes liquidBlob {
+  0%,
+  100% {
+    border-radius: 50%;
+  }
+  25% {
+    border-radius: 56% 44% 52% 48% / 46% 55% 45% 54%;
+  }
+  50% {
+    border-radius: 45% 55% 47% 53% / 55% 45% 56% 44%;
+  }
+  75% {
+    border-radius: 53% 47% 44% 56% / 48% 52% 50% 50%;
+  }
+}
+@keyframes metalTurn {
+  to {
+    --mirror-metal: 360deg;
+  }
+}
+@keyframes stepSplash {
+  from {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .step-liquid,
+  .step-liquid::after,
+  .step-liquid::before {
+    animation: none;
   }
 }
