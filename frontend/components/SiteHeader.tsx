@@ -11,6 +11,7 @@ import {
 import { Logo } from "@/components/Logo";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { PendingTxIndicator } from "@/components/TransactionToasts";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 
 const NAV = [
@@ -143,6 +144,18 @@ export function SiteHeader() {
             <NetworkBadge />
           </div>
 
+          {/*
+            In the pill at every width. It used to sit in the status row
+            under the header on phones, which put the one control people
+            reach for most outside the bar that looks like the controls.
+          */}
+          <div className="relative z-10 hidden sm:block">
+            <ThemeToggle />
+          </div>
+          <div className="relative z-10 sm:hidden">
+            <ThemeToggle compact />
+          </div>
+
           <div className="relative z-10">
             <WalletConnectButton />
           </div>
@@ -152,8 +165,12 @@ export function SiteHeader() {
           On a phone the page links live in the bottom tab bar (below); what's
           left up here is status: the chain and anything still in flight.
         */}
+        {/*
+          Nothing floats under the pill on a phone any more. The chain sits
+          in the bottom bar, which never moves; only work in flight shows up
+          here, and only while there is any.
+        */}
         <div className="mt-2 flex items-center gap-3 sm:hidden">
-          <NetworkBadge compact />
           <PendingTxIndicator />
         </div>
       </header>

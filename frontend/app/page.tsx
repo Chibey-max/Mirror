@@ -1,3 +1,4 @@
+import { NetworkBadge } from "@/components/NetworkBadge";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { LoopSteps, type LoopStep } from "@/components/LoopSteps";
 import { Reveal } from "@/components/Reveal";
@@ -149,7 +150,7 @@ export default function Home() {
       <SiteHeader />
 
       <main id="main-content" tabIndex={-1} className="relative z-10 outline-none mx-auto flex w-full max-w-7xl flex-1 flex-col gap-12 px-5 py-10 sm:px-10 sm:py-12">
-        <section className="relative flex min-h-[92svh] flex-col items-center pt-[15svh] pb-2 text-center sm:pt-[18svh]">
+        <section className="hero-section relative flex min-h-[92svh] flex-col items-center pt-[15svh] pb-2 text-center sm:pt-[18svh]">
           {/*
             The copy sits in its own stacking context above the canvas, which
             is positioned at z-0 and would otherwise paint over ordinary
@@ -165,10 +166,10 @@ export default function Home() {
             */}
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute -inset-x-[14%] -inset-y-12 -z-10 bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.85)_0%,rgba(0,0,0,0.62)_45%,transparent_72%)]"
+              className="pointer-events-none absolute -inset-x-[14%] -inset-y-12 -z-10 bg-[image:var(--hero-copy-scrim)]"
             />
 
-            <div className="relative z-10 flex items-center gap-2.5 rounded-full border border-border bg-black/85 px-3.5 py-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-muted">
+            <div className="relative z-10 flex items-center gap-2.5 rounded-full border border-border bg-surface/85 px-3.5 py-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-muted shadow-[0_12px_36px_-28px_var(--theme-shadow)]">
               <span className="h-1.5 w-1.5 rounded-full bg-accent" />
               <span className="whitespace-nowrap">Live on Robinhood Chain testnet</span>
               <span className="hidden text-chrome-dim sm:inline">/</span>
@@ -196,6 +197,17 @@ export default function Home() {
                 <span className="sm:hidden">Browse agents</span>
                 <span className="hidden sm:inline">Browse agents, read-only</span>
               </MetalButton>
+            </div>
+
+            {/*
+              The chain, on phones, as part of the page rather than pinned to
+              it. Wider viewports carry it in the header pill, which a phone
+              has no room for; parking it in a fixed bar instead put status
+              permanently in front of the content, so it scrolls with the
+              hero it belongs to.
+            */}
+            <div className="relative z-10 mt-6 flex justify-center sm:hidden">
+              <NetworkBadge compact />
             </div>
 
             <div className="relative z-10 mt-16 flex flex-col items-center gap-4">

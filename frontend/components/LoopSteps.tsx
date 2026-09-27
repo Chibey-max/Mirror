@@ -5,16 +5,22 @@ import { useReducedMotion } from "@/components/MetalButton";
 
 export type LoopStep = { title: string; short: string; body: string };
 
-const STEP_INTERVAL_MS = 1100;
+const STEP_INTERVAL_MS = 1800;
+/** A beat on 06 before the loop starts over, so the end reads as an end. */
+const LOOP_REST_MS = 3200;
+/** How long a visitor's own click holds the walk before it resumes. */
+const RESUME_AFTER_MS = 9000;
 
 /**
  * The six-step loop, horizontal: a numbered track with one shared detail
  * panel underneath rather than six full text blocks side by side, which is
  * what actually makes six steps fit at any width. Once the section enters
  * view, the emphasis walks 01 → 06 on its own, a spotlight, not a read
- * order the visitor has to scroll to discover, then rests on the last
- * step, fully interactive: any circle can be clicked at any time, which
- * stops the auto-advance so the visitor's own click always wins.
+ * order the visitor has to scroll to discover — then pauses on 06 and
+ * starts again, so the loop the copy describes is a loop on screen too.
+ * Any circle can be clicked at any time and the walk yields to it; it
+ * picks up again a few seconds later, from wherever the visitor left it,
+ * rather than stopping for good and leaving a dead section behind.
  *
  * Reduced motion skips all of it and renders the original plain list,
  * every step's full text, visible at once, nothing gated behind an
@@ -45,14 +51,32 @@ export function LoopSteps({ steps }: { steps: LoopStep[] }) {
     return () => observer.disconnect();
   }, [reduced]);
 
-  // Walks the emphasis forward on a timer until it reaches the last step,
-  // or until a click takes over (autoplay false).
+  /*
+   * The walk. Wrapping on the last step rather than stopping is what makes
+   * it a loop; the longer rest there keeps 06 from feeling like a step the
+   * eye skipped. The trailing fill line clears on the wrap, so the track
+   * re-draws from 01 instead of snapping back fully lit.
+   */
   useEffect(() => {
     if (!started || !autoplay || reduced) return;
-    if (active >= steps.length - 1) return;
-    const timer = setTimeout(() => setActive((i) => i + 1), STEP_INTERVAL_MS);
+    const last = active >= steps.length - 1;
+    const timer = setTimeout(
+      () => setActive((i) => (i >= steps.length - 1 ? 0 : i + 1)),
+      last ? LOOP_REST_MS : STEP_INTERVAL_MS,
+    );
     return () => clearTimeout(timer);
   }, [started, autoplay, active, steps.length, reduced]);
+
+  /*
+   * A click wins, but only for a while. Without this the section stops dead
+   * at whichever step was tapped and never moves again, which reads as
+   * broken on a page where everything else is still alive.
+   */
+  useEffect(() => {
+    if (autoplay || reduced) return;
+    const timer = setTimeout(() => setAutoplay(true), RESUME_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, [autoplay, reduced]);
 
   if (reduced) {
     return (

@@ -164,7 +164,7 @@ function ConnectMenu({
         <div
           id={menuId}
           role="menu"
-          className={`panel panel-static absolute top-full z-40 mt-2 w-64 max-w-[calc(100vw-2rem)] rounded-2xl p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.6)] motion-safe:animate-[tipIn_140ms_ease-out] ${
+          className={`panel panel-static absolute top-full z-40 mt-2 w-64 max-w-[calc(100vw-2rem)] rounded-2xl p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.24)] motion-safe:animate-[tipIn_140ms_ease-out] ${
             align === "start" ? "left-0" : "right-0"
           }`}
         >
@@ -182,7 +182,7 @@ function ConnectMenu({
                 setOpen(false);
                 option.onSelect();
               }}
-              className="flex w-full flex-col items-start rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-white/[0.05] focus-visible:bg-white/[0.05] focus-visible:outline-none"
+              className="flex w-full flex-col items-start rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-[var(--row-hover)] focus-visible:bg-[var(--row-hover)] focus-visible:outline-none"
             >
               <span className="text-sm font-semibold text-text">{option.label}</span>
               <span className="text-xs text-muted">{option.hint}</span>

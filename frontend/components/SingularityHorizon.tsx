@@ -490,10 +490,39 @@ uniform sampler2D uScene;
 uniform sampler2D uBloom;
 uniform float uBloomStrength;
 uniform float uExposure;
+/* 0 = emissive (light on black), 1 = printed (ink on paper). */
+uniform float uPolarity;
+uniform vec3 uPaper;
+uniform vec3 uInk;
 void main() {
   vec3 c = texture(uScene, vUv).rgb + texture(uBloom, vUv).rgb * uBloomStrength;
   c = vec3(1.0) - exp(-c * uExposure);
-  outColor = vec4(c, 1.0);
+
+  /*
+   * Light mode prints the same frame instead of inverting it. Luminance
+   * becomes ink density, so the ring — the brightest thing in the emissive
+   * render — lays down the most ink, and the void around it leaves the paper
+   * bare. A plain 1-c inversion would wash the ring out to near-white and
+   * flood the page with the mid grey the void tone-maps to.
+   *
+   * A little of each particle's own hue rides along with the ink, which is
+   * what keeps the copper inner edge and the red/blue dispersion legible as
+   * warm and cool marks rather than flattening the disc to grey.
+   */
+  /*
+   * Gain first, then a gamma below 1, because the ring's bulk sits in the
+   * lower mid-tones once tone-mapped: on black those read as a faint glow,
+   * but ink that faint on paper is nearly invisible. Lifting them is what
+   * makes the orbit legible; the clamp keeps the brightest core from
+   * blowing past full ink and flattening the disc's inner edge.
+   */
+  float luma = clamp(dot(c, vec3(0.2126, 0.7152, 0.0722)) * 0.95, 0.0, 1.0);
+  float density = pow(luma, 0.92);
+  vec3 hue = c / max(max(c.r, max(c.g, c.b)), 1e-4);
+  vec3 ink = clamp(uInk * mix(vec3(1.0), hue, 0.5), 0.0, 1.0);
+  vec3 printed = mix(uPaper, ink, density);
+
+  outColor = vec4(mix(c, printed, uPolarity), 1.0);
 }
 `;
 
@@ -772,6 +801,9 @@ export function SingularityHorizon({
       bloom: u(compositeProgram, "uBloom"),
       strength: u(compositeProgram, "uBloomStrength"),
       exposure: u(compositeProgram, "uExposure"),
+      polarity: u(compositeProgram, "uPolarity"),
+      paper: u(compositeProgram, "uPaper"),
+      ink: u(compositeProgram, "uInk"),
     };
 
     const pointRange = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE) as
@@ -861,6 +893,63 @@ export function SingularityHorizon({
     // Drives the drift of the chrome rim's highlights. Frozen under reduced
     // motion, like the rotation.
     let time = 0;
+    /*
+     * Which way the frame is printed, and in what colours.
+     *
+     * The tokens are the page's own (--color-bg, --color-text), so the void
+     * around the ring is exactly the page ground and the canvas has no edge
+     * to see. `current` eases toward `target` rather than snapping, so
+     * toggling the theme turns the disc inside out over about half a second
+     * while it keeps rotating, instead of cutting between two images.
+     */
+    const polarity = {
+      current: 0,
+      target: 0,
+      paper: new Float32Array([1, 1, 1]),
+      ink: new Float32Array([0, 0, 0]),
+    };
+
+    /*
+     * Tokens go in exactly as authored. The composite pass writes its result
+     * to the default framebuffer with no encode step, so a linearised paper
+     * value lands darker than the CSS background and the canvas box shows up
+     * as a faint rectangle on the page.
+     */
+    const tokenColor = (name: string, into: Float32Array) => {
+      const raw = getComputedStyle(document.documentElement)
+        .getPropertyValue(name)
+        .trim();
+      const hex = /^#([0-9a-f]{6})$/i.exec(raw);
+      if (!hex) return;
+      const n = parseInt(hex[1], 16);
+      into[0] = ((n >> 16) & 255) / 255;
+      into[1] = ((n >> 8) & 255) / 255;
+      into[2] = (n & 255) / 255;
+    };
+
+    const readTheme = () => {
+      /*
+       * Light is opt-in by name. An "anything that is not dark" test looks
+       * equivalent and is not: the dark theme is called `nocturne`, so that
+       * test printed the emissive render in dark mode too.
+       */
+      const theme = document.documentElement.dataset.theme;
+      polarity.target = theme === "prism" || theme === "light" ? 1 : 0;
+      tokenColor("--color-bg", polarity.paper);
+      tokenColor("--color-text", polarity.ink);
+    };
+    readTheme();
+    polarity.current = polarity.target;
+    const themeWatcher = new MutationObserver(() => {
+      readTheme();
+      // A still frame has no loop to ease in; redraw it in the new polarity.
+      if (reduced && !raf) raf = requestAnimationFrame(draw);
+    });
+    themeWatcher.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+
     let last = 0;
     let raf = 0;
     let pxScale = 1;
@@ -923,6 +1012,8 @@ export function SingularityHorizon({
       raf = 0;
       const dt = last ? Math.min((now - last) / 1000, 0.05) : 0.016;
       last = now;
+      // Exponential approach, framerate-independent: ~0.5s to settle.
+      polarity.current += (polarity.target - polarity.current) * (1 - Math.exp(-dt / 0.16));
       // Only a running loop has a frame rate to judge; reduced motion draws
       // on demand, where the gaps between frames mean nothing.
       if (!reduced) avgDt += (dt - avgDt) * 0.05;
@@ -968,7 +1059,18 @@ export function SingularityHorizon({
       // --- scene ----------------------------------------------------------
       gl.bindFramebuffer(gl.FRAMEBUFFER, post && scene ? scene.fb : null);
       gl.viewport(0, 0, canvas.width, canvas.height);
-      gl.clearColor(0, 0, 0, 1);
+      /*
+       * Without post-processing there is no composite pass to print through,
+       * so the ring has to darken the page itself: clear to paper and let the
+       * additive pass subtract from it below. With post, the scene is still
+       * rendered emissive into its own target and inverted at the end.
+       */
+      const printDirect = !post && polarity.current > 0.5;
+      if (printDirect) {
+        gl.clearColor(polarity.paper[0], polarity.paper[1], polarity.paper[2], 1);
+      } else {
+        gl.clearColor(0, 0, 0, 1);
+      }
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
       gl.enable(gl.DEPTH_TEST);
 
@@ -992,7 +1094,9 @@ export function SingularityHorizon({
       // 2. The ring, additive and depth-tested against the body: direct image,
       //    then the lensed arcs over and under it.
       gl.enable(gl.BLEND);
-      gl.blendFunc(gl.ONE, gl.ONE);
+      // dst * (1 - src): the brighter the particle, the more ink it leaves.
+      if (printDirect) gl.blendFunc(gl.ZERO, gl.ONE_MINUS_SRC_COLOR);
+      else gl.blendFunc(gl.ONE, gl.ONE);
       gl.depthMask(false);
       gl.useProgram(particleProgram);
       gl.bindVertexArray(ringVao);
@@ -1014,7 +1118,9 @@ export function SingularityHorizon({
 
       // 3. Faint rim, always on top.
       gl.disable(gl.DEPTH_TEST);
-      gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+      // Same ink rule as the ring above; dark mode keeps its additive blend.
+      if (printDirect) gl.blendFunc(gl.ZERO, gl.ONE_MINUS_SRC_COLOR);
+      else gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
       gl.useProgram(coreProgram);
       gl.bindVertexArray(coreVao);
       gl.uniform1i(cU.glow, 1);
@@ -1048,6 +1154,9 @@ export function SingularityHorizon({
         gl.uniform1i(kU.bloom, 1);
         gl.uniform1f(kU.strength, 1.3);
         gl.uniform1f(kU.exposure, 1.4);
+        gl.uniform1f(kU.polarity, polarity.current);
+        gl.uniform3fv(kU.paper, polarity.paper);
+        gl.uniform3fv(kU.ink, polarity.ink);
         screenPass(compositeProgram, null);
       }
       gl.bindVertexArray(null);
@@ -1132,6 +1241,7 @@ export function SingularityHorizon({
       cancelAnimationFrame(raf);
       observer.disconnect();
       visibility.disconnect();
+      themeWatcher.disconnect();
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);

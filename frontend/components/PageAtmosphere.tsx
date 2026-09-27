@@ -25,7 +25,7 @@ export function PageAtmosphere() {
       {/* Fades to the page's black before the content. An overlay rather
           than a CSS mask: identical on black, and a mask made the
           compositor re-mask the animated canvas every frame. */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_20%,#000_88%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_20%,var(--color-bg)_88%)]" />
     </div>
   );
 }
