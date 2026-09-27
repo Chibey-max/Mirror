@@ -195,8 +195,8 @@ const MOTES = 30;
 const RING_GAP = 9;
 /** One slow turn for the whole ring, radians a second. */
 const TURN = 0.55;
-/** A step along the line, and the scatter from 06 back to 01. */
-const TRAVEL_MS = 850;
+/** A hop to the next step, and the wide scatter from 06 back to 01. */
+const HOP_MS = 1250;
 const SCATTER_MS = 2600;
 
 type Mote = {
@@ -216,8 +216,18 @@ type Point = { x: number; y: number; r: number };
 
 type Move =
   | { kind: "rest"; to: number }
-  | { kind: "travel"; from: number; to: number; fromX: number; start: number }
-  | { kind: "scatter"; to: number; start: number; origin: Float32Array };
+  | {
+      kind: "scatter";
+      to: number;
+      start: number;
+      duration: number;
+      /** true: the loop's wide drift across the whole track; false: a hop. */
+      wide: boolean;
+      /** Where each mote was when this move began, x/y interleaved. */
+      origin: Float32Array;
+      /** The step it's leaving, whose number the paths curve out around. */
+      from: Point;
+    };
 
 function easeInOutSine(t: number) {
   return 0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, Math.max(0, t)));
@@ -226,9 +236,11 @@ function easeInOutSine(t: number) {
 /**
  * What carries the emphasis between steps: a ring of chrome motes that sits
  * just outside the active number, turning slowly as one. When the step
- * advances, the whole ring glides along the line to the next number. From
- * 06 back to 01 it doesn't retrace the line: the motes drift apart, each on
- * its own smooth curve in its own direction, and gather again around 01.
+ * advances, the ring loosens: each mote flows to the next number on its own
+ * gentle curve, a little above or below the line, leaving at its own
+ * moment, and they settle back into a ring there. From 06 back to 01 the
+ * same thing happens wide: the motes drift far apart across the whole
+ * track, in every direction, and gather again around 01.
  *
  * Every mote's position is a function of time along a planned path (no
  * per-frame chasing or random jitter), which is what keeps it smooth. One
@@ -317,34 +329,24 @@ function StepSwarm({
         return;
       }
       const current = move.to;
-      // Backwards past a neighbour, or the loop's 06 to 01, scatters; so
-      // does any new step while a scatter is still gathering, so the motes
-      // curve on to it from where they are instead of snapping to the line.
-      const wrap =
-        move.kind === "scatter" ||
-        next < current - 1 ||
-        (current === stops.length - 1 && next === 0);
-      if (wrap) {
-        const origin = new Float32Array(MOTES * 2);
-        for (let i = 0; i < MOTES; i++) {
-          origin[i * 2] = px[i];
-          origin[i * 2 + 1] = py[i];
-        }
-        move = { kind: "scatter", to: next, start: now, origin };
-      } else {
-        // From wherever the ring is now, so a click mid-glide doesn't jump.
-        const fromX =
-          move.kind === "travel"
-            ? travelCentre(move, now)
-            : stops[current]?.x ?? stops[next].x;
-        move = { kind: "travel", from: current, to: next, fromX, start: now };
+      // The loop's 06 to 01, or any jump back past a neighbour, drifts wide;
+      // everything else is a hop. Either way it starts from wherever each
+      // mote is right now, so a click mid-move carries on without a jump.
+      const wide = next < current - 1 || (current === stops.length - 1 && next === 0);
+      const origin = new Float32Array(MOTES * 2);
+      for (let i = 0; i < MOTES; i++) {
+        origin[i * 2] = px[i];
+        origin[i * 2 + 1] = py[i];
       }
-    };
-
-    const travelCentre = (m: Extract<Move, { kind: "travel" }>, now: number) => {
-      const to = stops[m.to];
-      const p = easeInOutSine((now - m.start) / TRAVEL_MS);
-      return m.fromX + (to.x - m.fromX) * p;
+      move = {
+        kind: "scatter",
+        to: next,
+        start: now,
+        duration: wide ? SCATTER_MS : HOP_MS,
+        wide,
+        origin,
+        from: stops[current] ?? stops[next],
+      };
     };
 
     const frame = (now: number) => {
@@ -367,37 +369,50 @@ function StepSwarm({
           if (move.kind === "rest") {
             x = ringX(m, to, t);
             y = ringY(m, to, t);
-          } else if (move.kind === "travel") {
-            // The ring glides; each mote leaves a touch after the one ahead
-            // of it, so it flows along the line instead of sliding as a disc.
-            const delay = (i / MOTES) * 0.12;
-            const p = easeInOutSine(((now - move.start) / TRAVEL_MS - delay) / (1 - 0.12));
-            const cx = move.fromX + (to.x - move.fromX) * p;
-            x = ringX(m, to, t, cx);
-            y = ringY(m, to, t);
-            if (p >= 1 && i === MOTES - 1) move = { kind: "rest", to: move.to };
           } else {
             // A cubic curve: out from where it was, through its own point
             // well away from the track, round to its place on the ring at
             // the new step. Each leaves at its own moment.
-            const raw = ((now - move.start) / SCATTER_MS - m.lag) / (1 - 0.22);
+            const raw = ((now - move.start) / move.duration - m.lag) / (1 - 0.22);
             const p = easeInOutSine(raw);
             const ox = move.origin[i * 2];
             const oy = move.origin[i * 2 + 1];
-            const mid = width / 2;
-            const reachX = width * 0.42 * m.flingReach;
-            const reachY = 70 * m.flingReach;
-            const ax = ox + Math.cos(m.flingAngle) * reachX * 0.5;
-            const ay = oy + Math.sin(m.flingAngle) * reachY;
-            const bx = mid + Math.cos(m.flingAngle + 1.2) * reachX;
-            const by = to.y + Math.sin(m.flingAngle + 1.2) * reachY;
+            // Every path leaves its number outward and arrives at the next
+            // from outside, never through a number: the first control point
+            // sits out along the mote's own radius from the step it's
+            // leaving, the second out along its radius at the step it's
+            // headed for, and both are lifted to the mote's side of the
+            // line (above if it started above), so the curve clears the
+            // numbers in between as well.
+            const from = move.from;
+            const R = to.r + RING_GAP;
+            const leave = Math.atan2(oy - from.y, ox - from.x);
+            const arrive = m.slot + t * TURN;
+            const side = Math.sin(leave) < -0.15 ? -1 : Math.sin(leave) > 0.15 ? 1 : Math.sin(m.flingAngle) < 0 ? -1 : 1;
+            let out: number;
+            let lift: number;
+            let spreadX = 0;
+            if (move.wide) {
+              // Wide: far out, high or low, and across the track.
+              out = 50 + m.flingReach * 90;
+              lift = 30 + m.flingReach * 60;
+              spreadX = width * 0.22 * m.flingReach * Math.cos(m.flingAngle);
+            } else {
+              // A hop: loosen into a cloud that clears the line.
+              out = R * 0.55 + m.flingReach * 12;
+              lift = R * 0.9 + m.flingReach * 16;
+            }
+            const ax = ox + Math.cos(leave) * out + spreadX;
+            const ay = oy + Math.sin(leave) * out * 0.6 + side * lift;
+            const bx = to.x + Math.cos(arrive) * out - spreadX * 0.6;
+            const by = to.y + Math.sin(arrive) * out * 0.6 + side * lift;
             const ex = ringX(m, to, t);
             const ey = ringY(m, to, t);
             const u = 1 - p;
             x = u * u * u * ox + 3 * u * u * p * ax + 3 * u * p * p * bx + p * p * p * ex;
             y = u * u * u * oy + 3 * u * u * p * ay + 3 * u * p * p * by + p * p * p * ey;
             // A little dimmer while spread out, full again once gathered.
-            fade = 1 - 0.4 * Math.sin(Math.PI * p);
+            fade = 1 - (move.wide ? 0.4 : 0.25) * Math.sin(Math.PI * p);
             if (raw >= 1 && i === MOTES - 1) move = { kind: "rest", to: move.to };
           }
           px[i] = x;
