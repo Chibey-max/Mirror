@@ -86,9 +86,6 @@ const PAIRS = 5;
 const PARALLAX = 0.12;
 /** Extra swirl on each path from ring to rest, zero at both ends. */
 const CURL = 0.6;
-/** The pointer's lens: its reach, and how far it pushes a star at the core. */
-const LENS_RADIUS = 130;
-const LENS_PUSH = 18;
 /** A ledger chain: each link's draw time, the hold, and the fade. */
 const LINK_MS = 420;
 const CHAIN_HOLD_MS = 2600;
@@ -112,8 +109,7 @@ const ORBIT_SPEED = 3;
 const WAVE_SPEED = 460;
 const WAVE_WIDTH = 70;
 const WAVE_PUSH = 7;
-/** How far the pointer tips the field, px, at the nearest stars. */
-const POINTER_DEPTH = 16;
+
 
 type Meteor = {
   x: number;
@@ -376,8 +372,6 @@ function spawnMeteor(vw: number, vh: number): Meteor {
  *   - a shooting star crosses the upper sky;
  *   - a short chain of stars links up, one hairline at a time, holds, and
  *     fades, a ledger of points appended in order, the product's own idea;
- *   - the pointer bends the field: stars near it are pushed out and lit at
- *     the edge, like light around a small lens of gravity.
  *
  * `ambient` is the inner pages' version: no ring to come out of, the field
  * is simply there, behind the content rather than above the planet.
@@ -386,8 +380,8 @@ function spawnMeteor(vw: number, vh: number): Meteor {
  * which each star glides toward its scroll-derived target on its own time
  * constant, rather than from scroll events writing raw positions (those
  * arrive in bursts, so writing straight from them stutters). While nothing
- * is in flight, animating in, or under the pointer, the loop drops to half
- * rate, which the twinkle and the drift carry smoothly.
+ * is in flight or rippling, the loop drops to half rate, which the twinkle
+ * and the drift carry smoothly.
  */
 export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
   const reduced = useReducedMotion();
@@ -472,20 +466,6 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
     // A ripple from the singularity: when it started, or null between them.
     let wave: number | null = null;
     let nextWaveAt = performance.now() + 5000 + Math.random() * 5000;
-    // The pointer's tip of the field, -0.5..0.5 each way, smoothed.
-    let tiltX = 0;
-    let tiltY = 0;
-
-    // The pointer's lens. Mouse only: on a touch screen there's no pointer
-    // resting over the page to bend anything.
-    const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
-    let pointerX = 0;
-    let pointerY = 0;
-    let pointerIn = false;
-    let pointerMovedAt = -Infinity;
-    let lensX = 0;
-    let lensY = 0;
-    let lens = 0;
 
     // Where a star rests right now: its landing point, wandering on its own
     // slow loop, and slid up the screen with the scroll by its depth,
@@ -509,21 +489,6 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
       star.minOpacity +
       (star.maxOpacity - star.minOpacity) *
         (0.5 - 0.5 * Math.cos((2 * Math.PI * (t - star.delay)) / star.duration));
-
-    /** The lens at (x, y): the push [dx, dy] and a brightening factor. */
-    const bend = (x: number, y: number): [number, number, number] => {
-      if (lens < 0.01) return [0, 0, 1];
-      const dx = x - lensX;
-      const dy = y - lensY;
-      const d2 = dx * dx + dy * dy;
-      if (d2 >= LENS_RADIUS * LENS_RADIUS) return [0, 0, 1];
-      const d = Math.sqrt(d2) || 0.001;
-      const f = 1 - d / LENS_RADIUS;
-      const push = LENS_PUSH * f * f * lens;
-      // Brightest partway out, where the pushed stars pile into a ring.
-      const edge = 1 + 2.2 * lens * f * (1 - f);
-      return [(dx / d) * push, (dy / d) * push, edge];
-    };
 
     function drawMeteor(dt: number, now: number) {
       if (!meteor && now >= nextMeteorAt) meteor = spawnMeteor(vw, vh);
@@ -608,10 +573,9 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
         const t = e.age / e.life;
         const x = cx + e.x;
         const y = cy + e.y;
-        const [bx, by, lit] = bend(x, y);
-        ctx!.globalAlpha = Math.min(1, 0.9 * Math.sin(Math.PI * t) ** 1.3 * lit);
+        ctx!.globalAlpha = Math.min(1, 0.9 * Math.sin(Math.PI * t) ** 1.3);
         ctx!.beginPath();
-        ctx!.arc(x + bx, y + by, e.size * (0.8 + t * 0.6), 0, Math.PI * 2);
+        ctx!.arc(x, y, e.size * (0.8 + t * 0.6), 0, Math.PI * 2);
         ctx!.fill();
       }
     }
@@ -762,12 +726,10 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
 
     function frame(now: number) {
       raf = null;
-      const pointerLively = now - pointerMovedAt < 450;
 
       // At rest, the only motion left is slow (twinkle, drift, embers),
-      // which every other frame carries fine; under the pointer it runs
-      // full rate so the lens follows smoothly.
-      if (settled && !pointerLively && now - lastDraw < 32) {
+      // which every other frame carries fine.
+      if (settled && now - lastDraw < 32) {
         raf = requestAnimationFrame(frame);
         return;
       }
@@ -785,18 +747,6 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
       const velocityFollow = 1 - Math.exp(-step / 0.12);
       const seconds = now / 1000;
       let moving = false;
-
-      // The lens follows the pointer closely, and eases in and out; the
-      // tilt follows it lazily, so the field swings rather than jerks.
-      if (finePointer) {
-        lens += ((pointerIn ? 1 : 0) - lens) * (1 - Math.exp(-step / 0.3));
-        const follow = 1 - Math.exp(-step / 0.06);
-        lensX += (pointerX - lensX) * follow;
-        lensY += (pointerY - lensY) * follow;
-        const lazy = 1 - Math.exp(-step / 0.5);
-        tiltX += ((pointerIn ? pointerX / vw - 0.5 : 0) - tiltX) * lazy;
-        tiltY += ((pointerIn ? pointerY / vh - 0.5 : 0) - tiltY) * lazy;
-      }
 
       // The singularity, where the ripples start: the hero's body on the
       // landing page, the faded planet's centre on the inner pages. Above
@@ -912,11 +862,6 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
         // into a star as it travels.
         const visible = ambient ? 1 : smoothstep(current / 0.08);
         if (visible <= 0.002) continue;
-        // The pointer tips the field by depth: near stars swing further,
-        // so the sky reads as layers, not a flat sheet.
-        x -= tiltX * POINTER_DEPTH * 2 * star.depth;
-        y -= tiltY * POINTER_DEPTH * 2 * star.depth;
-
         // A ripple passing: pushed out from the singularity and lit as the
         // front goes through, then settling back. The stars are the wave.
         let swell = 0;
@@ -933,9 +878,6 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
           }
         }
 
-        const [bx, by, lit] = bend(x, y);
-        x += bx;
-        y += by;
         if (x < -20 || y < -20 || x > vw + 20 || y > vh + 20) continue;
 
         const grow = ambient ? 1 : 0.4 + 0.6 * smoothstep(current / 0.4);
@@ -952,7 +894,7 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
             : 1;
         let alpha = Math.min(
           1,
-          visible * twinkle(star, seconds) * lit * shimmer * (1 + 0.9 * swell),
+          visible * twinkle(star, seconds) * shimmer * (1 + 0.9 * swell),
         );
 
         // A pulsar: a sharp flash on every beat, decaying fast, with a thin
@@ -1051,22 +993,6 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
       size();
       wake();
     };
-    const onPointerMove = (event: PointerEvent) => {
-      if (event.pointerType !== "mouse") return;
-      if (!pointerIn) {
-        // Arrive at the pointer, don't sweep in from where it last was.
-        lensX = event.clientX;
-        lensY = event.clientY;
-      }
-      pointerX = event.clientX;
-      pointerY = event.clientY;
-      pointerIn = true;
-      pointerMovedAt = performance.now();
-    };
-    const onPointerLeave = () => {
-      pointerIn = false;
-      pointerMovedAt = performance.now();
-    };
     // The hero's box can move without a window resize (fonts landing,
     // the header settling), so the ring is re-measured when it does.
     const hero = document.querySelector(".hero-canvas-mask");
@@ -1076,15 +1002,9 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
     raf = requestAnimationFrame(frame);
     window.addEventListener("scroll", wake, { passive: true });
     window.addEventListener("resize", onResize);
-    if (finePointer) {
-      document.addEventListener("pointermove", onPointerMove, { passive: true });
-      document.documentElement.addEventListener("pointerleave", onPointerLeave);
-    }
     return () => {
       window.removeEventListener("scroll", wake);
       window.removeEventListener("resize", onResize);
-      document.removeEventListener("pointermove", onPointerMove);
-      document.documentElement.removeEventListener("pointerleave", onPointerLeave);
       observer?.disconnect();
       themeWatcher.disconnect();
       if (raf != null) cancelAnimationFrame(raf);
