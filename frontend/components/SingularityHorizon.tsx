@@ -964,6 +964,16 @@ export function SingularityHorizon({
     let quality = 1;
     let avgDt = 1 / 60;
     let lastQualityChange = 0;
+    // Frames drawn while the page scrolls are slow for reasons that have
+    // nothing to do with this canvas (the page is repainting around it),
+    // and judging the ring by them dropped it to a visibly soft 45% on
+    // every scroll, then left it there for half a minute. Those frames
+    // aren't counted: only a canvas that's slow while the page is still.
+    let lastScrollAt = -Infinity;
+    const onScroll = () => {
+      lastScrollAt = performance.now();
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
 
     const resize = () => {
       const cssW = Math.max(1, canvas.clientWidth);
@@ -1016,14 +1026,17 @@ export function SingularityHorizon({
       polarity.current += (polarity.target - polarity.current) * (1 - Math.exp(-dt / 0.16));
       // Only a running loop has a frame rate to judge; reduced motion draws
       // on demand, where the gaps between frames mean nothing.
-      if (!reduced) avgDt += (dt - avgDt) * 0.05;
+      const judging = !reduced && now - lastScrollAt > 500;
+      if (judging) avgDt += (dt - avgDt) * 0.05;
       if (!lastQualityChange) lastQualityChange = now;
       const sinceChange = now - lastQualityChange;
-      if (!reduced && avgDt > 1 / 45 && quality > 0.45 && sinceChange > 1200) {
-        quality = Math.max(0.45, quality * 0.82);
+      // Never below 70% (about half the pixels): under that the ring's fine
+      // bands visibly soften. Back up in steps of 15% every 1.5s of health.
+      if (judging && avgDt > 1 / 45 && quality > 0.7 && sinceChange > 1500) {
+        quality = Math.max(0.7, quality * 0.85);
         lastQualityChange = now;
-      } else if (!reduced && avgDt < 1 / 57 && quality < 1 && sinceChange > 5000) {
-        quality = Math.min(1, quality * 1.1);
+      } else if (judging && avgDt < 1 / 55 && quality < 1 && sinceChange > 1500) {
+        quality = Math.min(1, quality * 1.15);
         lastQualityChange = now;
       }
       resize();
@@ -1241,6 +1254,7 @@ export function SingularityHorizon({
       cancelAnimationFrame(raf);
       observer.disconnect();
       visibility.disconnect();
+      window.removeEventListener("scroll", onScroll);
       themeWatcher.disconnect();
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
