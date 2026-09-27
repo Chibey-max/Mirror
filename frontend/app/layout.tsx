@@ -6,16 +6,21 @@ import { NetworkGuard } from "@/components/NetworkGuard";
 import { mirrorMode } from "@/lib/config";
 
 /*
- * All three faces are self-hosted from app/fonts (Latin subset, variable,
- * OFL-licensed; licenses alongside). next/font/google downloads them at
- * build time, and when that download failed it silently shipped a fallback
- * serif in place of Fraunces: the page looked broken with only a build
- * warning to show for it. Local files make the typeface part of the build.
+ * All faces are self-hosted from app/fonts (Latin subset, OFL-licensed;
+ * licenses alongside). next/font/google downloads them at build time, and
+ * when that download failed it silently shipped a fallback serif in place of
+ * Fraunces: the page looked broken with only a build warning to show for it.
+ * Local files make the typeface part of the build.
  */
-const geistSans = localFont({
-  src: "./fonts/geist.woff2",
-  variable: "--font-geist-sans",
-  weight: "100 900",
+const spaceGrotesk = localFont({
+  src: [
+    { path: "./fonts/space-grotesk-300.ttf", weight: "300", style: "normal" },
+    { path: "./fonts/space-grotesk-400.ttf", weight: "400", style: "normal" },
+    { path: "./fonts/space-grotesk-500.ttf", weight: "500", style: "normal" },
+    { path: "./fonts/space-grotesk-600.ttf", weight: "600", style: "normal" },
+    { path: "./fonts/space-grotesk-700.ttf", weight: "700", style: "normal" },
+  ],
+  variable: "--font-space-grotesk",
 });
 
 const geistMono = localFont({
@@ -25,8 +30,8 @@ const geistMono = localFont({
 });
 
 /**
- * Display-only face for headlines and hero-scale numerals. Everything else
- * stays Geist, this isn't a font swap, it's one deliberate accent.
+ * Display-only face for headlines and hero-scale numerals. Interface text
+ * stays Space Grotesk; this is one deliberate accent.
  *
  * Was Instrument Serif, swapped after feedback that the hero read as too
  * thin. Instrument Serif only ships one weight (400); no CSS font-weight
@@ -72,12 +77,29 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
+  const themeScript = `
+(() => {
+  try {
+    const stored = window.localStorage.getItem("mirror-theme");
+    const theme = stored === "prism" ? "prism" : "nocturne";
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme === "prism" ? "light" : "dark";
+  } catch {
+    document.documentElement.dataset.theme = "nocturne";
+    document.documentElement.style.colorScheme = "dark";
+  }
+})();
+`;
+
   return (
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
+      className={`${spaceGrotesk.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body
         suppressHydrationWarning
         className="min-h-full flex flex-col bg-bg text-text"

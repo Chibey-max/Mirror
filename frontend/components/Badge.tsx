@@ -7,7 +7,7 @@ const VARIANTS = {
   verified: "border-chrome/35 bg-chrome/5 text-chrome",
   following: "border-accent/40 bg-accent/10 text-accent",
   losing: "border-loss/40 bg-loss/10 text-loss",
-  killed: "border-chrome-dim/60 bg-white/[0.03] text-muted",
+  killed: "border-chrome-dim/60 bg-[var(--row-hover)] text-muted",
   pending: "border-warn/40 bg-warn/10 text-warn",
   buy: "border-profit/40 bg-profit/10 text-profit",
   sell: "border-loss/40 bg-loss/10 text-loss",

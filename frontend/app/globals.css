@@ -34,15 +34,219 @@
   --color-loss: #ff4d43;
   --color-warn: #ffb547;
 
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --font-serif: var(--font-display), ui-serif, Georgia, serif;
+}
+
+:root {
+  color-scheme: dark;
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --panel-bg: #09090a;
+  --field-bg: #030303;
+  --row-hover: rgba(255, 255, 255, 0.03);
+  --hero-copy-scrim: radial-gradient(
+    ellipse at center,
+    rgba(0, 0, 0, 0.85) 0%,
+    rgba(0, 0, 0, 0.62) 45%,
+    transparent 72%
+  );
+  --hero-stage:
+    radial-gradient(ellipse at 50% 34%, rgba(226, 169, 127, 0.08), transparent 44%),
+    linear-gradient(180deg, transparent 0%, rgba(226, 169, 127, 0.035) 52%, transparent 100%);
+  --hero-orbit:
+    radial-gradient(circle at 18% 40%, rgba(226, 169, 127, 0.22), transparent 30%),
+    radial-gradient(circle at 78% 30%, rgba(223, 225, 230, 0.12), transparent 34%),
+    linear-gradient(100deg, transparent 15%, rgba(226, 169, 127, 0.1) 46%, transparent 72%);
+  --hero-orbit-opacity: 0.28;
+  --hero-orbit-opacity-soft: 0.2;
+  --page-drift:
+    radial-gradient(ellipse at 18% 18%, rgba(226, 169, 127, 0.1), transparent 34%),
+    linear-gradient(115deg, transparent 8%, rgba(223, 225, 230, 0.055) 34%, transparent 58%),
+    linear-gradient(76deg, transparent 16%, rgba(226, 169, 127, 0.07) 48%, transparent 74%);
+  --page-drift-opacity: 0.18;
+  --page-drift-opacity-soft: 0.1;
+  --ticker-bg: linear-gradient(180deg, #111113 0%, #060607 100%);
+  --ticker-border: rgba(255, 255, 255, 0.06);
+  --metal-face: linear-gradient(180deg, #232323 0%, #050505 100%);
+  --metal-quiet: #0f0f11;
+  --metal-quiet-hover: #15151a;
+  --button-label-primary: #ffffff;
+  --button-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --theme-shadow: rgba(226, 169, 127, 0.56);
+  --theme-toggle-hot: #f0b98d;
+  --theme-toggle-cool: #dfe1e6;
+}
+
+[data-theme="prism"] {
+  color-scheme: light;
+  --color-bg: #f4f0e8;
+  --color-surface: #fffaf0;
+  --color-surface-2: #e9e0d2;
+  --color-border: #c9beae;
+  --color-text: #11100f;
+  --color-muted: #504941;
+  --color-chrome: #3f4650;
+  --color-chrome-dim: #776b5c;
+  --color-accent: #74471f;
+  --color-profit: #007f55;
+  --color-loss: #b7271f;
+  --color-warn: #a56600;
+  --panel-bg: rgba(255, 250, 240, 0.84);
+  --field-bg: rgba(255, 255, 255, 0.72);
+  --row-hover: rgba(142, 93, 52, 0.08);
+  --hero-copy-scrim: radial-gradient(
+    ellipse at center,
+    rgba(255, 250, 240, 0.98) 0%,
+    rgba(255, 250, 240, 0.92) 46%,
+    rgba(244, 240, 232, 0.54) 64%,
+    transparent 78%
+  );
+  /*
+   * One soft ellipse, no banded linear pass. The 90deg gradient this
+   * replaces held a flat tint between 22% and 78%, and those two stops drew
+   * visible vertical edges down the hero — a box nobody asked for.
+   */
+  --hero-stage: radial-gradient(
+    ellipse 120% 90% at 50% 26%,
+    rgba(255, 250, 240, 0.6) 0%,
+    rgba(255, 250, 240, 0.22) 46%,
+    transparent 78%
+  );
+  --hero-orbit:
+    radial-gradient(circle at 18% 40%, rgba(116, 71, 31, 0.12), transparent 31%),
+    radial-gradient(circle at 78% 30%, rgba(63, 70, 80, 0.1), transparent 34%),
+    linear-gradient(100deg, transparent 12%, rgba(255, 250, 240, 0.72) 44%, transparent 72%);
+  --hero-orbit-opacity: 0.78;
+  --hero-orbit-opacity-soft: 0.56;
+  --page-drift:
+    radial-gradient(ellipse at 16% 18%, rgba(116, 71, 31, 0.12), transparent 32%),
+    linear-gradient(112deg, transparent 6%, rgba(255, 250, 240, 0.82) 32%, transparent 55%),
+    linear-gradient(78deg, transparent 14%, rgba(116, 71, 31, 0.16) 46%, transparent 72%);
+  --page-drift-opacity: 0.46;
+  --page-drift-opacity-soft: 0.28;
+  --ticker-bg: linear-gradient(180deg, #fff8eb 0%, #e7dccd 100%);
+  --ticker-border: rgba(82, 76, 68, 0.16);
+  --metal-face: linear-gradient(180deg, #fffaf0 0%, #ded2c1 100%);
+  --metal-quiet: rgba(255, 250, 240, 0.82);
+  --metal-quiet-hover: #fff5e3;
+  --button-label-primary: #11100f;
+  --button-text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+  --theme-shadow: rgba(94, 71, 48, 0.42);
+  --theme-toggle-hot: #f7d39f;
+  --theme-toggle-cool: #7d8793;
 }
 
 body {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-sans);
+  isolation: isolate;
+  transition:
+    background-color 420ms ease,
+    color 260ms ease;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: -18%;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--page-drift);
+  opacity: var(--page-drift-opacity);
+  transform: translate3d(-4%, -2%, 0) scale(1.05);
+  animation: pageDrift 16s var(--ease-in-out) infinite alternate;
+  will-change: transform, opacity;
+}
+
+body > :not(script) {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-section {
+  isolation: isolate;
+  background-image: var(--hero-stage);
+}
+
+.hero-section::before {
+  content: "";
+  position: absolute;
+  inset: -14% -10%;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--hero-orbit);
+  opacity: var(--hero-orbit-opacity);
+  transform: translate3d(-3%, -1%, 0) scale(1.04);
+  animation: heroOrbit 18s var(--ease-in-out) infinite alternate;
+  will-change: transform, opacity;
+}
+
+/*
+ * No rules around the hero in prism. A hairline top and bottom drew a box
+ * across a section that has no edges of its own — on paper it read as a
+ * container the content was trapped in rather than as a horizon.
+ */
+
+/*
+ * The hero canvas is no longer dimmed or filtered in prism. It renders the
+ * same frame at the same strength; the composite pass in SingularityHorizon
+ * prints it as ink on paper rather than light on black, so the motion reads
+ * at full contrast instead of surviving at 16% behind a multiply blend.
+ */
+
+/*
+ * Prism's fade, pulled back. The old stops (vertical from 18%, radial to
+ * paper by 72%) were tuned when the canvas was a dimmed grey smudge; against
+ * a printed ring they erased the outer orbits entirely. The gradients still
+ * land the canvas on the page ground before the copy, just later.
+ */
+[data-theme="prism"] .hero-canvas-mask::after {
+  background:
+    linear-gradient(to bottom, transparent 34%, var(--color-bg) 92%),
+    radial-gradient(ellipse at center, transparent 0%, transparent 44%, var(--color-bg) 88%);
+}
+
+/* Stars become specks of ink (Starfield reads --color-chrome), so they need
+   no blend mode: multiply on a light-on-paper field only greys them out. */
+[data-theme="prism"] .starfield-canvas {
+  opacity: 0.45;
+}
+
+@keyframes heroOrbit {
+  from {
+    opacity: var(--hero-orbit-opacity-soft);
+    transform: translate3d(-3%, -1%, 0) scale(1.04);
+  }
+  to {
+    opacity: var(--hero-orbit-opacity);
+    transform: translate3d(3%, 2%, 0) scale(1.08);
+  }
+}
+
+@keyframes pageDrift {
+  from {
+    opacity: var(--page-drift-opacity-soft);
+    transform: translate3d(-4%, -2%, 0) scale(1.05);
+  }
+  to {
+    opacity: var(--page-drift-opacity);
+    transform: translate3d(4%, 3%, 0) scale(1.09);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before,
+  .hero-section::before {
+    animation: none;
+    transform: none;
+  }
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 34%, transparent);
+  color: var(--color-text);
 }
 
 /* Room at the foot of every page on a phone for the fixed bottom tab bar
@@ -116,7 +320,7 @@ body {
    * radius, a hover border) still wins.
    */
   .panel {
-    background: #09090a;
+    background: var(--panel-bg);
     border: 1px solid var(--color-border);
   }
 
@@ -156,12 +360,12 @@ body {
     transition: background-color 180ms ease;
   }
   .data-row:hover {
-    background-color: rgba(255, 255, 255, 0.03);
+    background-color: var(--row-hover);
   }
 
   /* Input fields: a shade below the panel they sit in; the rule lifts on focus. */
   .field {
-    background: #030303;
+    background: var(--field-bg);
     border: 1px solid var(--color-border);
     transition: border-color 150ms ease;
   }
@@ -215,11 +419,11 @@ body {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(to bottom, transparent 74%, #000 100%);
+  background: linear-gradient(to bottom, transparent 74%, var(--color-bg) 100%);
 }
 @media (min-width: 640px) {
   .hero-canvas-mask::after {
-    background: linear-gradient(to bottom, transparent 82%, #000 100%);
+    background: linear-gradient(to bottom, transparent 82%, var(--color-bg) 100%);
   }
 }
 

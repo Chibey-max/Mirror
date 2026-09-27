@@ -50,7 +50,7 @@ export function AgentTapeTable({ fills }: { fills: AgentFill[] }) {
       <div className="hidden overflow-hidden panel rounded-3xl sm:block">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[680px] text-left text-sm">
-            <thead className="border-b border-border bg-white/[0.025] text-xs uppercase text-muted">
+            <thead className="border-b border-border bg-[var(--row-hover)] text-xs uppercase text-muted">
               <tr>
                 <th className="px-4 py-3 font-medium">Side</th>
                 <th className="px-4 py-3 font-medium">Token</th>

@@ -180,7 +180,7 @@ function Line({ points }: { points: TimedPnlPoint[] }) {
       }}
       onKeyDown={onKeyDown}
       onBlur={() => setActive(null)}
-      className="group/chart relative cursor-crosshair touch-pan-y select-none rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-4 focus-visible:ring-offset-[#09090a]"
+      className="group/chart relative cursor-crosshair touch-pan-y select-none rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-4 focus-visible:ring-offset-[var(--panel-bg)]"
       style={{ height }}
     >
       <svg
@@ -272,7 +272,7 @@ function Line({ points }: { points: TimedPnlPoint[] }) {
           />
         )}
         <span
-          className={`absolute rounded-full ring-2 ring-[#09090a] transition-all duration-150 ${
+          className={`absolute rounded-full ring-2 ring-[var(--panel-bg)] transition-all duration-150 ${
             active === null ? "-left-[4px] -top-[4px] size-2" : "-left-[6px] -top-[6px] size-3"
           }`}
           style={{ background: point.pnlPct < 0 ? "var(--color-loss)" : "var(--color-profit)" }}
@@ -281,7 +281,7 @@ function Line({ points }: { points: TimedPnlPoint[] }) {
 
       {active !== null && (
         <div
-          className={`pointer-events-none absolute z-10 -translate-y-1/2 whitespace-nowrap rounded-xl border border-border bg-[#0d0d10]/95 px-3 py-2 shadow-[0_8px_24px_rgba(0,0,0,0.5)] motion-safe:animate-[tipIn_120ms_ease-out] ${anchor}`}
+          className={`pointer-events-none absolute z-10 -translate-y-1/2 whitespace-nowrap rounded-xl border border-border bg-surface/95 px-3 py-2 shadow-[0_8px_24px_rgba(0,0,0,0.22)] motion-safe:animate-[tipIn_120ms_ease-out] ${anchor}`}
           style={{ left, top: Math.min(Math.max(top, 34), height - 34) }}
         >
           <p className={`tabular text-base font-semibold ${pointColor}`}>

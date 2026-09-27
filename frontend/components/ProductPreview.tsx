@@ -72,7 +72,7 @@ export function ProductPreview() {
                   aria-pressed={active}
                   className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
                     active
-                      ? "bg-white/[0.06] text-text"
+                      ? "bg-[var(--row-hover)] text-text"
                       : "text-muted hover:text-text"
                   }`}
                 >
