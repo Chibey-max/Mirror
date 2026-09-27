@@ -12,7 +12,10 @@ import { Logo } from "@/components/Logo";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { PendingTxIndicator } from "@/components/TransactionToasts";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { WalletConnectButton } from "@/components/WalletConnectButton";
+import {
+  OPEN_CONNECT_MENU_EVENT,
+  WalletConnectButton,
+} from "@/components/WalletConnectButton";
 
 const NAV = [
   { href: "/agents", label: "Agents" },
@@ -93,6 +96,17 @@ export function SiteHeader() {
   const [hidden, setHidden] = useState(false);
   const lastY = useRef(0);
   const hiddenRef = useRef(false);
+
+  // The wallet menu lives here; when another button asks for it, make sure
+  // the header is on screen to show it.
+  useEffect(() => {
+    const reveal = () => {
+      hiddenRef.current = false;
+      setHidden(false);
+    };
+    window.addEventListener(OPEN_CONNECT_MENU_EVENT, reveal);
+    return () => window.removeEventListener(OPEN_CONNECT_MENU_EVENT, reveal);
+  }, []);
 
   useEffect(() => {
     lastY.current = window.scrollY;

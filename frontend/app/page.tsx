@@ -196,12 +196,12 @@ export default function Home() {
               always returns exactly what you put in.
             </p>
 
-            {/* Always exactly two buttons on one row: the wallet list sits
-                behind Connect wallet, however many wallets the browser
-                announces, and the second label shortens on a phone so the
-                pair still fits side by side at 320px. */}
+            {/* Always exactly two buttons on one row. Connect wallet opens
+                the header's wallet menu rather than a second menu of its
+                own over the hero copy; the second label shortens on a
+                phone so the pair still fits side by side at 320px. */}
             <div className="relative z-10 mt-8 flex items-center justify-center gap-3 sm:mt-9">
-              <WalletConnectButton menuAlign="start" />
+              <WalletConnectButton opensHeaderMenu />
               <MetalButton href="/agents">
                 <span className="sm:hidden">Browse agents</span>
                 <span className="hidden sm:inline">Browse agents, read-only</span>

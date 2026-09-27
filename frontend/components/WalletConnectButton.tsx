@@ -105,13 +105,19 @@ function connectorHint(connector: Connector): string {
  * extensions got four buttons, which pushed the header off a phone and broke
  * the hero's call to action into ragged rows.
  */
+/**
+ * Asks the header's Connect wallet menu to open. There's one wallet menu,
+ * in the header: other Connect wallet buttons (the hero's) send this rather
+ * than dropping a second menu of their own into the page, where it opened
+ * over the hero copy.
+ */
+export const OPEN_CONNECT_MENU_EVENT = "mirror:open-connect-menu";
+
 export function WalletConnectButton({
-  menuAlign = "end",
+  opensHeaderMenu = false,
 }: {
-  /** Which of the button's edges the menu lines up with: the right in the
-   *  header (the button sits at the right of the screen), the left in the
-   *  hero (it's the left of a centred pair, so centring ran off screen). */
-  menuAlign?: "end" | "start";
+  /** Open the header's menu instead of carrying one (the hero's button). */
+  opensHeaderMenu?: boolean;
 } = {}) {
   const { address, chainId, isConnected } = useAccount();
   const { connectors, connect, isPending } = useConnect();
@@ -164,9 +170,20 @@ export function WalletConnectButton({
     );
   }
 
+  if (opensHeaderMenu) {
+    return (
+      <MetalButton
+        tone="primary"
+        aria-haspopup="menu"
+        onClick={() => window.dispatchEvent(new Event(OPEN_CONNECT_MENU_EVENT))}
+      >
+        Connect wallet
+      </MetalButton>
+    );
+  }
+
   return (
     <ConnectMenu
-      align={menuAlign}
       options={connectOptions(connectors).map((connector) => ({
         key: connector.uid,
         label: connectorLabel(connector),
@@ -249,15 +266,26 @@ function FallbackIcon({ kind }: { kind: ConnectOption["kind"] }) {
 function ConnectMenu({
   options,
   disabled,
-  align,
 }: {
   options: ConnectOption[];
   disabled: boolean;
-  align: "end" | "start";
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const menuId = useId();
+
+  // Opened from elsewhere on the page (the hero's Connect wallet), with
+  // focus on the first wallet so the keyboard lands in the menu too.
+  useEffect(() => {
+    const onOpen = () => {
+      setOpen(true);
+      requestAnimationFrame(() =>
+        ref.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus({ preventScroll: true }),
+      );
+    };
+    window.addEventListener(OPEN_CONNECT_MENU_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_CONNECT_MENU_EVENT, onOpen);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -292,9 +320,7 @@ function ConnectMenu({
           id={menuId}
           role="menu"
           aria-label="Choose a wallet"
-          className={`panel absolute top-full z-40 mt-2.5 w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl bg-surface shadow-[0_24px_48px_-12px_rgba(0,0,0,0.45)] motion-safe:animate-[tipIn_160ms_ease-out] ${
-            align === "start" ? "left-0 origin-top-left" : "right-0 origin-top-right"
-          }`}
+          className="panel absolute right-0 top-full z-40 mt-2.5 w-72 max-w-[calc(100vw-2rem)] origin-top-right overflow-hidden rounded-2xl bg-surface shadow-[0_24px_48px_-12px_rgba(0,0,0,0.45)] motion-safe:animate-[tipIn_160ms_ease-out]"
         >
           <div className="flex items-center justify-between px-4 pb-2.5 pt-3.5">
             <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
