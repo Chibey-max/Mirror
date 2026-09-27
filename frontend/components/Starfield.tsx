@@ -3,6 +3,20 @@
 import { useEffect, useRef } from "react";
 import { useReducedMotion } from "@/components/MetalButton";
 
+/**
+ * Stars are chrome on black; on paper the same field has to be ink, or the
+ * canvas paints white specks onto a white page. Read from the token so the
+ * two themes can never drift apart — resolved once per mount, not per frame:
+ * getComputedStyle inside the loop forces a style recalculation every frame.
+ */
+function starColor(): string {
+  return (
+    getComputedStyle(document.documentElement)
+      .getPropertyValue("--color-chrome")
+      .trim() || "#dfe1e6"
+  );
+}
+
 type Star = {
   /** Where it comes to rest, as a fraction of the viewport. */
   x: number;
@@ -188,10 +202,19 @@ export function Starfield() {
       (star.maxOpacity - star.minOpacity) *
         (0.5 - 0.5 * Math.cos((2 * Math.PI * (t - star.delay)) / star.duration));
 
+    let ink = starColor();
+    const themeWatcher = new MutationObserver(() => {
+      ink = starColor();
+    });
+    themeWatcher.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+
     function drawStill() {
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx!.clearRect(0, 0, vw, vh);
-      ctx!.fillStyle = "#dfe1e6";
+      ctx!.fillStyle = ink;
       for (const star of stars) {
         ctx!.globalAlpha = star.maxOpacity;
         ctx!.beginPath();
@@ -223,7 +246,7 @@ export function Starfield() {
 
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx!.clearRect(0, 0, vw, vh);
-      ctx!.fillStyle = "#dfe1e6";
+      ctx!.fillStyle = ink;
 
       let moving = false;
       let anyVisible = false;
@@ -367,6 +390,7 @@ export function Starfield() {
       window.removeEventListener("scroll", wake);
       window.removeEventListener("resize", onResize);
       observer?.disconnect();
+      themeWatcher.disconnect();
       if (raf != null) cancelAnimationFrame(raf);
     };
   }, [reduced]);
@@ -375,7 +399,7 @@ export function Starfield() {
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-[1] h-full w-full"
+      className="starfield-canvas pointer-events-none fixed inset-0 z-[1] h-full w-full"
     />
   );
 }
