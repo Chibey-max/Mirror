@@ -15,6 +15,15 @@
   initial-value: 0;
 }
 
+/* The turn of the liquid-chrome rims lib/walletConnectTheme.ts puts on
+   WalletConnect's modal. Registered here, at the document, because a
+   property registered inside a shadow root doesn't take. */
+@property --mirror-metal {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 0deg;
+}
+
 @theme {
   --color-bg: #000000;
   --color-surface: #0c0c0e;

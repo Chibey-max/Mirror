@@ -9,6 +9,7 @@ import {
 } from "wagmi";
 import { targetChain } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
+import { themeWalletConnectModal } from "@/lib/walletConnectTheme";
 import { useNotify, type NoticeTone } from "@/components/TransactionToasts";
 
 type Connector = ReturnType<typeof useConnect>["connectors"][number];
@@ -84,56 +85,6 @@ function describeConnectError(
 
 function shortAccount(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
-}
-
-type ThemeableModal = {
-  setThemeMode?: (mode: "dark" | "light") => void;
-  setThemeVariables?: (variables: Record<string, string | number>) => void;
-};
-
-/**
- * Dresses WalletConnect's own QR modal (Reown AppKit, a web component in a
- * shadow root our CSS can't reach) in the site's look, just before it opens:
- * the page's font instead of the Times fallback it showed, its dark or prism
- * mode, surfaces mixed toward our black or paper, softer corners, and chrome
- * or ink for the accent.
- *
- * Set on the modal instance rather than through the connector's
- * qrModalOptions, which only carries a few legacy variables and paints the
- * QR in the accent colour, a pale QR on white that scanners can miss. Here
- * the QR gets its own near-black. Best effort: if the modal's API ever
- * changes, it opens in its default style and still works.
- */
-async function themeWalletConnectModal(connector: Connector) {
-  try {
-    const provider = (await connector.getProvider()) as { modal?: ThemeableModal } | undefined;
-    const modal = provider?.modal;
-    if (!modal) return;
-    const prism = document.documentElement.dataset.theme === "prism";
-    const font = getComputedStyle(document.documentElement)
-      .getPropertyValue("--font-space-grotesk")
-      .trim();
-    const theme = {
-      "font-family": `${font ? `${font}, ` : ""}ui-sans-serif, system-ui, sans-serif`,
-      accent: prism ? "#74471f" : "#dfe1e6",
-      "color-mix": prism ? "#f4f0e8" : "#000000",
-      "color-mix-strength": prism ? 35 : 45,
-      "border-radius-master": "6px",
-      "qr-color": "#0b0b0c",
-      "z-index": 70,
-    };
-    // AppKit 1.8 reads both spellings in different components (the old
-    // --w3m names and the newer --apkt ones); set each value under both.
-    const variables: Record<string, string | number> = {};
-    for (const [name, value] of Object.entries(theme)) {
-      variables[`--w3m-${name}`] = value;
-      variables[`--apkt-${name}`] = value;
-    }
-    modal.setThemeMode?.(prism ? "light" : "dark");
-    modal.setThemeVariables?.(variables);
-  } catch {
-    // Unstyled is fine; failing to connect over styling is not.
-  }
 }
 
 /** One line under each wallet's name in the menu, saying what picking it does. */
@@ -225,7 +176,9 @@ export function WalletConnectButton({
         icon: (connector as { icon?: string }).icon,
         kind: connector.id === "walletConnect" ? "walletConnect" : "browser",
         onSelect: async () => {
-          if (connector.id === "walletConnect") await themeWalletConnectModal(connector);
+          if (connector.id === "walletConnect") {
+            await themeWalletConnectModal(() => connector.getProvider());
+          }
           connect(
             { connector },
             {
