@@ -8,6 +8,8 @@ export type LoopStep = { title: string; short: string; body: string };
 const STEP_INTERVAL_MS = 1800;
 /** A beat on 06 before the loop starts over, so the end reads as an end. */
 const LOOP_REST_MS = 3200;
+/** 01 holds longer: after the wrap the swarm is still gathering there. */
+const FIRST_HOLD_MS = 3400;
 /** How long a visitor's own click holds the walk before it resumes. */
 const RESUME_AFTER_MS = 9000;
 
@@ -63,7 +65,7 @@ export function LoopSteps({ steps }: { steps: LoopStep[] }) {
     const last = active >= steps.length - 1;
     const timer = setTimeout(
       () => setActive((i) => (i >= steps.length - 1 ? 0 : i + 1)),
-      last ? LOOP_REST_MS : STEP_INTERVAL_MS,
+      last ? LOOP_REST_MS : active === 0 ? FIRST_HOLD_MS : STEP_INTERVAL_MS,
     );
     return () => clearTimeout(timer);
   }, [started, autoplay, active, steps.length, reduced]);
@@ -106,21 +108,22 @@ export function LoopSteps({ steps }: { steps: LoopStep[] }) {
   }
 
   return (
-    <div ref={sectionRef} className="mt-10">
+    <div ref={sectionRef} className="relative mt-10">
+      {/* Outside the list, so its scatter on the wrap isn't clipped. */}
+      <StepSwarm track={trackRef} active={started ? active : -1} />
       {/* The track: numbered circles on a hairline, short labels, and the
           swarm (StepSwarm) that carries the emphasis from one to the next. */}
       <ol
         ref={trackRef}
-        className="relative flex items-start justify-between overflow-x-auto px-1 pb-1 pt-3 sm:overflow-visible"
+        className="relative flex items-start justify-between px-1 pb-1 pt-3"
       >
-        <StepSwarm track={trackRef} active={started ? active : -1} />
         {steps.map((step, index) => {
           const lit = started && index <= active;
           const isActive = started && index === active;
           return (
             <li
               key={step.title}
-              className="relative flex min-w-[64px] flex-1 flex-col items-center gap-2 sm:min-w-0"
+              className="relative flex min-w-0 flex-1 flex-col items-center gap-2"
             >
               {index > 0 && (
                 <span
@@ -187,31 +190,50 @@ export function LoopSteps({ steps }: { steps: LoopStep[] }) {
   );
 }
 
+/** Motes in the ring, and the ring's gap outside a number's edge. */
+const MOTES = 30;
+const RING_GAP = 9;
+/** One slow turn for the whole ring, radians a second. */
+const TURN = 0.55;
+/** A step along the line, and the scatter from 06 back to 01. */
+const TRAVEL_MS = 850;
+const SCATTER_MS = 2600;
+
 type Mote = {
-  /** How tightly it follows the swarm's centre: low trails behind. */
-  follow: number;
-  /** Its place in the cloud: angle, distance, and how fast it circles. */
-  angle: number;
-  reach: number;
-  spin: number;
+  /** Its fixed place on the ring, and a hair in or out for texture. */
+  slot: number;
+  lane: number;
   size: number;
   alpha: number;
+  /** Where it wanders to on a scatter, as a direction and distance. */
+  flingAngle: number;
+  flingReach: number;
+  /** Its own start within a scatter, so they don't leave in a block. */
+  lag: number;
 };
 
-const MOTES = 56;
+type Point = { x: number; y: number; r: number };
+
+type Move =
+  | { kind: "rest"; to: number }
+  | { kind: "travel"; from: number; to: number; fromX: number; start: number }
+  | { kind: "scatter"; to: number; start: number; origin: Float32Array };
+
+function easeInOutSine(t: number) {
+  return 0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, Math.max(0, t)));
+}
 
 /**
- * What carries the emphasis between steps: a cloud of chrome motes, like a
- * bead of mercury, instead of a line filling in. It flows along the track to
- * the active step, stretching out behind itself as it travels (each mote
- * follows the centre at its own lag), and on arrival it gathers into a
- * slow orbit around the active number. On the wrap from 06 back to 01 it
- * sweeps the whole track.
+ * What carries the emphasis between steps: a ring of chrome motes that sits
+ * just outside the active number, turning slowly as one. When the step
+ * advances, the whole ring glides along the line to the next number. From
+ * 06 back to 01 it doesn't retrace the line: the motes drift apart, each on
+ * its own smooth curve in its own direction, and gather again around 01.
  *
- * One canvas over the track, drawn only while the section is on screen, in
- * the theme's --color-chrome so it's light on black and ink on paper. The
- * step positions are measured from the buttons themselves, so it follows the
- * layout at every width, including the scrolling track on a phone.
+ * Every mote's position is a function of time along a planned path (no
+ * per-frame chasing or random jitter), which is what keeps it smooth. One
+ * canvas over the track with room above and below for the scatter, drawn
+ * only while on screen, in the theme's --color-chrome.
  */
 function StepSwarm({
   track,
@@ -229,40 +251,44 @@ function StepSwarm({
   useEffect(() => {
     const canvas = canvasRef.current;
     const list = track.current;
+    const host = canvas?.parentElement;
     const ctx = canvas?.getContext("2d");
-    if (!canvas || !list || !ctx) return;
+    if (!canvas || !list || !host || !ctx) return;
 
-    const motes: Mote[] = Array.from({ length: MOTES }, () => ({
-      follow: 0.09 + Math.random() * 0.18,
-      angle: Math.random() * Math.PI * 2,
-      reach: Math.random(),
-      spin: (0.4 + Math.random() * 0.9) * (Math.random() < 0.5 ? -1 : 1),
-      size: 0.6 + Math.random() * 1.6,
-      alpha: 0.35 + Math.random() * 0.6,
+    const motes: Mote[] = Array.from({ length: MOTES }, (_, i) => ({
+      slot: (i / MOTES) * Math.PI * 2,
+      lane: ((i % 3) - 1) * 1.6,
+      size: 1 + (i % 3 === 1 ? 0.55 : 0.2) + Math.random() * 0.25,
+      alpha: 0.55 + Math.random() * 0.4,
+      flingAngle: Math.random() * Math.PI * 2,
+      flingReach: 0.45 + Math.random() * 0.55,
+      lag: Math.random() * 0.22,
     }));
-    const mx = new Float32Array(MOTES);
-    const my = new Float32Array(MOTES);
 
-    let stops: { x: number; y: number; r: number }[] = [];
+    // The canvas overhangs the track by PAD above and below, for the scatter.
+    const PAD = 90;
+    let stops: Point[] = [];
     let width = 0;
     let height = 0;
     let dpr = 1;
     let ink = "#dfe1e6";
 
     const measure = () => {
-      const box = list.getBoundingClientRect();
-      width = list.scrollWidth;
-      height = box.height;
+      const hostBox = host.getBoundingClientRect();
+      const listBox = list.getBoundingClientRect();
+      width = hostBox.width;
+      height = listBox.height + PAD * 2;
       dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
+      canvas.style.top = `${listBox.top - hostBox.top - PAD}px`;
       stops = [...list.querySelectorAll<HTMLElement>("[data-step]")].map((button) => {
         const b = button.getBoundingClientRect();
         return {
-          x: b.left - box.left + list.scrollLeft + b.width / 2,
-          y: b.top - box.top + b.height / 2,
+          x: b.left - hostBox.left + b.width / 2,
+          y: b.top - listBox.top + PAD + b.height / 2,
           r: b.width / 2,
         };
       });
@@ -273,60 +299,112 @@ function StepSwarm({
     };
     measure();
 
-    // The swarm's centre, on a critically damped spring toward its step.
-    let cx = stops[0]?.x ?? 0;
-    let vx = 0;
-    let seeded = false;
+    // Where mote i sits on the ring around stop `at`, at time t (seconds).
+    const ringX = (m: Mote, at: Point, t: number, cx = at.x) =>
+      cx + Math.cos(m.slot + t * TURN) * (at.r + RING_GAP + m.lane);
+    const ringY = (m: Mote, at: Point, t: number) =>
+      at.y + Math.sin(m.slot + t * TURN) * (at.r + RING_GAP + m.lane);
+
+    let move: Move | null = null;
+    const px = new Float32Array(MOTES);
+    const py = new Float32Array(MOTES);
     let raf = 0;
-    let last = 0;
     let onScreen = false;
+
+    const plan = (next: number, now: number) => {
+      if (!move || !stops[next]) {
+        move = { kind: "rest", to: next };
+        return;
+      }
+      const current = move.to;
+      // Backwards past a neighbour, or the loop's 06 to 01, scatters; so
+      // does any new step while a scatter is still gathering, so the motes
+      // curve on to it from where they are instead of snapping to the line.
+      const wrap =
+        move.kind === "scatter" ||
+        next < current - 1 ||
+        (current === stops.length - 1 && next === 0);
+      if (wrap) {
+        const origin = new Float32Array(MOTES * 2);
+        for (let i = 0; i < MOTES; i++) {
+          origin[i * 2] = px[i];
+          origin[i * 2 + 1] = py[i];
+        }
+        move = { kind: "scatter", to: next, start: now, origin };
+      } else {
+        // From wherever the ring is now, so a click mid-glide doesn't jump.
+        const fromX =
+          move.kind === "travel"
+            ? travelCentre(move, now)
+            : stops[current]?.x ?? stops[next].x;
+        move = { kind: "travel", from: current, to: next, fromX, start: now };
+      }
+    };
+
+    const travelCentre = (m: Extract<Move, { kind: "travel" }>, now: number) => {
+      const to = stops[m.to];
+      const p = easeInOutSine((now - m.start) / TRAVEL_MS);
+      return m.fromX + (to.x - m.fromX) * p;
+    };
 
     const frame = (now: number) => {
       raf = 0;
-      const dt = last ? Math.min(0.05, (now - last) / 1000) : 1 / 60;
-      last = now;
-      const target = stops[activeRef.current];
+      const t = now / 1000;
+      const target = activeRef.current;
+      if (target >= 0 && (!move || move.to !== target)) plan(target, now);
+
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = ink;
 
-      if (target) {
-        if (!seeded) {
-          cx = target.x;
-          for (let i = 0; i < MOTES; i++) {
-            mx[i] = target.x;
-            my[i] = target.y;
-          }
-          seeded = true;
-        }
-        // Spring toward the step: quick enough to arrive with the step's
-        // own splash (about a third of a second), damped so it doesn't
-        // overshoot the number.
-        const stiffness = 80;
-        const damping = 2 * Math.sqrt(stiffness);
-        vx += ((target.x - cx) * stiffness - vx * damping) * dt;
-        cx += vx * dt;
-        const speed = Math.min(1, Math.abs(vx) / 900);
-        const seconds = now / 1000;
-
-        ctx.fillStyle = ink;
+      if (move && stops[move.to]) {
+        const to = stops[move.to];
         for (let i = 0; i < MOTES; i++) {
-          const mote = motes[i];
-          // Travelling, the cloud is a tight, stretched bead; at rest it
-          // opens into a ring just outside the number.
-          const ring = target.r + 5 + mote.reach * 5;
-          const cloud = 3 + mote.reach * 9;
-          const orbit = ring * (1 - speed) + cloud * speed;
-          const a = mote.angle + seconds * mote.spin * (0.6 + speed * 2);
-          const ox = Math.cos(a) * orbit;
-          const oy = Math.sin(a) * orbit * (1 - speed * 0.55);
-          // Each mote chases its own point with its own lag, which is what
-          // draws the travelling bead out into a tail.
-          const k = 1 - Math.pow(1 - mote.follow, dt * 60);
-          mx[i] += (cx + ox - mx[i]) * k;
-          my[i] += (target.y + oy - my[i]) * k;
-          ctx.globalAlpha = mote.alpha * (0.55 + speed * 0.45);
+          const m = motes[i];
+          let x: number;
+          let y: number;
+          let fade = 1;
+          if (move.kind === "rest") {
+            x = ringX(m, to, t);
+            y = ringY(m, to, t);
+          } else if (move.kind === "travel") {
+            // The ring glides; each mote leaves a touch after the one ahead
+            // of it, so it flows along the line instead of sliding as a disc.
+            const delay = (i / MOTES) * 0.12;
+            const p = easeInOutSine(((now - move.start) / TRAVEL_MS - delay) / (1 - 0.12));
+            const cx = move.fromX + (to.x - move.fromX) * p;
+            x = ringX(m, to, t, cx);
+            y = ringY(m, to, t);
+            if (p >= 1 && i === MOTES - 1) move = { kind: "rest", to: move.to };
+          } else {
+            // A cubic curve: out from where it was, through its own point
+            // well away from the track, round to its place on the ring at
+            // the new step. Each leaves at its own moment.
+            const raw = ((now - move.start) / SCATTER_MS - m.lag) / (1 - 0.22);
+            const p = easeInOutSine(raw);
+            const ox = move.origin[i * 2];
+            const oy = move.origin[i * 2 + 1];
+            const mid = width / 2;
+            const reachX = width * 0.42 * m.flingReach;
+            const reachY = 70 * m.flingReach;
+            const ax = ox + Math.cos(m.flingAngle) * reachX * 0.5;
+            const ay = oy + Math.sin(m.flingAngle) * reachY;
+            const bx = mid + Math.cos(m.flingAngle + 1.2) * reachX;
+            const by = to.y + Math.sin(m.flingAngle + 1.2) * reachY;
+            const ex = ringX(m, to, t);
+            const ey = ringY(m, to, t);
+            const u = 1 - p;
+            x = u * u * u * ox + 3 * u * u * p * ax + 3 * u * p * p * bx + p * p * p * ex;
+            y = u * u * u * oy + 3 * u * u * p * ay + 3 * u * p * p * by + p * p * p * ey;
+            // A little dimmer while spread out, full again once gathered.
+            fade = 1 - 0.4 * Math.sin(Math.PI * p);
+            if (raw >= 1 && i === MOTES - 1) move = { kind: "rest", to: move.to };
+          }
+          px[i] = x;
+          py[i] = y;
+          ctx.globalAlpha = m.alpha * fade;
           ctx.beginPath();
-          ctx.arc(mx[i], my[i], mote.size, 0, Math.PI * 2);
+          ctx.arc(x, y, m.size, 0, Math.PI * 2);
           ctx.fill();
         }
       }
@@ -335,16 +413,11 @@ function StepSwarm({
 
     const visibility = new IntersectionObserver(([entry]) => {
       onScreen = entry.isIntersecting;
-      if (onScreen && !raf) {
-        last = 0;
-        raf = requestAnimationFrame(frame);
-      }
+      if (onScreen && !raf) raf = requestAnimationFrame(frame);
     });
     visibility.observe(list);
-    const resize = new ResizeObserver(() => {
-      measure();
-    });
-    resize.observe(list);
+    const resize = new ResizeObserver(measure);
+    resize.observe(host);
     const theme = new MutationObserver(measure);
     theme.observe(document.documentElement, {
       attributes: true,
@@ -363,7 +436,7 @@ function StepSwarm({
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className="pointer-events-none absolute left-0 top-0 z-20"
+      className="pointer-events-none absolute left-0 z-20"
     />
   );
 }
