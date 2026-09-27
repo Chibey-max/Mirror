@@ -5,7 +5,8 @@ import { useReducedMotion } from "@/components/MetalButton";
 
 export type LoopStep = { title: string; short: string; body: string };
 
-const STEP_INTERVAL_MS = 1800;
+/** Long enough for each step's dispersal to finish and settle first. */
+const STEP_INTERVAL_MS = 3200;
 /** A beat on 06 before the loop starts over, so the end reads as an end. */
 const LOOP_REST_MS = 3200;
 /** 01 holds longer: after the wrap the swarm is still gathering there. */
@@ -195,9 +196,8 @@ const MOTES = 30;
 const RING_GAP = 9;
 /** One slow turn for the whole ring, radians a second. */
 const TURN = 0.55;
-/** A hop to the next step, and the wide scatter from 06 back to 01. */
-const HOP_MS = 1250;
-const SCATTER_MS = 2600;
+/** Every move, step to step and 06 back to 01, is the same dispersal. */
+const SCATTER_MS = 2000;
 
 type Mote = {
   /** Its fixed place on the ring, and a hair in or out for texture. */
@@ -221,8 +221,6 @@ type Move =
       to: number;
       start: number;
       duration: number;
-      /** true: the loop's wide drift across the whole track; false: a hop. */
-      wide: boolean;
       /** Where each mote was when this move began, x/y interleaved. */
       origin: Float32Array;
       /** The step it's leaving, whose number the paths curve out around. */
@@ -235,12 +233,10 @@ function easeInOutSine(t: number) {
 
 /**
  * What carries the emphasis between steps: a ring of chrome motes that sits
- * just outside the active number, turning slowly as one. When the step
- * advances, the ring loosens: each mote flows to the next number on its own
- * gentle curve, a little above or below the line, leaving at its own
- * moment, and they settle back into a ring there. From 06 back to 01 the
- * same thing happens wide: the motes drift far apart across the whole
- * track, in every direction, and gather again around 01.
+ * just outside the active number, turning slowly as one. Every move, step
+ * to step and 06 back to 01 alike, is a dispersal: the motes drift far
+ * apart, high and low and across the track, each on its own curve and at
+ * its own moment, then gather into the ring around the next number.
  *
  * Every mote's position is a function of time along a planned path (no
  * per-frame chasing or random jitter), which is what keeps it smooth. One
@@ -329,10 +325,8 @@ function StepSwarm({
         return;
       }
       const current = move.to;
-      // The loop's 06 to 01, or any jump back past a neighbour, drifts wide;
-      // everything else is a hop. Either way it starts from wherever each
-      // mote is right now, so a click mid-move carries on without a jump.
-      const wide = next < current - 1 || (current === stops.length - 1 && next === 0);
+      // Every move is the same dispersal, from wherever each mote is right
+      // now, so a click mid-move carries on without a jump.
       const origin = new Float32Array(MOTES * 2);
       for (let i = 0; i < MOTES; i++) {
         origin[i * 2] = px[i];
@@ -342,8 +336,7 @@ function StepSwarm({
         kind: "scatter",
         to: next,
         start: now,
-        duration: wide ? SCATTER_MS : HOP_MS,
-        wide,
+        duration: SCATTER_MS,
         origin,
         from: stops[current] ?? stops[next],
       };
@@ -385,23 +378,13 @@ function StepSwarm({
             // line (above if it started above), so the curve clears the
             // numbers in between as well.
             const from = move.from;
-            const R = to.r + RING_GAP;
             const leave = Math.atan2(oy - from.y, ox - from.x);
             const arrive = m.slot + t * TURN;
             const side = Math.sin(leave) < -0.15 ? -1 : Math.sin(leave) > 0.15 ? 1 : Math.sin(m.flingAngle) < 0 ? -1 : 1;
-            let out: number;
-            let lift: number;
-            let spreadX = 0;
-            if (move.wide) {
-              // Wide: far out, high or low, and across the track.
-              out = 50 + m.flingReach * 90;
-              lift = 30 + m.flingReach * 60;
-              spreadX = width * 0.22 * m.flingReach * Math.cos(m.flingAngle);
-            } else {
-              // A hop: loosen into a cloud that clears the line.
-              out = R * 0.55 + m.flingReach * 12;
-              lift = R * 0.9 + m.flingReach * 16;
-            }
+            // Far out, high or low, and across the track, then in.
+            const out = 50 + m.flingReach * 90;
+            const lift = 30 + m.flingReach * 60;
+            const spreadX = width * 0.22 * m.flingReach * Math.cos(m.flingAngle);
             const ax = ox + Math.cos(leave) * out + spreadX;
             const ay = oy + Math.sin(leave) * out * 0.6 + side * lift;
             const bx = to.x + Math.cos(arrive) * out - spreadX * 0.6;
@@ -412,7 +395,7 @@ function StepSwarm({
             x = u * u * u * ox + 3 * u * u * p * ax + 3 * u * p * p * bx + p * p * p * ex;
             y = u * u * u * oy + 3 * u * u * p * ay + 3 * u * p * p * by + p * p * p * ey;
             // A little dimmer while spread out, full again once gathered.
-            fade = 1 - (move.wide ? 0.4 : 0.25) * Math.sin(Math.PI * p);
+            fade = 1 - 0.4 * Math.sin(Math.PI * p);
             if (raw >= 1 && i === MOTES - 1) move = { kind: "rest", to: move.to };
           }
           px[i] = x;
