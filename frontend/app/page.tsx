@@ -152,7 +152,7 @@ export default function Home() {
       */}
       <div className="hero-fade pointer-events-none absolute inset-x-0 top-0 z-0 overflow-hidden">
         <div className="hero-canvas-mask absolute left-[calc(50%-20vw)] top-[calc(20px-30.7svh)] h-[115svh] w-[170vw] -translate-x-1/2 sm:left-[calc(50%-35vw)] sm:top-[calc(20px-25.6svh)] sm:h-[145svh] sm:w-[180vw]">
-          <SingularityHorizon height="100%" />
+          <SingularityHorizon height="100%" shedOnScroll />
         </div>
       </div>
 

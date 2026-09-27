@@ -75,6 +75,14 @@ export type SingularityHorizonProps = {
    * lower-resolution ring from a sharp one.
    */
   pixelBudget?: number;
+  /**
+   * Let the ring give up its matter as the page scrolls: part of the disc
+   * lifts away and fades over the first screen and a bit of scroll, the
+   * same span over which Starfield launches its stars from the ring, so the
+   * ring reads as thinning into the star field. Scrolling back up gathers
+   * it again. The landing hero only.
+   */
+  shedOnScroll?: boolean;
   className?: string;
 };
 
@@ -245,14 +253,26 @@ uniform float uHorizon;
 uniform float uDiskIn;
 uniform float uDiskOut;
 uniform int uMode;        // 0 direct, 1 lensed over the top, 2 lensed underneath
+uniform float uShed;      // 0..1, how far the page has scrolled the ring away
 
 out vec3 vColor;
 out float vAlpha;
 
 void main() {
-  float r = aSeed.x;
   float angle = aSeed.y + uPhase;
-  vec3 p = vec3(cos(angle) * r, aSeed.z, sin(angle) * r);
+
+  // Shedding. As the page scrolls, four grains in five lift off the disc,
+  // each at its own point in the scroll (the first from the first pixel),
+  // drifting outward and a little above or below the plane as they fade:
+  // the ring thinning into the star field Starfield launches from these
+  // same bands. A pure function of uShed, so scrolling back up gathers
+  // every grain again.
+  float pick = fract(aSeed.w * 97.13 + aSeed.y * 0.6180339);
+  float own = clamp((uShed * 1.25 - pick * 0.9) / 0.28, 0.0, 1.0);
+  float leave = own * own * (3.0 - 2.0 * own) * step(pick, 0.8);
+  float r = aSeed.x + leave * (1.5 + 8.0 * fract(pick * 7.31));
+  float rise = leave * (fract(pick * 3.77) - 0.5) * 5.0;
+  vec3 p = vec3(cos(angle) * r, aSeed.z + rise, sin(angle) * r);
 
   // The camera's screen axes before roll. The lensed arcs are laid out in
   // these, so the view's roll tilts them along with the ring.
@@ -323,7 +343,7 @@ void main() {
 
   float radial = mix(1.5, 0.35, t);
   float beam = 1.0 + 0.55 * doppler;
-  vAlpha = aLook.y * radial * beam * lens * cover * uIntensity;
+  vAlpha = aLook.y * radial * beam * lens * cover * uIntensity * pow(1.0 - leave, 1.6);
 }
 `;
 
@@ -620,6 +640,90 @@ function lookAtOrigin(
   }
 }
 
+/**
+ * Where the ring's matter sits on screen, for the default shot
+ * (MIRROR_SINGULARITY_STATES[0], camera undragged), in the canvas box's own
+ * pixels. The same perspective, look-at and roll the draw loop builds, so a
+ * point here lands exactly on the ring as drawn: Starfield launches every
+ * star from one, which is what makes the stars read as leaving the ring
+ * rather than appearing beside it.
+ *
+ *   disk(r, a)  a grain of the disc at radius r, angle a; null where the body
+ *               hides it (the far side, behind the silhouette)
+ *   arc(r, u)   the lensed image of the far side curving over the top of the
+ *               body, u from -1 to 1 across it (uMode 1 in the shader)
+ */
+export function ringProjector(boxWidth: number, boxHeight: number) {
+  const shot = MIRROR_SINGULARITY_STATES[0];
+  const aspect = boxWidth / boxHeight;
+  const fit = fitFor(aspect);
+  const distance = shot.camDistance * fit;
+  const camY = Math.max(-distance * 0.9, Math.min(distance * 0.9, shot.camHeight * fit));
+  const orbit = Math.sqrt(Math.max(distance * distance - camY * camY, 16));
+  // The draw loop's starting azimuth; with spin at 0 it never moves.
+  const theta = Math.PI * 0.25;
+  const eye = [Math.cos(theta) * orbit, camY, Math.sin(theta) * orbit];
+  const proj = new Float32Array(16);
+  const view = new Float32Array(16);
+  perspective(proj, FOV, aspect, 0.1, 1000);
+  lookAtOrigin(view, eye, (shot.slant * Math.PI) / 180, [1, 0, 0], [0, 1, 0], [0, 0, 1]);
+
+  // The camera's screen axes before roll, as the shader builds them for the
+  // lensed arcs.
+  const len = Math.hypot(eye[0], eye[1], eye[2]);
+  const z = [eye[0] / len, eye[1] / len, eye[2] / len];
+  const flat = Math.hypot(z[0], z[2]);
+  const x0 = [z[2] / flat, 0, -z[0] / flat];
+  const y0 = [
+    z[1] * x0[2] - z[2] * x0[1],
+    z[2] * x0[0] - z[0] * x0[2],
+    z[0] * x0[1] - z[1] * x0[0],
+  ];
+
+  const bodyRadius = ((boxHeight / 2) * HORIZON) / (distance * Math.tan(FOV / 2));
+
+  const toScreen = (px: number, py: number, pz: number) => {
+    // Column-major, as WebGL takes them.
+    const vx = view[0] * px + view[4] * py + view[8] * pz + view[12];
+    const vy = view[1] * px + view[5] * py + view[9] * pz + view[13];
+    const vz = view[2] * px + view[6] * py + view[10] * pz + view[14];
+    const cx = proj[0] * vx;
+    const cy = proj[5] * vy;
+    const cw = -vz;
+    if (cw <= 0.1) return null;
+    return {
+      x: (cx / cw * 0.5 + 0.5) * boxWidth,
+      y: (0.5 - (cy / cw) * 0.5) * boxHeight,
+      depth: cw,
+    };
+  };
+
+  return {
+    bodyRadius,
+    inner: DISK_INNER,
+    outer: DISK_OUTER,
+    disk(r: number, a: number) {
+      const s = toScreen(Math.cos(a) * r, 0, Math.sin(a) * r);
+      if (!s) return null;
+      const off = Math.hypot(s.x - boxWidth / 2, s.y - boxHeight / 2);
+      if (s.depth > distance && off < bodyRadius * 1.04) return null;
+      return { x: s.x, y: s.y };
+    },
+    arc(r: number, u: number) {
+      const c = Math.sqrt(Math.max(1 - u * u, 0));
+      const rho = HORIZON * 1.04 + (r - DISK_INNER) * 0.2;
+      const s = toScreen(
+        x0[0] * rho * u + y0[0] * rho * c,
+        x0[1] * rho * u + y0[1] * rho * c,
+        x0[2] * rho * u + y0[2] * rho * c,
+      );
+      return s ? { x: s.x, y: s.y } : null;
+    },
+  };
+}
+
+export type RingProjector = ReturnType<typeof ringProjector>;
+
 type Target = {
   fb: WebGLFramebuffer;
   tex: WebGLTexture;
@@ -650,6 +754,7 @@ export function SingularityHorizon({
   particles = 64000,
   interactive = false,
   pixelBudget = PIXEL_BUDGET,
+  shedOnScroll = false,
   className = "",
 }: SingularityHorizonProps) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
@@ -777,6 +882,7 @@ export function SingularityHorizon({
       diskIn: u(particleProgram, "uDiskIn"),
       diskOut: u(particleProgram, "uDiskOut"),
       mode: u(particleProgram, "uMode"),
+      shed: u(particleProgram, "uShed"),
     };
     const cU = {
       proj: u(coreProgram, "uProj"),
@@ -1124,6 +1230,15 @@ export function SingularityHorizon({
       gl.uniform1f(pU.horizon, HORIZON);
       gl.uniform1f(pU.diskIn, DISK_INNER);
       gl.uniform1f(pU.diskOut, DISK_OUTER);
+      // Same span as Starfield's launch (1.1 screens of scroll), so the
+      // ring gives up grains exactly as fast as stars leave it. Held under
+      // reduced motion, where nothing leaves.
+      gl.uniform1f(
+        pU.shed,
+        shedOnScroll && !reduced
+          ? Math.min(1, Math.max(0, window.scrollY / (window.innerHeight * 1.1)))
+          : 0,
+      );
       for (const mode of [0, 1, 2]) {
         gl.uniform1i(pU.mode, mode);
         gl.drawArrays(gl.POINTS, 0, count);
@@ -1281,7 +1396,7 @@ export function SingularityHorizon({
       gl.deleteVertexArray(coreVao);
       gl.deleteVertexArray(screenVao);
     };
-  }, [particles, interactive, reduced, generation, ready, pixelBudget]);
+  }, [particles, interactive, reduced, generation, ready, pixelBudget, shedOnScroll]);
 
   return (
     <div
