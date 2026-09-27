@@ -62,12 +62,26 @@ type Star = {
   glintPhase: number;
   /** A few burn a touch cooler, blue-white, on black only. */
   cool: boolean;
+  /** A few are more than a point: a pulsar flashing on a steady beat, or a
+   *  close pair circling each other. */
+  kind: "star" | "pulsar" | "pair";
+  /** Seconds per beat (pulsar) or per orbit (pair). */
+  beat: number;
+  /** A pair's separation, px. */
+  pairGap: number;
+  /** Where in its beat or orbit it starts. */
+  phase: number;
+  /** The fast shimmer of the brighter stars, two phases. */
+  shimmerA: number;
+  shimmerB: number;
 };
 
 const STAR_COUNT = 200;
 /** Fewer on the inner pages, where the field is atmosphere behind tables. */
 const AMBIENT_COUNT = 150;
 const GLINTS = 6;
+const PULSARS = 3;
+const PAIRS = 5;
 /** How far a near star slides per pixel scrolled. */
 const PARALLAX = 0.12;
 /** Extra swirl on each path from ring to rest, zero at both ends. */
@@ -79,6 +93,27 @@ const LENS_PUSH = 18;
 const LINK_MS = 420;
 const CHAIN_HOLD_MS = 2600;
 const CHAIN_FADE_MS = 1300;
+/**
+ * The current the settled field rides: the curl of a stream function made
+ * of a few slow travelling waves, so it swirls in broad eddies without ever
+ * bunching stars up or thinning them out (a curl has no divergence). Wave
+ * numbers per px, angular speeds per second.
+ */
+const FLOW = [
+  { kx: 0.0046, ky: 0.0021, w: 0.041, p: 0.3, a: 1 },
+  { kx: -0.0024, ky: 0.0052, w: -0.033, p: 1.9, a: 0.8 },
+  { kx: 0.0061, ky: -0.0038, w: 0.027, p: 4.2, a: 0.5 },
+];
+const FLOW_NORM = FLOW.reduce((sum, f) => sum + f.a * Math.hypot(f.kx, f.ky), 0);
+/** px/s along the current, and around the singularity, at the nearest stars. */
+const FLOW_SPEED = 11;
+const ORBIT_SPEED = 3;
+/** Ripples from the singularity: speed px/s, thickness px, push px. */
+const WAVE_SPEED = 460;
+const WAVE_WIDTH = 70;
+const WAVE_PUSH = 7;
+/** How far the pointer tips the field, px, at the nearest stars. */
+const POINTER_DEPTH = 16;
 
 type Meteor = {
   x: number;
@@ -196,6 +231,12 @@ function generateStars(count: number): Star[] {
       glintPeriod: 5 + Math.random() * 5,
       glintPhase: Math.random() * 10,
       cool: Math.random() < 0.12,
+      kind: "star",
+      beat: 1,
+      pairGap: 0,
+      phase: Math.random() * 20,
+      shimmerA: Math.random() * Math.PI * 2,
+      shimmerB: Math.random() * Math.PI * 2,
     };
   });
   // The nearest few carry the flare.
@@ -204,6 +245,24 @@ function generateStars(count: number): Star[] {
     .slice(0, GLINTS)
     .forEach((star) => {
       star.glint = true;
+    });
+  // A few pulsars at middling depth, and a few close pairs among the nearer
+  // stars, never the same star as a glint.
+  const free = stars.filter((star) => !star.glint);
+  free
+    .filter((star) => star.depth > 0.35 && star.depth < 0.8)
+    .slice(0, PULSARS)
+    .forEach((star) => {
+      star.kind = "pulsar";
+      star.beat = 1.3 + Math.random() * 1.2;
+    });
+  free
+    .filter((star) => star.kind === "star" && star.depth > 0.3)
+    .slice(0, PAIRS)
+    .forEach((star) => {
+      star.kind = "pair";
+      star.beat = 7 + Math.random() * 7;
+      star.pairGap = 3.5 + Math.random() * 2.5;
     });
   return stars;
 }
@@ -264,6 +323,19 @@ function easeInOutSine(t: number): number {
 function smoothstep(t: number): number {
   const c = Math.min(1, Math.max(0, t));
   return c * c * (3 - 2 * c);
+}
+
+/** The current at (x, y) and time t: a unit-ish velocity, [vx, vy]. */
+function flowAt(x: number, y: number, t: number): [number, number] {
+  let vx = 0;
+  let vy = 0;
+  for (const f of FLOW) {
+    // Stream function a sin(phase); velocity is its curl.
+    const c = f.a * Math.cos(f.kx * x + f.ky * y + f.w * t + f.p);
+    vx += c * f.ky;
+    vy -= c * f.kx;
+  }
+  return [vx / FLOW_NORM, vy / FLOW_NORM];
 }
 
 /**
@@ -335,6 +407,13 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
     // How much scrolling it takes to fully spread: a little over one
     // viewport, the same span SingularityHorizon sheds its grains over.
     let range = 1;
+    // The singularity's centre on the inner pages, in page coordinates.
+    // PageAtmosphere places its faded planet exactly as the landing hero
+    // does (left 50% - 35vw, top 20px - 25.6svh, 145svh tall from sm; 50% -
+    // 20vw, 20px - 30.7svh, 115svh on a phone), so the ripples there come
+    // from where that planet sits.
+    let hubX = 0;
+    let hubY = 0;
 
     const size = () => {
       vw = window.innerWidth;
@@ -345,6 +424,8 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
       ring = measureRing();
       range = Math.max(1, vh * 1.1);
       if (!ambient) placeLaunches(stars, ring, vw, vh);
+      hubX = vw >= 640 ? vw * 0.15 : vw * 0.3;
+      hubY = 20 + vh * (vw >= 640 ? 0.469 : 0.268);
     };
     size();
 
@@ -374,6 +455,9 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
     const drawn = new Uint8Array(count);
     const velX = new Float32Array(count);
     const velY = new Float32Array(count);
+    // How far each star has been carried by the current, px.
+    const flowX = new Float32Array(count);
+    const flowY = new Float32Array(count);
     let lastTime: number | null = null;
     let lastDraw = 0;
     let raf: number | null = null;
@@ -385,6 +469,12 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
     let emberDebt = 0;
     let chain: Chain | null = null;
     let nextChainAt = performance.now() + (ambient ? 3000 : 1500);
+    // A ripple from the singularity: when it started, or null between them.
+    let wave: number | null = null;
+    let nextWaveAt = performance.now() + 5000 + Math.random() * 5000;
+    // The pointer's tip of the field, -0.5..0.5 each way, smoothed.
+    let tiltX = 0;
+    let tiltY = 0;
 
     // The pointer's lens. Mouse only: on a touch screen there's no pointer
     // resting over the page to bend anything.
@@ -400,11 +490,17 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
     // Where a star rests right now: its landing point, wandering on its own
     // slow loop, and slid up the screen with the scroll by its depth,
     // wrapping at the edges so the field never empties.
-    const restX = (star: Star, t: number) =>
-      star.x * vw + Math.cos(t * star.driftW + star.driftPhase) * star.driftR;
-    const restY = (star: Star, t: number, scrollY: number, weight: number) => {
+    // The current carries it too, and it wraps at every edge, so the field
+    // never empties.
+    const restX = (i: number, star: Star, t: number) => {
+      const span = vw + 40;
+      const raw =
+        star.x * vw + flowX[i] + Math.cos(t * star.driftW + star.driftPhase) * star.driftR;
+      return ((((raw + 20) % span) + span) % span) - 20;
+    };
+    const restY = (i: number, star: Star, t: number, scrollY: number, weight: number) => {
       const span = vh + 40;
-      const slid = star.y * vh - scrollY * PARALLAX * star.depth * weight;
+      const slid = star.y * vh + flowY[i] - scrollY * PARALLAX * star.depth * weight;
       const wrapped = ((((slid + 20) % span) + span) % span) - 20;
       return wrapped + Math.sin(t * star.driftW * 0.8 + star.driftPhase) * star.driftR;
     };
@@ -611,7 +707,7 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
       const fade = c.fadeFrom === null ? 1 : 1 - (now - c.fadeFrom) / CHAIN_FADE_MS;
       if (fade <= 0) {
         chain = null;
-        nextChainAt = now + 5000 + Math.random() * 4500;
+        nextChainAt = now + 4000 + Math.random() * 4000;
         return false;
       }
       ctx!.strokeStyle = ink;
@@ -688,19 +784,48 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
       const cy = ring.cy - scrollY;
       const velocityFollow = 1 - Math.exp(-step / 0.12);
       const seconds = now / 1000;
+      let moving = false;
 
-      // The lens follows the pointer closely, and eases in and out.
+      // The lens follows the pointer closely, and eases in and out; the
+      // tilt follows it lazily, so the field swings rather than jerks.
       if (finePointer) {
         lens += ((pointerIn ? 1 : 0) - lens) * (1 - Math.exp(-step / 0.3));
         const follow = 1 - Math.exp(-step / 0.06);
         lensX += (pointerX - lensX) * follow;
         lensY += (pointerY - lensY) * follow;
+        const lazy = 1 - Math.exp(-step / 0.5);
+        tiltX += ((pointerIn ? pointerX / vw - 0.5 : 0) - tiltX) * lazy;
+        tiltY += ((pointerIn ? pointerY / vh - 0.5 : 0) - tiltY) * lazy;
+      }
+
+      // The singularity, where the ripples start: the hero's body on the
+      // landing page, the faded planet's centre on the inner pages. Above
+      // the screen once scrolled, so a ripple sweeps down as an arc.
+      const hx = ambient ? hubX : cx;
+      const hy = ambient ? hubY - scrollY : cy;
+      const skySettled = ambient || progress > 0.85;
+      if (wave === null && skySettled && now >= nextWaveAt) wave = now;
+      let waveR = -Infinity;
+      if (wave !== null) {
+        waveR = ((now - wave) / 1000) * WAVE_SPEED;
+        const far = Math.max(
+          Math.hypot(hx, hy),
+          Math.hypot(vw - hx, hy),
+          Math.hypot(hx, vh - hy),
+          Math.hypot(vw - hx, vh - hy),
+        );
+        if (waveR > far + WAVE_WIDTH * 3) {
+          wave = null;
+          waveR = -Infinity;
+          nextWaveAt = now + 12000 + Math.random() * 8000;
+        } else {
+          moving = true;
+        }
       }
 
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx!.clearRect(0, 0, vw, vh);
 
-      let moving = false;
       if (drawMeteor(step, now)) moving = true;
       if (!ambient) drawEmbers(step, progress, cx, cy);
 
@@ -725,8 +850,18 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
         // Landing point: fixed to the screen, plus the star's drift, and its
         // depth slide once it has mostly landed (weighted by how far along
         // it is, so a star in flight isn't pulled around by it).
-        const landX = restX(star, seconds);
-        const landY = restY(star, seconds, scrollY, ambient ? 1 : eased);
+        const landX = restX(i, star, seconds);
+        const landY = restY(i, star, seconds, scrollY, ambient ? 1 : eased);
+
+        // Carry it along the current, and slowly round the singularity,
+        // nearer stars faster, so the drift has depth as well.
+        const pace = 0.3 + 0.7 * star.depth;
+        const [fx, fy] = flowAt(landX, landY, seconds);
+        const ox = landX - hx;
+        const oy = landY - hy;
+        const od = Math.hypot(ox, oy) || 1;
+        flowX[i] += (fx * FLOW_SPEED - (oy / od) * ORBIT_SPEED) * pace * step;
+        flowY[i] += (fy * FLOW_SPEED + (ox / od) * ORBIT_SPEED) * pace * step;
 
         let x: number;
         let y: number;
@@ -754,7 +889,15 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
         // Streak length follows a smoothed velocity rather than this frame's
         // raw step, so it grows and relaxes gradually instead of flickering
         // with every notch of the wheel.
-        if (!Number.isNaN(lastX[i])) {
+        // A star wrapping round an edge jumps a whole screen in one frame;
+        // that's not motion, so it mustn't streak.
+        const wrapped =
+          !Number.isNaN(lastX[i]) &&
+          (Math.abs(x - lastX[i]) > vw * 0.5 || Math.abs(y - lastY[i]) > vh * 0.5);
+        if (wrapped) {
+          velX[i] = 0;
+          velY[i] = 0;
+        } else if (!Number.isNaN(lastX[i])) {
           velX[i] += (x - lastX[i] - velX[i]) * velocityFollow;
           velY[i] += (y - lastY[i] - velY[i]) * velocityFollow;
         }
@@ -769,19 +912,74 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
         // into a star as it travels.
         const visible = ambient ? 1 : smoothstep(current / 0.08);
         if (visible <= 0.002) continue;
+        // The pointer tips the field by depth: near stars swing further,
+        // so the sky reads as layers, not a flat sheet.
+        x -= tiltX * POINTER_DEPTH * 2 * star.depth;
+        y -= tiltY * POINTER_DEPTH * 2 * star.depth;
+
+        // A ripple passing: pushed out from the singularity and lit as the
+        // front goes through, then settling back. The stars are the wave.
+        let swell = 0;
+        if (wave !== null) {
+          const wx = x - hx;
+          const wy = y - hy;
+          const wd = Math.hypot(wx, wy) || 1;
+          const u = (wd - waveR) / WAVE_WIDTH;
+          swell = Math.exp(-u * u);
+          if (swell > 0.01) {
+            const push = WAVE_PUSH * swell * (0.5 + star.depth);
+            x += (wx / wd) * push;
+            y += (wy / wd) * push;
+          }
+        }
+
         const [bx, by, lit] = bend(x, y);
         x += bx;
         y += by;
         if (x < -20 || y < -20 || x > vw + 20 || y > vh + 20) continue;
 
         const grow = ambient ? 1 : 0.4 + 0.6 * smoothstep(current / 0.4);
-        const radius = (star.size / 2) * grow;
+        let radius = (star.size / 2) * grow * (1 + 0.35 * swell);
         const stretch = 1 + Math.min(speed * 0.3, 3.5);
-        const alpha = Math.min(1, visible * twinkle(star, seconds) * lit);
+        // The brighter stars shimmer fast on top of their slow twinkle, the
+        // way real starlight scintillates.
+        const shimmer =
+          star.depth > 0.62
+            ? 1 +
+              0.22 *
+                Math.sin(seconds * 8.3 + star.shimmerA) *
+                Math.sin(seconds * 5.1 + star.shimmerB)
+            : 1;
+        let alpha = Math.min(
+          1,
+          visible * twinkle(star, seconds) * lit * shimmer * (1 + 0.9 * swell),
+        );
+
+        // A pulsar: a sharp flash on every beat, decaying fast, with a thin
+        // ring rippling out from it like a chain node joining.
+        let beatPhase = -1;
+        if (star.kind === "pulsar" && current > 0.95) {
+          beatPhase = ((((seconds + star.phase) % star.beat) + star.beat) % star.beat) / star.beat;
+          const flash = Math.exp(-beatPhase * 9);
+          alpha = Math.min(1, alpha + 0.65 * flash * visible);
+          radius *= 1 + 0.5 * flash;
+        }
+
         ctx!.fillStyle = star.cool ? coolInk : ink;
         ctx!.globalAlpha = alpha;
         ctx!.beginPath();
-        if (stretch < 1.05) {
+        if (star.kind === "pair" && stretch < 1.05 && current > 0.95) {
+          // A close pair circling each other: two points, the companion
+          // smaller and fainter, on a tilted orbit.
+          const turn = (2 * Math.PI * (seconds + star.phase)) / star.beat;
+          const ex = Math.cos(turn) * star.pairGap * 0.5;
+          const ey = Math.sin(turn) * star.pairGap * 0.3;
+          ctx!.arc(x + ex, y + ey, radius * 0.85, 0, Math.PI * 2);
+          ctx!.fill();
+          ctx!.globalAlpha = alpha * 0.75;
+          ctx!.beginPath();
+          ctx!.arc(x - ex, y - ey, radius * 0.6, 0, Math.PI * 2);
+        } else if (stretch < 1.05) {
           ctx!.arc(x, y, radius, 0, Math.PI * 2);
         } else {
           // A streak trailing behind the direction of travel, head at the
@@ -800,14 +998,24 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
         }
         ctx!.fill();
         if (star.glint && current > 0.95) drawGlint(x, y, star, seconds, alpha);
+        if (beatPhase >= 0 && beatPhase < 0.55) {
+          const spread = beatPhase / 0.55;
+          ctx!.strokeStyle = ink;
+          ctx!.lineWidth = 0.7;
+          ctx!.globalAlpha = 0.32 * (1 - spread) * visible;
+          ctx!.beginPath();
+          ctx!.arc(x, y, radius + 2 + spread * 10, 0, Math.PI * 2);
+          ctx!.stroke();
+        }
 
         drawnX[i] = x;
         drawnY[i] = y;
-        drawn[i] = current > 0.98 ? 1 : 0;
+        // A star that just wrapped round an edge breaks any chain it's in.
+        drawn[i] = current > 0.98 && !wrapped ? 1 : 0;
       }
 
       // Chains only in a settled sky: fully spread on the landing page.
-      if (ambient || progress > 0.85) {
+      if (skySettled) {
         if (drawChain(now)) moving = true;
       } else if (chain) {
         chain = null;
