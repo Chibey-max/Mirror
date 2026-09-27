@@ -8,9 +8,9 @@
  *      our black or prism's paper, accent, and a near-black QR so the code
  *      stays scannable.
  *   2. A stylesheet adopted into every shadow root of the open modal,
- *      putting the buttons' liquid chrome on the card's edge and on every
- *      container inside it (QR tile, wallet search row, buttons, tags),
- *      with a slow turn so it moves like the buttons' metal does. Roots
+ *      putting the buttons' liquid chrome on the card's edge and on the
+ *      major containers inside it (the QR tile and the wallet rows), with
+ *      a slow turn so it moves like the buttons' metal does. Roots
  *      appear as the modal changes view, so it keeps looking while open.
  *
  * Best effort throughout: if AppKit's internals change, the modal opens in
@@ -28,18 +28,15 @@ const CHROME_STOPS =
   "#3b3b40, #f2f2f6 11%, #6a6a72 23%, #d6d6dc 37%, #2c2c33 51%, #fafaff 64%, #77777f 78%, #cbcbd3 91%, #3b3b40";
 
 /** The containers that get a rim, and the radius each one's inner surface
- *  already has, so the rim sits exactly on its edge. */
+ *  already has, so the rim sits exactly on its edge. Only the major ones:
+ *  the card, the QR tile and the wallet rows. Rims on every button, icon
+ *  and tag as well turned the modal into a pile of chrome. */
 const RIMMED: ReadonlyArray<readonly [string, string | null]> = [
   ["wui-card", null],
   ["wui-shimmer", null],
   ["wui-qr-code", null],
   ["wui-list-wallet", "24px"],
   ["wui-list-item", "24px"],
-  ["wui-button", "12px"],
-  ["wui-icon-button", "12px"],
-  ["wui-wallet-image", null],
-  ["wui-tag", null],
-  ["wui-snackbar", null],
 ];
 
 function dressSheet(prism: boolean): CSSStyleSheet {
@@ -50,7 +47,6 @@ function dressSheet(prism: boolean): CSSStyleSheet {
   const sheet = new CSSStyleSheet();
   sheet.replaceSync(`
     @keyframes mirror-metal { to { --mirror-metal: 360deg; } }
-    @keyframes mirror-sheen { to { background-position: -200% 0; } }
 
     ${tags.join(", ")} { position: relative; }
     wui-list-wallet, wui-list-item { display: block; }
@@ -83,7 +79,7 @@ function dressSheet(prism: boolean): CSSStyleSheet {
         0 40px 90px -24px ${prism ? "rgba(94, 71, 48, 0.35)" : "rgba(0, 0, 0, 0.8)"} !important;
     }
 
-    /* A chrome hairline under the header, a sheen running along it. */
+    /* A still chrome hairline under the header. */
     w3m-header { display: block; position: relative; }
     w3m-header::after {
       content: "";
@@ -94,12 +90,11 @@ function dressSheet(prism: boolean): CSSStyleSheet {
       height: 1px;
       pointer-events: none;
       background: linear-gradient(90deg, transparent, #6a6a72 20%, #f2f2f6 35%, #77777f 50%, #fafaff 65%, #6a6a72 80%, transparent);
-      background-size: 200% 100%;
-      animation: mirror-sheen 6s linear infinite;
+      opacity: 0.6;
     }
 
     @media (prefers-reduced-motion: reduce) {
-      ${tags.map((tag) => `${tag}::after`).join(", ")}, w3m-header::after { animation: none; }
+      ${tags.map((tag) => `${tag}::after`).join(", ")} { animation: none; }
     }
   `);
   return sheet;
