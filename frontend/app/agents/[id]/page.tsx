@@ -19,14 +19,13 @@ import { FillFeed } from "@/components/FillFeed";
 import { KillButton } from "@/components/KillButton";
 import {
   useRejectionNotice,
-  type PolicyRejectReason,
 } from "@/components/PolicyRejectBanner";
 import { useAgentPnlHistory } from "@/hooks/useAgentPnlHistory";
 import { useFillEvents } from "@/hooks/useFillEvents";
 import { useKillVerification } from "@/hooks/useKillVerification";
 import { useMirrorOutcomes } from "@/hooks/useMirrorOutcomes";
 import { useSpentToday } from "@/hooks/useSpentToday";
-import { usePolicyError, useMirrorRejection } from "@/hooks/usePolicyError";
+import { useMirrorRejection } from "@/hooks/usePolicyError";
 import { useAgent } from "@/hooks/useAgents";
 import { FAUCET_AMOUNT, useDeposit } from "@/hooks/useDeposit";
 import { useFollow } from "@/hooks/useFollow";
@@ -49,7 +48,6 @@ export default function AgentDetailPage({
   const { agent, fills: tapeFills, isLoading, error, refetch } = useAgent(agentId);
   const { points: pnlHistory } = useAgentPnlHistory(agentId);
   const { fills, totalCount, hasMore, loadMore } = useFillEvents(agent?.id);
-  const { decode, simulate } = usePolicyError();
   // Proves the kill from chain state rather than trusting the write (§10).
   const { verify: verifyKill } = useKillVerification(agentId);
   // A real rejection from the chain (§7.1). Inert until CopyVault is
@@ -192,7 +190,7 @@ export default function AgentDetailPage({
             </div>
 
             <div className="flex-none">
-              <TrustBadge fillCount={agent.fills} verifiedThroughBlock={1284392} />
+              <TrustBadge fillCount={agent.fills} />
             </div>
           </div>
         </div>
@@ -235,8 +233,7 @@ export default function AgentDetailPage({
 
       {!isLoading && !error && !agent && (
         <div className="mt-8 panel rounded-3xl p-6 text-sm text-muted">
-          Agent #{agentId} is not in the current fixture set. Once
-          AgentRegistry is wired, this page will resolve from chain reads.
+          There&apos;s no agent #{agentId} in the registry on chain.
         </div>
       )}
 
@@ -265,46 +262,6 @@ export default function AgentDetailPage({
                   onLoadMore={loadMore}
                 />
 
-                {/*
-                  Demo controls, boxed and labelled so nobody watching the
-                  demo mistakes them for something a follower would ever see.
-                  They stand in for live market state (docs/demo-script.md).
-                */}
-                <div className="mt-6 rounded-2xl border border-dashed border-border p-4">
-                  <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">
-                    Demo controls &middot; not part of the product
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-              {(
-                [
-                  { type: "CapExceeded", attempted: 80, cap: 50 },
-                  { type: "TokenNotAllowed", token: "mTSLA" },
-                  { type: "PolicyInactive" },
-                  { type: "InsufficientBalance" },
-                ] as PolicyRejectReason[]
-              ).map((reason) => (
-                <MetalButton
-                  tone="quiet"
-                  size="sm"
-                  key={reason.type}
-                  onClick={() => {
-                    // The demo has no real mirrorFill to point at, so the
-                    // link goes to a fixture hash.
-                    const decoded = decode(simulate(reason));
-                    if (decoded) {
-                      announceRejection(
-                        decoded,
-                        "0x8e11c0b4da9f3c5e1b7d9f3a5c7e1b9d3f5a7c1e9b3d5f7a1c9e3b5d7f1a9c3",
-                      );
-                    }
-                  }}
-                >
-                  Simulate {reason.type} →
-                </MetalButton>
-              ))}
-            </div>
-
-                </div>
 
               </section>
             </Reveal>

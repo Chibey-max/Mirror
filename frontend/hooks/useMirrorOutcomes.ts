@@ -1,5 +1,6 @@
 "use client";
 
+import { targetChain } from "@/lib/chains";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Hex } from "viem";
@@ -30,30 +31,6 @@ export type MirrorOutcome =
 
 /** Keyed the way fills are identified everywhere else: `fill-${fillId}`. */
 export type MirrorOutcomes = Record<string, MirrorOutcome>;
-
-/**
- * Sample outcomes for the fixture tape, standing in until CopyVault is
- * deployed. Only agent 1 appears, because fixtureWallet follows only agent 1
- * ($50 allocated), the other agents' fills correctly show no outcome.
- */
-const fixtureMirrorOutcomes: MirrorOutcomes = {
-  "fill-0": {
-    status: "rejected",
-    reason: { type: "CapExceeded", attempted: 68, cap: 50 },
-    // A different tx from the fill's own, mirrorFill and recordFill are
-    // two separate transactions on chain, and the fixture keeps that true
-    // rather than reusing the fill's hash for both.
-    txHash: "0xb2e5f8a1c4d7e0b3f6a9c2e5d8b1f4a7c0e3d6a9f2c5e8b1d4a7f0c3e6b9d2f5",
-  },
-  "fill-1": {
-    status: "mirrored",
-    txHash: "0xa4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d4e7f0a3b6c9d2e5f8a1b4c7",
-  },
-  "fill-2": {
-    status: "skipped",
-    note: "you held no mAAPL to sell",
-  },
-};
 
 type OutcomeLog = {
   eventName: "Mirrored" | "MirrorRejected";
@@ -117,9 +94,9 @@ export function useMirrorOutcomes(
   agentId?: number,
   resolveSymbol?: TokenSymbolResolver,
 ): { outcomes: MirrorOutcomes; historyLoaded: boolean } {
-  const { address, chainId } = useAccount();
+  const { address } = useAccount();
   const publicClient = usePublicClient();
-  const vault = chainId ? addressesFor(chainId)?.copyVault : undefined;
+  const vault = addressesFor(targetChain.id)?.copyVault;
   const [watched, setWatched] = useState<MirrorOutcomes>({});
 
   const live = !!address && isDeployed(vault);
@@ -129,7 +106,7 @@ export function useMirrorOutcomes(
   };
 
   const history = useQuery({
-    queryKey: ["mirror-outcome-history", chainId, vault, address, agentId ?? "all"],
+    queryKey: ["mirror-outcome-history", targetChain.id, vault, address, agentId ?? "all"],
     enabled: live && !!publicClient,
     queryFn: async () => {
       const [mirrored, rejected] = await Promise.all([
@@ -203,7 +180,8 @@ export function useMirrorOutcomes(
     },
   });
 
-  if (!live) return { outcomes: fixtureMirrorOutcomes, historyLoaded: true };
+  // Nothing to read (no wallet, or no deployment): no outcomes, not samples.
+  if (!live) return { outcomes: {}, historyLoaded: true };
   return {
     // Watched outcomes are newer than anything in the one-off history read.
     outcomes: { ...outcomesFrom(history.data ?? [], resolveSymbol), ...watched },

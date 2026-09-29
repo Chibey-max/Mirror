@@ -17,7 +17,10 @@ export const mirrorMode: MirrorMode = selectedMode;
 
 export function walletConnectProjectId(): string {
   const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
-  if (mirrorMode === "live" && !projectId) {
+  // Required for a live production build. In local development, live mode
+  // reads the chain without it; only WalletConnect can't pair until one is
+  // set in .env.local.
+  if (mirrorMode === "live" && !projectId && process.env.NODE_ENV === "production") {
     throw new Error(
       "NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is required in live mode",
     );

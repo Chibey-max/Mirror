@@ -1,10 +1,11 @@
 "use client";
 
+import { targetChain } from "@/lib/chains";
 import { useState } from "react";
 import { formatUnits, type Abi, type Address } from "viem";
-import { useAccount, useReadContract, useWatchContractEvent } from "wagmi";
+import { useReadContract, useWatchContractEvent } from "wagmi";
 import { addressesFor, isDeployed, trackRecordAbi } from "@/lib/contracts";
-import { fixtureFills, type FixtureFill } from "@/lib/fixtures";
+import type { FixtureFill } from "@/lib/fixtures";
 import { relativeTime } from "@/lib/format";
 import { shortAddress, type TokenMetadata } from "@/lib/tokens";
 import { formatRecordedPrice, latestFillPage } from "@/lib/onchain";
@@ -118,8 +119,8 @@ export function useFillEvents(agentId?: number): {
   hasMore: boolean;
   loadMore: () => void;
 } {
-  const { chainId } = useAccount();
-  const trackRecord = chainId ? addressesFor(chainId)?.trackRecord : undefined;
+  // Mirror's own chain, wallet or not (see useAgents).
+  const trackRecord = addressesFor(targetChain.id)?.trackRecord;
   const live = agentId !== undefined && isDeployed(trackRecord);
 
   /** A watched fill knows the transaction it arrived in; a backfilled one
@@ -182,11 +183,10 @@ export function useFillEvents(agentId?: number): {
   };
   const loadMore = () => setLimit((current) => current + PAGE_SIZE);
 
+  // Nothing to read: no fills, never sample ones. The all-agents tape
+  // comes from useAgents, which already reads every agent's fills.
   if (!live) {
-    const fills = agentId
-      ? fixtureFills.filter((f) => f.agentId === agentId)
-      : fixtureFills;
-    return { fills, isLoading: false, refetch, hasMore: false, loadMore };
+    return { fills: [], isLoading: false, refetch, hasMore: false, loadMore };
   }
 
   // By fill id, not timestamp: fills in the same block share a timestamp,
@@ -208,9 +208,9 @@ export function useFillEvents(agentId?: number): {
   };
 }
 
-type IndexedFill = OnChainFill & { txHash?: `0x${string}` };
+export type IndexedFill = OnChainFill & { txHash?: `0x${string}` };
 
-function toDisplayFill(
+export function toDisplayFill(
   fill: IndexedFill,
   token: TokenMetadata | undefined,
 ): FixtureFill {

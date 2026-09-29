@@ -1,5 +1,6 @@
 "use client";
 
+import { targetChain } from "@/lib/chains";
 import { useAccount, useReadContracts } from "wagmi";
 import { addressesFor, isDeployed, policyModuleAbi } from "@/lib/contracts";
 import { fromUsdg } from "@/lib/usdg";
@@ -20,8 +21,8 @@ import { fromUsdg } from "@/lib/usdg";
  * fixture map or the live result has spent nothing.
  */
 export function useSpentToday(agentIds: number[]): Record<number, number> {
-  const { address, chainId } = useAccount();
-  const addresses = chainId ? addressesFor(chainId) : undefined;
+  const { address } = useAccount();
+  const addresses = addressesFor(targetChain.id);
   const live = !!address && isDeployed(addresses?.policyModule);
 
   const reads = useReadContracts({

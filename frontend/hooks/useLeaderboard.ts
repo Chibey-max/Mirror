@@ -1,7 +1,6 @@
 "use client";
 
-import { fixtureAgents, fixtureFills, type FixtureAgent } from "@/lib/fixtures";
-import { computeAgentPnl, tradesFromFills } from "@/lib/pnl";
+import type { FixtureAgent } from "@/lib/fixtures";
 import { useAgents } from "@/hooks/useAgents";
 
 /**
@@ -33,16 +32,6 @@ export function useLeaderboard(): {
   error: Error | null;
   refetch: () => void;
 } {
-  const { agents: live, isLoading, error, refetch } = useAgents();
-  if (live !== fixtureAgents) return { agents: live, isLoading, error, refetch };
-
-  const computed = computeAgentPnl(tradesFromFills(fixtureFills));
-
-  const agents = fixtureAgents.map((agent) => {
-    const pnl = computed.get(agent.id);
-    if (!pnl || pnl.closedCost <= 0) return agent;
-    return { ...agent, pnlUsd: pnl.pnlUsd, pnlPct: pnl.pnlPct };
-  });
-
+  const { agents, isLoading, error, refetch } = useAgents();
   return { agents, isLoading, error, refetch };
 }

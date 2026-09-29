@@ -10,7 +10,6 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { RetryBanner } from "@/components/RetryBanner";
 import { useAgents } from "@/hooks/useAgents";
-import { useFillEvents } from "@/hooks/useFillEvents";
 import type { Agent } from "@/hooks/useAgents";
 
 type SortKey = "pnl" | "fills" | "newest";
@@ -34,8 +33,8 @@ function sortAgents(agents: Agent[], key: SortKey): Agent[] {
 // Client-rendered: useAgents reads the chain through wagmi, which needs the
 // connected chain id, so there is nothing for the server to prerender.
 export default function AgentsPage() {
-  const { agents, isLoading, error, refetch } = useAgents();
-  const { fills } = useFillEvents();
+  // Every agent's fills come with the agents, read from TrackRecord.
+  const { agents, fills, isLoading, error, refetch } = useAgents();
   const [sort, setSort] = useState<SortKey>("pnl");
   const ready = !isLoading && !error && agents.length > 0;
   const sorted = sortAgents(agents, sort);
