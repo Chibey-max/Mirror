@@ -21,20 +21,15 @@ const SURFACES = ".panel:not(.panel-static), .data-row, [data-surface]";
  * and marks it data-hot. Everything visual is CSS in globals.css; this only
  * measures. Writes are batched to one per frame.
  *
- * A phone has no hover, so there it works two other ways (TouchSurfaces):
- * a press lights the surface under the finger, and as the page scrolls, the
- * cards and rows crossing the middle of the screen light up in turn. No
- * tilt on touch: tipping under a finger reads as the page lurching.
+ * Desktop only. A phone has no hover, and its surfaces stay still: no
+ * light under a finger, nothing lighting up as the page scrolls.
  */
 export function SurfaceMotion() {
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    // Touch mode only on a device with no mouse or trackpad at all (a phone
-    // or tablet). A desktop that merely reports touch as its primary input,
-    // a touchscreen laptop, keeps the pointer behaviour.
-    if (window.matchMedia("(any-hover: none)").matches) {
-      return touchSurfaces();
-    }
+    // Off on a device with no mouse or trackpad at all (a phone or tablet).
+    // A touchscreen laptop still has one, and keeps the pointer behaviour.
+    if (window.matchMedia("(any-hover: none)").matches) return;
 
     let hot: HTMLElement | null = null;
     let pending: PointerEvent | null = null;
@@ -124,94 +119,4 @@ export function SurfaceMotion() {
   }, []);
 
   return null;
-}
-
-/** The surfaces that light up as they scroll through the middle of a phone
- *  screen: cards and rows, not the large panels that hold them. */
-const FOCUSABLE = ".tilt, .lift, .data-row, [data-surface]";
-
-function place(el: HTMLElement, x: number, y: number) {
-  el.style.setProperty("--gx", `${(x * 100).toFixed(1)}%`);
-  el.style.setProperty("--gy", `${(y * 100).toFixed(1)}%`);
-  el.style.setProperty("--px", ((x - 0.5) * 2).toFixed(3));
-  el.style.setProperty("--py", ((y - 0.5) * 2).toFixed(3));
-}
-
-function touchSurfaces(): () => void {
-  // 1. A press: light the surface where the finger is, ease off after.
-  let pressed: HTMLElement | null = null;
-  let release = 0;
-  const onDown = (event: PointerEvent) => {
-    if (event.pointerType === "mouse") return;
-    const target =
-      event.target instanceof Element
-        ? event.target.closest<HTMLElement>(SURFACES)
-        : null;
-    if (!target) return;
-    window.clearTimeout(release);
-    if (pressed && pressed !== target) pressed.removeAttribute("data-pressed");
-    pressed = target;
-    const rect = target.getBoundingClientRect();
-    place(
-      target,
-      (event.clientX - rect.left) / rect.width,
-      (event.clientY - rect.top) / rect.height,
-    );
-    target.setAttribute("data-pressed", "");
-  };
-  const onUp = () => {
-    const el = pressed;
-    if (!el) return;
-    release = window.setTimeout(() => el.removeAttribute("data-pressed"), 450);
-  };
-
-  // 2. Scrolling: whatever crosses the middle band of the screen is lit, its
-  //    light from the top edge, so the page answers the scroll the way it
-  //    answers a mouse.
-  const band = new IntersectionObserver(
-    (entries) => {
-      for (const entry of entries) {
-        const el = entry.target as HTMLElement;
-        if (entry.isIntersecting) {
-          place(el, 0.5, 0.1);
-          el.setAttribute("data-hot", "");
-        } else {
-          el.removeAttribute("data-hot");
-        }
-      }
-    },
-    { rootMargin: "-40% 0px -40% 0px" },
-  );
-  const watched = new WeakSet<Element>();
-  const watch = () => {
-    for (const el of document.querySelectorAll(FOCUSABLE)) {
-      if (watched.has(el)) continue;
-      watched.add(el);
-      band.observe(el);
-    }
-  };
-  watch();
-  // Cards arrive after their data does, and pages change without a reload.
-  let pendingWatch = 0;
-  const mutations = new MutationObserver(() => {
-    if (pendingWatch) return;
-    pendingWatch = window.setTimeout(() => {
-      pendingWatch = 0;
-      watch();
-    }, 200);
-  });
-  mutations.observe(document.body, { childList: true, subtree: true });
-
-  document.addEventListener("pointerdown", onDown, { passive: true });
-  document.addEventListener("pointerup", onUp, { passive: true });
-  document.addEventListener("pointercancel", onUp, { passive: true });
-  return () => {
-    document.removeEventListener("pointerdown", onDown);
-    document.removeEventListener("pointerup", onUp);
-    document.removeEventListener("pointercancel", onUp);
-    band.disconnect();
-    mutations.disconnect();
-    window.clearTimeout(release);
-    window.clearTimeout(pendingWatch);
-  };
 }

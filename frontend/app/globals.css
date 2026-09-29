@@ -25,14 +25,13 @@
 }
 
 /*
- * lit: the card or row SurfaceMotion has marked: on a desktop the one the
- * mouse is actually over (moved onto, not scrolled under), on a phone the
- * one under a finger or crossing the middle of the screen. Use it instead
- * of group-hover so a detail answers on both, and never just from a scroll
- * on a desktop.
+ * lit: the card or row SurfaceMotion has marked, the one the mouse is
+ * actually over (moved onto, not scrolled under). Use it instead of
+ * group-hover so a detail never lights just from a scroll. Desktop only:
+ * nothing is marked on a phone.
  */
 @custom-variant lit {
-  &:is([data-hot] *, [data-pressed] *) {
+  &:is([data-hot] *) {
     @slot;
   }
 }
@@ -524,40 +523,6 @@ body::before {
         inset 0 1px 0 rgba(223, 225, 230, 0.05),
         0 26px 50px -30px var(--panel-hover-shadow);
     }
-  }
-
-  /*
-   * On touch screens the same light comes from SurfaceMotion's touch mode:
-   * data-pressed under a finger, data-hot on whatever is crossing the middle
-   * of the screen as the page scrolls.
-   */
-  @media (any-hover: none) {
-    .panel:not(.panel-static)[data-pressed],
-    .panel:not(.panel-static)[data-hot] {
-      --lit: 1;
-      border-color: color-mix(in srgb, var(--color-chrome) 30%, var(--color-border));
-      box-shadow:
-        inset 0 1px 0 rgba(223, 225, 230, 0.05),
-        0 26px 50px -30px var(--panel-hover-shadow);
-    }
-    .tilt[data-hot],
-    .lift[data-hot],
-    .tilt[data-pressed],
-    .lift[data-pressed] {
-      --rise: -3px;
-    }
-    .data-row[data-hot] {
-      background-color: var(--row-hover);
-    }
-  }
-  [data-pressed] .pop {
-    transform: translate3d(
-        calc(var(--px, 0) * 4px),
-        calc(var(--py, 0) * 3px - 1px),
-        0
-      )
-      scale(1.07);
-    filter: drop-shadow(0 8px 14px rgb(0 0 0 / 0.55));
   }
 
   /*
