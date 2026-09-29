@@ -83,6 +83,8 @@ export type SingularityHorizonProps = {
    * it again. The landing hero only.
    */
   shedOnScroll?: boolean;
+  /** Particles on a phone-width screen (under 640px), if different. */
+  narrowParticles?: number;
   className?: string;
 };
 
@@ -764,6 +766,7 @@ export function SingularityHorizon({
   interactive = false,
   pixelBudget = PIXEL_BUDGET,
   shedOnScroll = false,
+  narrowParticles,
   className = "",
 }: SingularityHorizonProps) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
@@ -833,7 +836,14 @@ export function SingularityHorizon({
     const canPost = !!(brightProgram && blurProgram && compositeProgram);
 
     // --- geometry ---------------------------------------------------------
-    const count = Math.max(1, Math.round(particles));
+    const count = Math.max(
+      1,
+      Math.round(
+        narrowParticles !== undefined && window.innerWidth < 640
+          ? narrowParticles
+          : particles,
+      ),
+    );
     const ring = buildRing(count);
 
     const ringBuffer = gl.createBuffer();
@@ -1407,7 +1417,7 @@ export function SingularityHorizon({
       gl.deleteVertexArray(coreVao);
       gl.deleteVertexArray(screenVao);
     };
-  }, [particles, interactive, reduced, generation, ready, pixelBudget, shedOnScroll]);
+  }, [particles, narrowParticles, interactive, reduced, generation, ready, pixelBudget, shedOnScroll]);
 
   return (
     <div
