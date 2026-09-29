@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import type { WriteProgress } from "@/hooks/useVaultConnection";
 import { txUrl } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
+import { FieldHint } from "@/components/FieldHint";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { describeWriteError } from "@/lib/writeErrors";
 import { FAUCET_AMOUNT } from "@/hooks/useDeposit";
@@ -35,7 +36,6 @@ export function DepositModal({
   const [amount, setAmount] = useState("");
   const [stage, setStage] = useState<Stage>("idle");
   const [txHash, setTxHash] = useState<string>();
-  const [errorMessage, setErrorMessage] = useState<string>();
   const dialogRef = useFocusTrap<HTMLDivElement>(open);
   const [minting, setMinting] = useState(false);
   const amountId = useId();
@@ -75,10 +75,7 @@ export function DepositModal({
       if (stage === "error") setStage("idle");
     } catch (error) {
       const failure = describeWriteError(error);
-      if (!failure.cancelled) {
-        setErrorMessage(failure.message);
-        setStage("error");
-      }
+      if (!failure.cancelled) setStage("error");
     } finally {
       setMinting(false);
     }
@@ -103,7 +100,7 @@ export function DepositModal({
         setStage("idle");
         return;
       }
-      setErrorMessage(failure.message);
+      // The toast from the tracked write already says what went wrong.
       setStage("error");
     }
   }
@@ -193,9 +190,9 @@ export function DepositModal({
             </label>
 
             {overWallet && (
-              <p className="mt-2 text-xs text-loss">
+              <FieldHint>
                 You only have {walletBalance.toFixed(2)} USDG available.
-              </p>
+              </FieldHint>
             )}
             {onGetTestUsdg && (walletBalance <= 0 || overWallet) && (
               <p className="mt-2 text-xs text-muted">
@@ -210,11 +207,6 @@ export function DepositModal({
                     ? "Minting test USDG..."
                     : `Get ${FAUCET_AMOUNT.toLocaleString()} test USDG`}
                 </button>
-              </p>
-            )}
-            {stage === "error" && (
-              <p role="alert" className="mt-2 text-xs text-loss">
-                {errorMessage}
               </p>
             )}
 

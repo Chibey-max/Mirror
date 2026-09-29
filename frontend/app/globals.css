@@ -7,6 +7,23 @@
  * copper as the one warm accent (from the primary button's tint). Chrome only
  * where it means something: the buttons and the planet.
  */
+/* Lets the panels' light fade in and out rather than switch. Inherits so
+   the ::before/::after glow layers read their panel's value. */
+@property --lit {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+/* The turn of the liquid-chrome rims lib/walletConnectTheme.ts puts on
+   WalletConnect's modal. Registered here, at the document, because a
+   property registered inside a shadow root doesn't take. */
+@property --mirror-metal {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 0deg;
+}
+
 @theme {
   --color-bg: #000000;
   --color-surface: #0c0c0e;
@@ -43,6 +60,12 @@
   color-scheme: dark;
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --panel-bg: #09090a;
+  /* Panel light: the sheen down the face, the rim along the top edge, the
+     glint that follows the pointer, and the shadow under a hovered panel. */
+  --panel-sheen: rgba(255, 255, 255, 0.03);
+  --panel-rim: rgba(223, 225, 230, 0.16);
+  --panel-glint: #f2f4f8;
+  --panel-hover-shadow: rgba(0, 0, 0, 0.85);
   --field-bg: #030303;
   --row-hover: rgba(255, 255, 255, 0.03);
   --hero-copy-scrim: radial-gradient(
@@ -93,6 +116,10 @@
   --color-loss: #b7271f;
   --color-warn: #a56600;
   --panel-bg: rgba(255, 250, 240, 0.84);
+  --panel-sheen: rgba(255, 255, 255, 0.55);
+  --panel-rim: rgba(63, 70, 80, 0.14);
+  --panel-glint: #3f4650;
+  --panel-hover-shadow: rgba(94, 71, 48, 0.28);
   --field-bg: rgba(255, 255, 255, 0.72);
   --row-hover: rgba(142, 93, 52, 0.08);
   --hero-copy-scrim: radial-gradient(
@@ -147,11 +174,19 @@ body {
     color 260ms ease;
 }
 
+/*
+ * The drift sits at the very back of the body's own stacking context (body
+ * is isolated), under every layer the page draws. It used to sit at z 0 with
+ * every direct child of body forced to position: relative; z-index: 1 to
+ * clear it, which also turned the toast stack, the wrong-network dialog and
+ * the skip link from fixed into relative: toasts landed at the foot of the
+ * page instead of over it.
+ */
 body::before {
   content: "";
   position: fixed;
   inset: -18%;
-  z-index: 0;
+  z-index: -30;
   pointer-events: none;
   background: var(--page-drift);
   opacity: var(--page-drift-opacity);
@@ -160,9 +195,19 @@ body::before {
   will-change: transform, opacity;
 }
 
-body > :not(script) {
-  position: relative;
-  z-index: 1;
+/*
+ * The drifting page and hero glows are prism's: on paper they read as light
+ * falling across the sheet. On black the same copper and white washes read
+ * as an orange-grey haze over the whole page, which was removed from the
+ * dark theme on purpose, so there they're off (not just transparent, so no
+ * invisible layer keeps animating).
+ */
+:root:not([data-theme="prism"]) body::before,
+:root:not([data-theme="prism"]) .hero-section::before {
+  display: none;
+}
+:root:not([data-theme="prism"]) .hero-section {
+  background-image: none;
 }
 
 .hero-section {
@@ -203,6 +248,10 @@ body > :not(script) {
  * land the canvas on the page ground before the copy, just later.
  */
 [data-theme="prism"] .hero-canvas-mask::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
   background:
     linear-gradient(to bottom, transparent 34%, var(--color-bg) 92%),
     radial-gradient(ellipse at center, transparent 0%, transparent 44%, var(--color-bg) 88%);
@@ -299,12 +348,13 @@ body > :not(script) {
     color: transparent;
   }
 
-  /* A soft bloom of the signature, for sitting behind a panel or a heading. */
+  /* A soft bloom of chrome light, for sitting behind a panel or a heading.
+     Neutral on purpose: the copper version cast orange over the page. */
   .accent-glow {
     background: radial-gradient(
       ellipse at center,
-      color-mix(in srgb, var(--color-chrome) 24%, transparent) 0%,
-      color-mix(in srgb, var(--color-accent) 14%, transparent) 45%,
+      color-mix(in srgb, var(--color-chrome) 20%, transparent) 0%,
+      color-mix(in srgb, var(--color-chrome) 7%, transparent) 45%,
       transparent 72%
     );
   }
@@ -319,38 +369,173 @@ body > :not(script) {
    * In the components layer so a Tailwind utility on the same element (a
    * radius, a hover border) still wins.
    */
-  .panel {
-    background: var(--panel-bg);
-    border: 1px solid var(--color-border);
-  }
-
   /*
-   * Motion for everything that carries information. A panel answers the
-   * pointer: its hairline brightens and it catches a faint copper light from
-   * below. Repeated items tagged .lift (agent cards, follow cards, feed rows)
-   * also rise a few pixels. Only border colour, shadow and transform move,
-   * so hovering never triggers layout.
+   * A panel is a slab of the same dark metal as the buttons' faces: a faint
+   * sheen down from the top edge, and a rim that catches light along the top
+   * like the chrome on the buttons, much quieter.
    *
-   * Opt-out rather than opt-in, so a new panel animates without anyone
-   * remembering to ask for it. Overlays (modals, toasts, tooltips) aren't
-   * content to point at and carry .panel-static.
+   * Under the pointer it comes alive (SurfaceMotion feeds it --gx/--gy):
+   *   - a soft chrome spotlight follows the cursor across the face (::before,
+   *     behind the content, so text is never tinted),
+   *   - the rim lights up nearest the cursor, a moving glint on the edge
+   *     (::after, a 1px ring cut out with a mask),
+   *   - the hairline brightens and a deeper shadow gathers underneath.
+   *
+   * All neutral light, the planet's chrome: warm copper here read as an
+   * orange cast over everything the pointer touched.
+   *
+   * Opt-out rather than opt-in, so a new panel gets all of it without anyone
+   * remembering to ask. Overlays (modals, toasts, menus) carry .panel-static.
    */
   .panel {
+    position: relative;
+    isolation: isolate;
+    background:
+      linear-gradient(180deg, var(--panel-sheen), transparent 42%),
+      var(--panel-bg);
+    border: 1px solid var(--color-border);
     transition:
       border-color 240ms ease,
       box-shadow 360ms ease,
       background-color 240ms ease,
-      transform 360ms cubic-bezier(0.16, 1, 0.3, 1);
+      --lit 420ms ease,
+      transform 500ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .panel:not(.panel-static)::before,
+  .panel:not(.panel-static)::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+  .panel:not(.panel-static)::before {
+    z-index: -1;
+    background: radial-gradient(
+      520px circle at var(--gx, 50%) var(--gy, 0%),
+      color-mix(in srgb, var(--color-chrome) calc(var(--lit) * 5.5%), transparent),
+      transparent 42%
+    );
+  }
+  .panel:not(.panel-static)::after {
+    padding: 1px;
+    background:
+      radial-gradient(
+        240px circle at var(--gx, 50%) var(--gy, 0%),
+        color-mix(in srgb, var(--panel-glint) calc(var(--lit) * 80%), transparent),
+        color-mix(in srgb, var(--color-chrome) calc(var(--lit) * 25%), transparent) 35%,
+        transparent 65%
+      ),
+      linear-gradient(
+        180deg,
+        var(--panel-rim),
+        transparent 30%
+      );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
   }
   @media (hover: hover) {
     .panel:not(.panel-static):hover {
+      --lit: 1;
       border-color: #43454d;
       box-shadow:
         inset 0 1px 0 rgba(223, 225, 230, 0.05),
-        0 24px 48px -32px rgba(226, 169, 127, 0.3);
+        0 26px 50px -30px var(--panel-hover-shadow);
     }
+  }
+
+  /*
+   * On touch screens the same light comes from SurfaceMotion's touch mode:
+   * data-pressed under a finger, data-hot on whatever is crossing the middle
+   * of the screen as the page scrolls.
+   */
+  @media (hover: none) {
+    .panel:not(.panel-static)[data-pressed],
+    .panel:not(.panel-static)[data-hot] {
+      --lit: 1;
+      border-color: color-mix(in srgb, var(--color-chrome) 30%, var(--color-border));
+      box-shadow:
+        inset 0 1px 0 rgba(223, 225, 230, 0.05),
+        0 26px 50px -30px var(--panel-hover-shadow);
+    }
+    .tilt[data-hot],
+    .lift[data-hot],
+    .tilt[data-pressed],
+    .lift[data-pressed] {
+      --rise: -3px;
+    }
+    .data-row[data-hot] {
+      background-color: var(--row-hover);
+    }
+  }
+  [data-pressed] .pop {
+    transform: translate3d(
+        calc(var(--px, 0) * 4px),
+        calc(var(--py, 0) * 3px - 1px),
+        0
+      )
+      scale(1.07);
+    filter: drop-shadow(0 8px 14px rgb(0 0 0 / 0.55));
+  }
+
+  /*
+   * Cards tilt toward the pointer (--rx/--ry from SurfaceMotion), the way a
+   * card lying on a table tips when pressed near an edge; .lift cards rise.
+   * One transform for both so neither cancels the other.
+   */
+  .tilt,
+  .lift {
+    transform: perspective(1100px) rotateX(var(--rx, 0deg))
+      rotateY(var(--ry, 0deg)) translateY(var(--rise, 0px));
+    transition:
+      border-color 240ms ease,
+      box-shadow 360ms ease,
+      --lit 420ms ease,
+      transform 500ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @media (hover: hover) {
+    .tilt:hover,
     .lift:hover {
-      transform: translateY(-3px);
+      --rise: -4px;
+    }
+  }
+
+  /*
+   * The figures that matter in a card (its PnL, sparkline, icon, heading)
+   * come forward when their card or row is the one under the pointer: a
+   * little larger, drifting with the cursor (--px/--py) and leaning on the
+   * diagonal, with a shadow that lifts them off the face. Keyed on data-hot,
+   * which SurfaceMotion sets on the innermost surface only, so hovering one
+   * row of a table doesn't pop every row.
+   */
+  .pop {
+    transition:
+      transform 450ms cubic-bezier(0.16, 1, 0.3, 1),
+      filter 450ms ease;
+  }
+  [data-hot] .pop {
+    transform: translate3d(
+        calc(var(--px, 0) * 5px),
+        calc(var(--py, 0) * 4px - 1px),
+        0
+      )
+      scale(1.07) skewX(calc(var(--px, 0) * -2.5deg));
+    filter: drop-shadow(0 8px 14px rgb(0 0 0 / 0.55));
+  }
+  /* Inline figures pop too; a transform needs a box to act on. */
+  span.pop,
+  a.pop {
+    display: inline-block;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tilt,
+    .lift,
+    [data-hot] .pop {
+      transform: none;
     }
   }
 
@@ -405,25 +590,22 @@ body > :not(script) {
 /*
  * Fades the ring field out below the body so it doesn't run into the headline
  * at full strength. The stop sits where the body's lower limb lands, which is
- * a different fraction of the canvas per breakpoint, the camera dollies out
- * on portrait viewports, so the body occupies less of the box there. Hence a
- * media query rather than one inline style.
- *
- * A gradient laid over the canvas rather than a CSS mask on it. The page is
- * black, so fading to black looks identical, but a mask on a box several
- * screens in size made the compositor re-mask the whole animated canvas
- * every frame. An overlay is painted once.
+ * a different fraction of the planet's box per breakpoint (the camera dollies
+ * out on portrait viewports, so the body fills less of it), hence the media
+ * query. The wrapper ends exactly where the box does (box top + height, from
+ * the classes in app/page.tsx), and the stops are the box's 74% / 82% marks
+ * in the wrapper's own coordinates. Change the box, change these.
  */
-.hero-canvas-mask::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(to bottom, transparent 74%, var(--color-bg) 100%);
+.hero-fade {
+  height: calc(84.3svh + 20px);
+  mask-image: linear-gradient(to bottom, #000 calc(54.4svh + 20px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(54.4svh + 20px), transparent 100%);
 }
 @media (min-width: 640px) {
-  .hero-canvas-mask::after {
-    background: linear-gradient(to bottom, transparent 82%, var(--color-bg) 100%);
+  .hero-fade {
+    height: calc(119.4svh + 20px);
+    mask-image: linear-gradient(to bottom, #000 calc(93.3svh + 20px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(93.3svh + 20px), transparent 100%);
   }
 }
 
@@ -472,5 +654,111 @@ body > :not(script) {
   to {
     opacity: 1;
     scale: 1;
+  }
+}
+
+/* Toasts: rise into the stack, drop out of it, and a hairline that runs
+   down over a settled toast's lifetime. */
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes toastOut {
+  to {
+    opacity: 0;
+    transform: translateX(24px) scale(0.97);
+  }
+}
+@keyframes toastTimer {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/*
+ * The six-step loop's active number: a drop of liquid metal. Its outline
+ * wobbles like a droplet settling (liquidBlob animates the radius, and the
+ * rim inherits it), a chrome rim turns around it like the buttons' metal,
+ * and becoming active sends a ring splashing out once.
+ */
+.step-liquid {
+  border-color: transparent;
+  background:
+    radial-gradient(circle at 34% 28%, color-mix(in srgb, var(--color-chrome) 22%, transparent), transparent 62%),
+    var(--color-surface);
+  box-shadow: 0 8px 22px -8px color-mix(in srgb, var(--color-chrome) 35%, transparent);
+  animation: liquidBlob 3.4s ease-in-out infinite;
+}
+.step-liquid::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 2px;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--mirror-metal, 0deg),
+    #3b3b40, #f2f2f6 11%, #6a6a72 23%, #d6d6dc 37%, #2c2c33 51%, #fafaff 64%, #77777f 78%, #cbcbd3 91%, #3b3b40
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: metalTurn 4.5s linear infinite;
+}
+.step-liquid::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  border: 1px solid var(--color-chrome);
+  pointer-events: none;
+  animation: stepSplash 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes liquidBlob {
+  0%,
+  100% {
+    border-radius: 50%;
+  }
+  25% {
+    border-radius: 56% 44% 52% 48% / 46% 55% 45% 54%;
+  }
+  50% {
+    border-radius: 45% 55% 47% 53% / 55% 45% 56% 44%;
+  }
+  75% {
+    border-radius: 53% 47% 44% 56% / 48% 52% 50% 50%;
+  }
+}
+@keyframes metalTurn {
+  to {
+    --mirror-metal: 360deg;
+  }
+}
+@keyframes stepSplash {
+  from {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .step-liquid,
+  .step-liquid::after,
+  .step-liquid::before {
+    animation: none;
   }
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useNotify } from "@/components/TransactionToasts";
 import { useAccount, useSwitchChain } from "wagmi";
 import { targetChain } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
@@ -62,8 +63,8 @@ export function NetworkGuard({ children }: { children: ReactNode }) {
 
   const onWrongChain = isConnected && chain?.id !== targetChain.id;
   const dialogRef = useFocusTrap<HTMLDivElement>(onWrongChain);
-  const cancelled = !!error && isUserCancel(error);
-  const failed = !!error && !cancelled;
+  const failed = !!error && !isUserCancel(error);
+  const notify = useNotify();
 
   return (
     <>
@@ -95,23 +96,34 @@ export function NetworkGuard({ children }: { children: ReactNode }) {
               size="lg"
               fullWidth
               className="mt-5"
-              onClick={() => switchChain({ chainId: targetChain.id })}
+              onClick={() =>
+                switchChain(
+                  { chainId: targetChain.id },
+                  {
+                    // Said in a notification, like every other error; the
+                    // manual details below open on their own when the
+                    // wallet couldn't add the chain.
+                    onError: (switchError) =>
+                      notify(
+                        isUserCancel(switchError)
+                          ? {
+                              tone: "info",
+                              title: "Switch cancelled",
+                              detail: "Switch whenever you're ready.",
+                            }
+                          : {
+                              tone: "error",
+                              title: `Couldn't add ${targetChain.name}`,
+                              detail: "Your wallet couldn't add it automatically. The network details are open below to add it by hand.",
+                            },
+                      ),
+                  },
+                )
+              }
               disabled={isPending}
             >
               {isPending ? "Check your wallet…" : `Switch to ${targetChain.name}`}
             </MetalButton>
-
-            {cancelled && (
-              <p role="status" className="mt-3 text-sm text-muted">
-                Cancelled in your wallet. Switch when you&apos;re ready.
-              </p>
-            )}
-            {failed && (
-              <p role="alert" className="mt-3 text-sm text-loss">
-                Your wallet couldn&apos;t add {targetChain.name} automatically.
-                Add it by hand with the details below, then switch.
-              </p>
-            )}
 
             <details
               className="mt-4 text-sm"

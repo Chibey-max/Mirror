@@ -5,7 +5,7 @@ import { useFocusTrap } from "@/hooks/useFocusTrap";
 import type { WriteProgress } from "@/hooks/useVaultConnection";
 import { txUrl } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
-import { describeWriteError } from "@/lib/writeErrors";
+import { FieldHint } from "@/components/FieldHint";
 
 type Stage = "idle" | "signing" | "pending" | "success";
 
@@ -35,14 +35,12 @@ export function WithdrawModal({
   const [amount, setAmount] = useState("");
   const [stage, setStage] = useState<Stage>("idle");
   const [txHash, setTxHash] = useState<string>();
-  const [errorMessage, setErrorMessage] = useState<string>();
   const dialogRef = useFocusTrap<HTMLDivElement>(open);
 
   const handleClose = useCallback(() => {
     setAmount("");
     setStage("idle");
     setTxHash(undefined);
-    setErrorMessage(undefined);
     onClose();
   }, [onClose]);
 
@@ -65,7 +63,6 @@ export function WithdrawModal({
   const invalid = amount === "" || Number.isNaN(parsed) || parsed <= 0 || overFree;
 
   async function handleWithdraw() {
-    setErrorMessage(undefined);
     setStage("signing");
     try {
       // "Pending" starts when the transaction has a hash, and ends when
@@ -77,11 +74,9 @@ export function WithdrawModal({
       });
       setTxHash(hash);
       setStage("success");
-    } catch (error) {
-      // Back to the form either way, with the reason shown unless the user
-      // simply cancelled in their wallet.
-      const failure = describeWriteError(error);
-      setErrorMessage(failure.cancelled ? undefined : failure.message);
+    } catch {
+      // Back to the form either way; the tracked write's toast carries the
+      // reason, and a cancel in the wallet needs no message at all.
       setStage("idle");
     }
   }
@@ -167,14 +162,9 @@ export function WithdrawModal({
                 </div>
 
                 {overFree && (
-                  <p className="mt-2 text-xs text-loss">
+                  <FieldHint>
                     Max withdrawable is {freeBalance.toFixed(2)} USDG.
-                  </p>
-                )}
-                {errorMessage && (
-                  <p role="alert" className="mt-2 text-xs text-loss">
-                    {errorMessage}
-                  </p>
+                  </FieldHint>
                 )}
 
                 <MetalButton

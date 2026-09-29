@@ -143,8 +143,17 @@ export default function Home() {
         camera out on a portrait canvas so the rings aren't cropped off both
         sides, which at the desktop size made the body wider than a phone.
       */}
-      <div className="hero-canvas-mask pointer-events-none absolute left-[calc(50%-20vw)] top-[calc(20px-30.7svh)] z-0 h-[115svh] w-[170vw] -translate-x-1/2 sm:left-[calc(50%-35vw)] sm:top-[calc(20px-25.6svh)] sm:h-[145svh] sm:w-[180vw]">
-        <SingularityHorizon height="100%" />
+      {/*
+        The fade at the bottom is a mask on this wrapper, which ends where the
+        planet's box does and is only a screen or so in size, rather than on
+        the box itself, several screens wide, where masking the animated
+        canvas every frame was expensive. A real fade to transparent, not to
+        black, so the stars behind the page carry on under it.
+      */}
+      <div className="hero-fade pointer-events-none absolute inset-x-0 top-0 z-0 overflow-hidden">
+        <div className="hero-canvas-mask absolute left-[calc(50%-20vw)] top-[calc(20px-30.7svh)] h-[115svh] w-[170vw] -translate-x-1/2 sm:left-[calc(50%-35vw)] sm:top-[calc(20px-25.6svh)] sm:h-[145svh] sm:w-[180vw]">
+          <SingularityHorizon height="100%" shedOnScroll />
+        </div>
       </div>
 
       <SiteHeader />
@@ -187,12 +196,12 @@ export default function Home() {
               always returns exactly what you put in.
             </p>
 
-            {/* Always exactly two buttons on one row: the wallet list sits
-                behind Connect wallet, however many wallets the browser
-                announces, and the second label shortens on a phone so the
-                pair still fits side by side at 320px. */}
+            {/* Always exactly two buttons on one row. Connect wallet opens
+                the header's wallet menu rather than a second menu of its
+                own over the hero copy; the second label shortens on a
+                phone so the pair still fits side by side at 320px. */}
             <div className="relative z-10 mt-8 flex items-center justify-center gap-3 sm:mt-9">
-              <WalletConnectButton menuAlign="start" />
+              <WalletConnectButton opensHeaderMenu />
               <MetalButton href="/agents">
                 <span className="sm:hidden">Browse agents</span>
                 <span className="hidden sm:inline">Browse agents, read-only</span>
@@ -273,12 +282,12 @@ export default function Home() {
             {claims.map(({ title, contract, body, Icon }) => (
               <div
                 key={title}
-                className="lift panel flex flex-col gap-3 rounded-3xl p-6"
+                className="tilt panel flex flex-col gap-3 rounded-3xl p-6"
               >
-                <span className="flex h-10 w-10 items-center justify-center rounded-full border border-border text-chrome">
+                <span className="pop flex h-10 w-10 items-center justify-center rounded-full border border-border text-chrome transition-colors [[data-hot]_&]:border-chrome-dim [[data-hot]_&]:text-text">
                   <Icon />
                 </span>
-                <h3 className="font-display text-2xl">{title}</h3>
+                <h3 className="pop origin-left font-display text-2xl">{title}</h3>
                 <p className="text-sm leading-relaxed text-muted">{body}</p>
                 <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-chrome-dim">
                   {contract}
@@ -328,7 +337,7 @@ export default function Home() {
           <div className="mt-8 grid gap-4 sm:grid-cols-3">
             {contrasts.map((row, index) => (
               <Reveal key={row.category} delayMs={index * 90}>
-                <div className="lift panel flex h-full flex-col gap-3 rounded-3xl p-6">
+                <div className="tilt panel flex h-full flex-col gap-3 rounded-3xl p-6">
                   <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted">
                     {row.category}
                   </p>
@@ -337,7 +346,7 @@ export default function Home() {
                     {row.they}
                   </p>
                   <p className="text-sm leading-relaxed text-text">
-                    <span className="accent-text font-medium">Mirror </span>
+                    <span className="pop accent-text font-medium">Mirror</span>{" "}
                     {row.mirror}
                   </p>
                 </div>

@@ -18,7 +18,7 @@ import { TrustBadge } from "@/components/TrustBadge";
 import { FillFeed } from "@/components/FillFeed";
 import { KillButton } from "@/components/KillButton";
 import {
-  PolicyRejectBanner,
+  useRejectionNotice,
   type PolicyRejectReason,
 } from "@/components/PolicyRejectBanner";
 import { useAgentPnlHistory } from "@/hooks/useAgentPnlHistory";
@@ -54,7 +54,11 @@ export default function AgentDetailPage({
   const { verify: verifyKill } = useKillVerification(agentId);
   // A real rejection from the chain (§7.1). Inert until CopyVault is
   // deployed; the simulate buttons below are the demo stand-in until then.
-  const { rejection, clear: clearRejection } = useMirrorRejection(agentId);
+  // Each one is announced as a notification the moment its event lands.
+  const announceRejection = useRejectionNotice();
+  useMirrorRejection(agentId, undefined, (rejection) =>
+    announceRejection(rejection.reason, rejection.txHash),
+  );
   // Per-fill: mirrored, blocked, or never touched this vault (§7.1).
   const { outcomes: mirrorOutcomes } = useMirrorOutcomes(agentId);
 
@@ -90,21 +94,6 @@ export default function AgentDetailPage({
   // the cap because follow() sets both from the one capAmount argument.
   const spentToday = useSpentToday(allocated > 0 ? [agentId] : []);
 
-  const [rejectReason, setRejectReason] = useState<PolicyRejectReason | null>(null);
-  /*
-   * A live rejection wins over a simulated one and carries the real
-   * mirrorFill tx that logged it; the demo control has only a fixture hash
-   * to point at.
-   */
-  const banner = rejection
-    ? { reason: rejection.reason, txHash: rejection.txHash }
-    : rejectReason
-      ? {
-          reason: rejectReason,
-          txHash:
-            "0x8e11c0b4da9f3c5e1b7d9f3a5c7e1b9d3f5a7c1e9b3d5f7a1c9e3b5d7f1a9c3",
-        }
-      : null;
   /*
    * Keeps KillButton mounted across the kill. It renders the "can no longer
    * move your funds" badge itself, off its own verified state, and the
@@ -298,7 +287,17 @@ export default function AgentDetailPage({
                   tone="quiet"
                   size="sm"
                   key={reason.type}
-                  onClick={() => setRejectReason(decode(simulate(reason)))}
+                  onClick={() => {
+                    // The demo has no real mirrorFill to point at, so the
+                    // link goes to a fixture hash.
+                    const decoded = decode(simulate(reason));
+                    if (decoded) {
+                      announceRejection(
+                        decoded,
+                        "0x8e11c0b4da9f3c5e1b7d9f3a5c7e1b9d3f5a7c1e9b3d5f7a1c9e3b5d7f1a9c3",
+                      );
+                    }
+                  }}
                 >
                   Simulate {reason.type} →
                 </MetalButton>
@@ -307,18 +306,6 @@ export default function AgentDetailPage({
 
                 </div>
 
-                {banner && (
-                  <div className="mt-4">
-                    <PolicyRejectBanner
-                      reason={banner.reason}
-                      txHash={banner.txHash}
-                      onDismiss={() => {
-                        clearRejection();
-                        setRejectReason(null);
-                      }}
-                    />
-                  </div>
-                )}
               </section>
             </Reveal>
 
@@ -342,7 +329,7 @@ export default function AgentDetailPage({
                       className="data-row -mx-2 flex items-baseline justify-between gap-3 rounded-lg px-2 py-2.5"
                     >
                       <dt className="text-sm text-muted">{row.label}</dt>
-                      <dd className="tabular font-semibold">
+                      <dd className="pop origin-right tabular font-semibold">
                         {row.value.toFixed(2)}{" "}
                         <span className="text-xs text-muted">USDG</span>
                       </dd>

@@ -6,11 +6,13 @@ type MirrorTheme = "nocturne" | "prism";
 
 const STORAGE_KEY = "mirror-theme";
 
+/** Prism (light) unless Nocturne has been chosen, matching the theme script
+ *  in app/layout.tsx that sets it before the first paint. */
 function getTheme(): MirrorTheme {
-  if (typeof document === "undefined") return "nocturne";
-  return document.documentElement.dataset.theme === "prism"
-    ? "prism"
-    : "nocturne";
+  if (typeof document === "undefined") return "prism";
+  return document.documentElement.dataset.theme === "nocturne"
+    ? "nocturne"
+    : "prism";
 }
 
 function setTheme(theme: MirrorTheme) {
@@ -70,7 +72,7 @@ function Icon({ theme }: { theme: MirrorTheme }) {
  * than a swap.
  */
 export function ThemeToggle({ compact = false }: { compact?: boolean }) {
-  const theme = useSyncExternalStore(subscribeTheme, getTheme, () => "nocturne");
+  const theme = useSyncExternalStore(subscribeTheme, getTheme, () => "prism");
 
   const nextTheme = theme === "nocturne" ? "prism" : "nocturne";
   const label = `Switch to ${nextTheme === "prism" ? "Prism" : "Nocturne"} mode`;

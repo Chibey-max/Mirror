@@ -80,13 +80,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   const themeScript = `
 (() => {
   try {
+    // Prism (light) is the default; Nocturne only when chosen.
     const stored = window.localStorage.getItem("mirror-theme");
-    const theme = stored === "prism" ? "prism" : "nocturne";
+    const theme = stored === "nocturne" ? "nocturne" : "prism";
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme === "prism" ? "light" : "dark";
   } catch {
-    document.documentElement.dataset.theme = "nocturne";
-    document.documentElement.style.colorScheme = "dark";
+    document.documentElement.dataset.theme = "prism";
+    document.documentElement.style.colorScheme = "light";
   }
 })();
 `;

@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { useReducedMotion } from "@/components/MetalButton";
 
 export type LoopStep = { title: string; short: string; body: string };
 
-const STEP_INTERVAL_MS = 1800;
+/** Long enough for each step's dispersal to finish and settle first. */
+const STEP_INTERVAL_MS = 3200;
 /** A beat on 06 before the loop starts over, so the end reads as an end. */
 const LOOP_REST_MS = 3200;
+/** 01 holds longer: after the wrap the swarm is still gathering there. */
+const FIRST_HOLD_MS = 3400;
 /** How long a visitor's own click holds the walk before it resumes. */
 const RESUME_AFTER_MS = 9000;
 
@@ -29,6 +32,7 @@ const RESUME_AFTER_MS = 9000;
 export function LoopSteps({ steps }: { steps: LoopStep[] }) {
   const reduced = useReducedMotion();
   const sectionRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLOListElement>(null);
   const [started, setStarted] = useState(false);
   const [active, setActive] = useState(0);
   const [autoplay, setAutoplay] = useState(true);
@@ -62,7 +66,7 @@ export function LoopSteps({ steps }: { steps: LoopStep[] }) {
     const last = active >= steps.length - 1;
     const timer = setTimeout(
       () => setActive((i) => (i >= steps.length - 1 ? 0 : i + 1)),
-      last ? LOOP_REST_MS : STEP_INTERVAL_MS,
+      last ? LOOP_REST_MS : active === 0 ? FIRST_HOLD_MS : STEP_INTERVAL_MS,
     );
     return () => clearTimeout(timer);
   }, [started, autoplay, active, steps.length, reduced]);
@@ -105,27 +109,30 @@ export function LoopSteps({ steps }: { steps: LoopStep[] }) {
   }
 
   return (
-    <div ref={sectionRef} className="mt-10">
-      {/* The track: numbered circles, a fill line between them, short labels. */}
-      <ol className="relative flex items-start justify-between overflow-x-auto px-1 pb-1 sm:overflow-visible">
+    <div ref={sectionRef} className="relative mt-10">
+      {/* Outside the list, so its scatter on the wrap isn't clipped. */}
+      <StepSwarm track={trackRef} active={started ? active : -1} />
+      {/* The track: numbered circles on a hairline, short labels, and the
+          swarm (StepSwarm) that carries the emphasis from one to the next. */}
+      <ol
+        ref={trackRef}
+        className="relative flex items-start justify-between px-1 pb-1 pt-3"
+      >
         {steps.map((step, index) => {
           const lit = started && index <= active;
           const isActive = started && index === active;
           return (
             <li
               key={step.title}
-              className="relative flex min-w-[64px] flex-1 flex-col items-center gap-2 sm:min-w-0"
+              className="relative flex min-w-0 flex-1 flex-col items-center gap-2"
             >
               {index > 0 && (
                 <span
                   aria-hidden="true"
-                  className="absolute right-[calc(50%+18px)] top-[18px] h-px w-[calc(100%-36px)] bg-border"
-                >
-                  <span
-                    className="block h-full bg-[linear-gradient(90deg,var(--color-chrome-dim),var(--color-accent))] transition-[width] duration-500 ease-out"
-                    style={{ width: lit ? "100%" : "0%" }}
-                  />
-                </span>
+                  className={`absolute right-[calc(50%+18px)] top-[18px] h-px w-[calc(100%-36px)] transition-colors duration-700 sm:top-5 ${
+                    lit ? "bg-chrome-dim/60" : "bg-border"
+                  }`}
+                />
               )}
               <button
                 type="button"
@@ -136,9 +143,10 @@ export function LoopSteps({ steps }: { steps: LoopStep[] }) {
                 }}
                 aria-current={isActive ? "step" : undefined}
                 aria-label={`Step ${index + 1}: ${step.title}`}
-                className={`tabular relative z-10 flex h-9 w-9 flex-none items-center justify-center rounded-full border font-mono text-xs outline-none transition-all duration-500 ease-out focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent/60 focus-visible:outline-offset-4 sm:h-10 sm:w-10 sm:text-sm ${
+                data-step={index}
+                className={`tabular relative z-10 flex h-9 w-9 flex-none items-center justify-center rounded-full border font-mono text-xs outline-none transition-[transform,color,border-color,background-color] duration-500 ease-out focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent/60 focus-visible:outline-offset-4 sm:h-10 sm:w-10 sm:text-sm ${
                   isActive
-                    ? "scale-[1.15] border-accent bg-accent/15 text-accent"
+                    ? "step-liquid scale-[1.18] text-text"
                     : lit
                       ? "border-chrome-dim bg-surface text-chrome"
                       : "border-border bg-surface text-muted"
@@ -148,7 +156,7 @@ export function LoopSteps({ steps }: { steps: LoopStep[] }) {
               </button>
               <span
                 className={`text-center font-mono text-[9px] uppercase tracking-[0.06em] transition-colors duration-500 sm:text-[10px] ${
-                  isActive ? "text-accent" : lit ? "text-text" : "text-muted"
+                  isActive ? "text-text" : lit ? "text-chrome" : "text-muted"
                 }`}
               >
                 {step.short}
@@ -180,5 +188,253 @@ export function LoopSteps({ steps }: { steps: LoopStep[] }) {
         ))}
       </div>
     </div>
+  );
+}
+
+/** Motes in the ring, and the ring's gap outside a number's edge. */
+const MOTES = 30;
+const RING_GAP = 9;
+/** One slow turn for the whole ring, radians a second. */
+const TURN = 0.55;
+/** Every move, step to step and 06 back to 01, is the same dispersal. */
+const SCATTER_MS = 2000;
+
+type Mote = {
+  /** Its fixed place on the ring, and a hair in or out for texture. */
+  slot: number;
+  lane: number;
+  size: number;
+  alpha: number;
+  /** Where it wanders to on a scatter, as a direction and distance. */
+  flingAngle: number;
+  flingReach: number;
+  /** Its own start within a scatter, so they don't leave in a block. */
+  lag: number;
+};
+
+type Point = { x: number; y: number; r: number };
+
+type Move =
+  | { kind: "rest"; to: number }
+  | {
+      kind: "scatter";
+      to: number;
+      start: number;
+      duration: number;
+      /** Where each mote was when this move began, x/y interleaved. */
+      origin: Float32Array;
+      /** The step it's leaving, whose number the paths curve out around. */
+      from: Point;
+    };
+
+function easeInOutSine(t: number) {
+  return 0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, Math.max(0, t)));
+}
+
+/**
+ * What carries the emphasis between steps: a ring of chrome motes that sits
+ * just outside the active number, turning slowly as one. Every move, step
+ * to step and 06 back to 01 alike, is a dispersal: the motes drift far
+ * apart, high and low and across the track, each on its own curve and at
+ * its own moment, then gather into the ring around the next number.
+ *
+ * Every mote's position is a function of time along a planned path (no
+ * per-frame chasing or random jitter), which is what keeps it smooth. One
+ * canvas over the track with room above and below for the scatter, drawn
+ * only while on screen, in the theme's --color-chrome.
+ */
+function StepSwarm({
+  track,
+  active,
+}: {
+  track: RefObject<HTMLOListElement | null>;
+  active: number;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const activeRef = useRef(active);
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const list = track.current;
+    const host = canvas?.parentElement;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !list || !host || !ctx) return;
+
+    const motes: Mote[] = Array.from({ length: MOTES }, (_, i) => ({
+      slot: (i / MOTES) * Math.PI * 2,
+      lane: ((i % 3) - 1) * 1.6,
+      size: 1 + (i % 3 === 1 ? 0.55 : 0.2) + Math.random() * 0.25,
+      alpha: 0.55 + Math.random() * 0.4,
+      flingAngle: Math.random() * Math.PI * 2,
+      flingReach: 0.45 + Math.random() * 0.55,
+      lag: Math.random() * 0.22,
+    }));
+
+    // The canvas overhangs the track by PAD above and below, for the scatter.
+    const PAD = 90;
+    let stops: Point[] = [];
+    let width = 0;
+    let height = 0;
+    let dpr = 1;
+    let ink = "#dfe1e6";
+
+    const measure = () => {
+      const hostBox = host.getBoundingClientRect();
+      const listBox = list.getBoundingClientRect();
+      width = hostBox.width;
+      height = listBox.height + PAD * 2;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      canvas.style.top = `${listBox.top - hostBox.top - PAD}px`;
+      stops = [...list.querySelectorAll<HTMLElement>("[data-step]")].map((button) => {
+        const b = button.getBoundingClientRect();
+        return {
+          x: b.left - hostBox.left + b.width / 2,
+          y: b.top - listBox.top + PAD + b.height / 2,
+          r: b.width / 2,
+        };
+      });
+      ink =
+        getComputedStyle(document.documentElement)
+          .getPropertyValue("--color-chrome")
+          .trim() || ink;
+    };
+    measure();
+
+    // Where mote i sits on the ring around stop `at`, at time t (seconds).
+    const ringX = (m: Mote, at: Point, t: number, cx = at.x) =>
+      cx + Math.cos(m.slot + t * TURN) * (at.r + RING_GAP + m.lane);
+    const ringY = (m: Mote, at: Point, t: number) =>
+      at.y + Math.sin(m.slot + t * TURN) * (at.r + RING_GAP + m.lane);
+
+    let move: Move | null = null;
+    const px = new Float32Array(MOTES);
+    const py = new Float32Array(MOTES);
+    let raf = 0;
+    let onScreen = false;
+
+    const plan = (next: number, now: number) => {
+      if (!move || !stops[next]) {
+        move = { kind: "rest", to: next };
+        return;
+      }
+      const current = move.to;
+      // Every move is the same dispersal, from wherever each mote is right
+      // now, so a click mid-move carries on without a jump.
+      const origin = new Float32Array(MOTES * 2);
+      for (let i = 0; i < MOTES; i++) {
+        origin[i * 2] = px[i];
+        origin[i * 2 + 1] = py[i];
+      }
+      move = {
+        kind: "scatter",
+        to: next,
+        start: now,
+        duration: SCATTER_MS,
+        origin,
+        from: stops[current] ?? stops[next],
+      };
+    };
+
+    const frame = (now: number) => {
+      raf = 0;
+      const t = now / 1000;
+      const target = activeRef.current;
+      if (target >= 0 && (!move || move.to !== target)) plan(target, now);
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = ink;
+
+      if (move && stops[move.to]) {
+        const to = stops[move.to];
+        for (let i = 0; i < MOTES; i++) {
+          const m = motes[i];
+          let x: number;
+          let y: number;
+          let fade = 1;
+          if (move.kind === "rest") {
+            x = ringX(m, to, t);
+            y = ringY(m, to, t);
+          } else {
+            // A cubic curve: out from where it was, through its own point
+            // well away from the track, round to its place on the ring at
+            // the new step. Each leaves at its own moment.
+            const raw = ((now - move.start) / move.duration - m.lag) / (1 - 0.22);
+            const p = easeInOutSine(raw);
+            const ox = move.origin[i * 2];
+            const oy = move.origin[i * 2 + 1];
+            // Every path leaves its number outward and arrives at the next
+            // from outside, never through a number: the first control point
+            // sits out along the mote's own radius from the step it's
+            // leaving, the second out along its radius at the step it's
+            // headed for, and both are lifted to the mote's side of the
+            // line (above if it started above), so the curve clears the
+            // numbers in between as well.
+            const from = move.from;
+            const leave = Math.atan2(oy - from.y, ox - from.x);
+            const arrive = m.slot + t * TURN;
+            const side = Math.sin(leave) < -0.15 ? -1 : Math.sin(leave) > 0.15 ? 1 : Math.sin(m.flingAngle) < 0 ? -1 : 1;
+            // Far out, high or low, and across the track, then in.
+            const out = 50 + m.flingReach * 90;
+            const lift = 30 + m.flingReach * 60;
+            const spreadX = width * 0.22 * m.flingReach * Math.cos(m.flingAngle);
+            const ax = ox + Math.cos(leave) * out + spreadX;
+            const ay = oy + Math.sin(leave) * out * 0.6 + side * lift;
+            const bx = to.x + Math.cos(arrive) * out - spreadX * 0.6;
+            const by = to.y + Math.sin(arrive) * out * 0.6 + side * lift;
+            const ex = ringX(m, to, t);
+            const ey = ringY(m, to, t);
+            const u = 1 - p;
+            x = u * u * u * ox + 3 * u * u * p * ax + 3 * u * p * p * bx + p * p * p * ex;
+            y = u * u * u * oy + 3 * u * u * p * ay + 3 * u * p * p * by + p * p * p * ey;
+            // A little dimmer while spread out, full again once gathered.
+            fade = 1 - 0.4 * Math.sin(Math.PI * p);
+            if (raw >= 1 && i === MOTES - 1) move = { kind: "rest", to: move.to };
+          }
+          px[i] = x;
+          py[i] = y;
+          ctx.globalAlpha = m.alpha * fade;
+          ctx.beginPath();
+          ctx.arc(x, y, m.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      if (onScreen) raf = requestAnimationFrame(frame);
+    };
+
+    const visibility = new IntersectionObserver(([entry]) => {
+      onScreen = entry.isIntersecting;
+      if (onScreen && !raf) raf = requestAnimationFrame(frame);
+    });
+    visibility.observe(list);
+    const resize = new ResizeObserver(measure);
+    resize.observe(host);
+    const theme = new MutationObserver(measure);
+    theme.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+
+    return () => {
+      cancelAnimationFrame(raf);
+      visibility.disconnect();
+      resize.disconnect();
+      theme.disconnect();
+    };
+  }, [track]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      aria-hidden="true"
+      className="pointer-events-none absolute left-0 z-20"
+    />
   );
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { txUrl } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
+import { FieldHint } from "@/components/FieldHint";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { describeWriteError } from "@/lib/writeErrors";
 import type { WriteProgress } from "@/hooks/useVaultConnection";
@@ -33,7 +34,6 @@ export function FollowModal({
   const [maxSlippageBps, setMaxSlippageBps] = useState("50");
   const [stage, setStage] = useState<Stage>("idle");
   const [txHash, setTxHash] = useState<string>();
-  const [errorMessage, setErrorMessage] = useState<string>();
   const dialogRef = useFocusTrap<HTMLDivElement>(open);
   const capId = useId();
   const slippageId = useId();
@@ -92,7 +92,7 @@ export function FollowModal({
         setStage("idle");
         return;
       }
-      setErrorMessage(failure.message);
+      // The toast from the tracked write already says what went wrong.
       setStage("error");
     }
   }
@@ -222,19 +222,14 @@ export function FollowModal({
             </label>
 
             {capOverBalance && (
-              <p className="mt-2 text-xs text-loss">
+              <FieldHint>
                 Cap cannot exceed your free vault balance.
-              </p>
+              </FieldHint>
             )}
             {parsedSlippage > 10000 && (
-              <p className="mt-2 text-xs text-loss">
+              <FieldHint>
                 Slippage cannot exceed 10000 bps.
-              </p>
-            )}
-            {stage === "error" && (
-              <p role="alert" className="mt-2 text-xs text-loss">
-                {errorMessage}
-              </p>
+              </FieldHint>
             )}
 
             {/*
