@@ -13,7 +13,7 @@ import { ringProjector, type RingProjector } from "@/components/SingularityHoriz
 function starColor(): string {
   return (
     getComputedStyle(document.documentElement)
-      .getPropertyValue("--color-chrome")
+      .getPropertyValue("--particle-ink")
       .trim() || "#dfe1e6"
   );
 }

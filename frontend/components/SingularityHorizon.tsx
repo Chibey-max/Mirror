@@ -1042,7 +1042,9 @@ export function SingularityHorizon({
       const theme = document.documentElement.dataset.theme;
       polarity.target = theme === "prism" || theme === "light" ? 1 : 0;
       tokenColor("--color-bg", polarity.paper);
-      tokenColor("--color-text", polarity.ink);
+      // The ring prints in the particle ink: gold on paper, like the metal
+      // buttons, rather than near-black, which read as grain.
+      tokenColor("--particle-ink", polarity.ink);
     };
     readTheme();
     polarity.current = polarity.target;
