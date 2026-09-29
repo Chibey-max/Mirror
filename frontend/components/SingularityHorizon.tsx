@@ -83,6 +83,8 @@ export type SingularityHorizonProps = {
    * it again. The landing hero only.
    */
   shedOnScroll?: boolean;
+  /** Particles on a phone-width screen (under 640px), if different. */
+  narrowParticles?: number;
   className?: string;
 };
 
@@ -514,6 +516,8 @@ uniform float uExposure;
 uniform float uPolarity;
 uniform vec3 uPaper;
 uniform vec3 uInk;
+/* The most ink a pixel can take on paper; below 1, dense parts ease off. */
+uniform float uInkMax;
 void main() {
   vec3 c = texture(uScene, vUv).rgb + texture(uBloom, vUv).rgb * uBloomStrength;
   c = vec3(1.0) - exp(-c * uExposure);
@@ -538,6 +542,13 @@ void main() {
    */
   float luma = clamp(dot(c, vec3(0.2126, 0.7152, 0.0722)) * 0.95, 0.0, 1.0);
   float density = pow(luma, 0.92);
+  /*
+   * On a portrait screen the camera pulls back, the ring is drawn smaller,
+   * and its far arm piles into a dense dark knot on paper. There the ink is
+   * capped softly: faint parts print as before (tanh is linear near 0),
+   * dense ones level off instead of going solid.
+   */
+  if (uInkMax < 1.0) density = uInkMax * tanh(density / uInkMax);
   vec3 hue = c / max(max(c.r, max(c.g, c.b)), 1e-4);
   vec3 ink = clamp(uInk * mix(vec3(1.0), hue, 0.5), 0.0, 1.0);
   vec3 printed = mix(uPaper, ink, density);
@@ -755,6 +766,7 @@ export function SingularityHorizon({
   interactive = false,
   pixelBudget = PIXEL_BUDGET,
   shedOnScroll = false,
+  narrowParticles,
   className = "",
 }: SingularityHorizonProps) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
@@ -824,7 +836,14 @@ export function SingularityHorizon({
     const canPost = !!(brightProgram && blurProgram && compositeProgram);
 
     // --- geometry ---------------------------------------------------------
-    const count = Math.max(1, Math.round(particles));
+    const count = Math.max(
+      1,
+      Math.round(
+        narrowParticles !== undefined && window.innerWidth < 640
+          ? narrowParticles
+          : particles,
+      ),
+    );
     const ring = buildRing(count);
 
     const ringBuffer = gl.createBuffer();
@@ -910,6 +929,7 @@ export function SingularityHorizon({
       polarity: u(compositeProgram, "uPolarity"),
       paper: u(compositeProgram, "uPaper"),
       ink: u(compositeProgram, "uInk"),
+      inkMax: u(compositeProgram, "uInkMax"),
     };
 
     const pointRange = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE) as
@@ -1285,6 +1305,7 @@ export function SingularityHorizon({
         gl.uniform1f(kU.polarity, polarity.current);
         gl.uniform3fv(kU.paper, polarity.paper);
         gl.uniform3fv(kU.ink, polarity.ink);
+        gl.uniform1f(kU.inkMax, aspect < 1 ? 0.5 : 1);
         screenPass(compositeProgram, null);
       }
       gl.bindVertexArray(null);
@@ -1396,7 +1417,7 @@ export function SingularityHorizon({
       gl.deleteVertexArray(coreVao);
       gl.deleteVertexArray(screenVao);
     };
-  }, [particles, interactive, reduced, generation, ready, pixelBudget, shedOnScroll]);
+  }, [particles, narrowParticles, interactive, reduced, generation, ready, pixelBudget, shedOnScroll]);
 
   return (
     <div

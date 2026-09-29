@@ -22,9 +22,9 @@ export function LedgerStats({
           key={stat.label}
           data-surface
           style={{ animationDelay: `${index * 70}ms` }}
-          className="group bg-[var(--panel-bg)] px-4 py-3.5 transition-colors duration-200 hover:bg-[var(--row-hover)] motion-safe:animate-[statIn_0.5s_cubic-bezier(0.16,1,0.3,1)_backwards]"
+          className="group bg-[var(--panel-bg)] px-4 py-3.5 transition-colors duration-200 hover:bg-[var(--row-hover)] [&[data-hot]]:bg-[var(--row-hover)] [&[data-pressed]]:bg-[var(--row-hover)] motion-safe:animate-[statIn_0.5s_cubic-bezier(0.16,1,0.3,1)_backwards]"
         >
-          <dt className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted transition-colors duration-200 group-hover:text-accent">
+          <dt className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted transition-colors duration-200 lit:text-accent">
             {stat.label}
           </dt>
           <dd className="pop origin-left tabular mt-1.5 text-xl font-semibold">{stat.value}</dd>

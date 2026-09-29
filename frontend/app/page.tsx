@@ -150,16 +150,19 @@ export default function Home() {
         canvas every frame was expensive. A real fade to transparent, not to
         black, so the stars behind the page carry on under it.
       */}
-      <div className="hero-fade pointer-events-none absolute inset-x-0 top-0 z-0 overflow-hidden">
+      {/* On a phone the ring is softened toward the inner pages' look, at
+          60% and with fewer particles, a little bolder than their 40%:
+          full strength crowded the small screen. */}
+      <div className="hero-fade pointer-events-none absolute inset-x-0 top-0 z-0 overflow-hidden max-sm:opacity-60">
         <div className="hero-canvas-mask absolute left-[calc(50%-20vw)] top-[calc(20px-30.7svh)] h-[115svh] w-[170vw] -translate-x-1/2 sm:left-[calc(50%-35vw)] sm:top-[calc(20px-25.6svh)] sm:h-[145svh] sm:w-[180vw]">
-          <SingularityHorizon height="100%" shedOnScroll />
+          <SingularityHorizon height="100%" shedOnScroll narrowParticles={26000} />
         </div>
       </div>
 
       <SiteHeader />
 
       <main id="main-content" tabIndex={-1} className="relative z-10 outline-none mx-auto flex w-full max-w-7xl flex-1 flex-col gap-12 px-5 py-10 sm:px-10 sm:py-12">
-        <section className="hero-section relative flex min-h-[92svh] flex-col items-center pt-[15svh] pb-2 text-center sm:pt-[18svh]">
+        <section className="hero-section relative flex min-h-[92svh] flex-col items-center pt-[4svh] pb-2 text-center sm:pt-[18svh]">
           {/*
             The copy sits in its own stacking context above the canvas, which
             is positioned at z-0 and would otherwise paint over ordinary
@@ -190,7 +193,7 @@ export default function Home() {
               <em className="italic">capped</em>.
             </h1>
 
-            <p className="relative z-10 mt-7 max-w-xl text-lg leading-relaxed text-muted text-balance">
+            <p className="relative z-10 mt-5 sm:mt-7 max-w-xl text-lg leading-relaxed text-muted text-balance">
               The trust layer for copy-trading Robinhood Stock Tokens: a
               tamper-proof track record, a hard daily cap, and a kill switch that
               always returns exactly what you put in.
@@ -208,6 +211,10 @@ export default function Home() {
               </MetalButton>
             </div>
 
+            {/* On a phone the verified tape comes up under the buttons, where
+                it's seen on the first screen instead of below the fold. */}
+            <TapeTicker className="relative z-10 mt-5 sm:hidden" />
+
             {/*
               The chain, on phones, as part of the page rather than pinned to
               it. Wider viewports carry it in the header pill, which a phone
@@ -219,7 +226,7 @@ export default function Home() {
               <NetworkBadge compact />
             </div>
 
-            <div className="relative z-10 mt-16 flex flex-col items-center gap-4">
+            <div className="relative z-10 mt-10 flex flex-col items-center gap-4 sm:mt-16">
               <span className="text-xs text-muted">
                 Built on the stack it settles against
               </span>
@@ -233,7 +240,7 @@ export default function Home() {
 
           </div>
 
-          <TapeTicker className="relative z-10 mt-14" />
+          <TapeTicker className="relative z-10 mt-14 hidden sm:block" />
         </section>
 
         {/*

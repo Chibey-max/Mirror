@@ -241,7 +241,7 @@ function easeInOutSine(t: number) {
  * Every mote's position is a function of time along a planned path (no
  * per-frame chasing or random jitter), which is what keeps it smooth. One
  * canvas over the track with room above and below for the scatter, drawn
- * only while on screen, in the theme's --color-chrome.
+ * only while on screen, in the theme's --particle-ink.
  */
 function StepSwarm({
   track,
@@ -302,7 +302,7 @@ function StepSwarm({
       });
       ink =
         getComputedStyle(document.documentElement)
-          .getPropertyValue("--color-chrome")
+          .getPropertyValue("--particle-ink")
           .trim() || ink;
     };
     measure();
