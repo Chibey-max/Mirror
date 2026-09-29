@@ -60,11 +60,9 @@
   color-scheme: dark;
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --panel-bg: #09090a;
-  /* Particles: the planet's ring, the stars and the six-step swarm. Chrome
-     on black; on paper, the gold of the metal buttons' rims (below). */
+  /* Particles: the stars and the six-step swarm. Chrome on black; on
+     paper, the gold of the metal buttons' rims (below). */
   --particle-ink: #dfe1e6;
-  /* The planet's ring on paper; unused on black, where it's emissive. */
-  --ring-ink: #dfe1e6;
   /* Panel light: the sheen down the face, the rim along the top edge, the
      glint that follows the pointer, and the shadow under a hovered panel. */
   --panel-sheen: rgba(255, 255, 255, 0.03);
@@ -125,8 +123,6 @@
   --color-warn: #a56600;
   --panel-bg: rgba(255, 250, 240, 0.84);
   --particle-ink: #b3833f;
-  /* Silver steel for the printed ring, the buttons' neutral chrome. */
-  --ring-ink: #7f8792;
   --panel-sheen: rgba(255, 255, 255, 0.55);
   --panel-rim: rgba(63, 70, 80, 0.14);
   --panel-glint: #3f4650;
