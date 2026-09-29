@@ -1,7 +1,8 @@
 "use client";
 
+import { targetChain } from "@/lib/chains";
 import { useCallback } from "react";
-import { useAccount, useReadContract, useReadContracts } from "wagmi";
+import { useReadContract, useReadContracts } from "wagmi";
 import { formatUnits, type Address } from "viem";
 import {
   addressesFor,
@@ -10,15 +11,10 @@ import {
   isDeployed,
   trackRecordAbi,
 } from "@/lib/contracts";
-import {
-  fixtureAgents,
-  fixtureFills,
-  type FixtureAgent,
-  type FixtureFill,
-} from "@/lib/fixtures";
+import type { FixtureAgent, FixtureFill } from "@/lib/fixtures";
 import { computeAgentPnl, pnlPctSeries, type MirroredTrade } from "@/lib/pnl";
 import { formatRecordedPrice } from "@/lib/onchain";
-import { useFillEvents } from "@/hooks/useFillEvents";
+import { toDisplayFill, useFillEvents, type IndexedFill } from "@/hooks/useFillEvents";
 import { useTokenMetadata } from "@/hooks/useTokenMetadata";
 
 export type Agent = FixtureAgent;
@@ -91,18 +87,23 @@ type FillPage = { agentId: number; offset: bigint; limit: bigint };
  * name, and `modelVersion`. Live agents show their model version rather
  * than a label invented in the frontend.
  *
- * Inert until deployments/46630.json lands, when fixtures stand in.
+ * Empty until there's a deployment to read; never sample agents.
  */
 export function useAgents(): {
   agents: Agent[];
+  /** Every agent's recorded fills, newest first, ready to display: the
+   *  all-agents tape (agent cards, the landing preview and ticker). */
+  fills: AgentFill[];
   isLoading: boolean;
   error: Error | null;
   /** Re-runs every read this hook made. For a calm error banner, not a
    *  spinner, the caller decides when "try again" is worth showing. */
   refetch: () => void;
 } {
-  const { chainId } = useAccount();
-  const addresses = chainId ? addressesFor(chainId) : undefined;
+  // Public reads come from Mirror's own chain whether or not a wallet is
+  // connected: keyed on the wallet's chain, a visitor with none saw no
+  // contracts and got sample data instead.
+  const addresses = addressesFor(targetChain.id);
   const live = isDeployed(addresses?.agentRegistry);
 
   const count = useReadContract({
@@ -212,8 +213,9 @@ export function useAgents(): {
     void history.refetch();
   }, [count, registry, summaries, history]);
 
+  // Nothing deployed to read from: nothing to show, never sample agents.
   if (!live) {
-    return { agents: fixtureAgents, isLoading: false, error: null, refetch };
+    return { agents: [], fills: [], isLoading: false, error: null, refetch };
   }
 
   const agents: Agent[] = [];
@@ -276,8 +278,17 @@ export function useAgents(): {
     });
   });
 
+  // TrackRecord's Fill struct carries agentId and timestamp too, so these
+  // display exactly as useFillEvents' do. No txHash: the view returns the
+  // fill, not the transaction that recorded it.
+  const fills: AgentFill[] = [...fillsByAgent.values()]
+    .flat()
+    .sort((a, b) => (a.fillId < b.fillId ? 1 : a.fillId > b.fillId ? -1 : 0))
+    .map((fill) => toDisplayFill(fill as unknown as IndexedFill, metadata.get(fill.token)));
+
   return {
     agents,
+    fills,
     isLoading:
       count.isLoading ||
       registry.isLoading ||
@@ -313,11 +324,7 @@ export function useAgent(agentId: number): {
 
   return {
     agent: agents.find((agent) => agent.id === agentId),
-    // The fixture path filters the same way useFillEvents does live, so the
-    // detail page reads one source either way.
-    fills: agents === fixtureAgents
-      ? fixtureFills.filter((fill) => fill.agentId === agentId)
-      : fills,
+    fills,
     isLoading: isLoading || fillsLoading,
     error,
     refetch,

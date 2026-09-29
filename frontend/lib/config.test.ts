@@ -15,11 +15,20 @@ describe("release configuration", () => {
     await expect(import("./config")).rejects.toThrow("NEXT_PUBLIC_MIRROR_MODE");
   });
 
-  it("requires a WalletConnect project in live mode", async () => {
+  it("requires a WalletConnect project in a live production build", async () => {
+    vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("NEXT_PUBLIC_MIRROR_MODE", "live");
     vi.stubEnv("NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID", "");
     const config = await import("./config");
     expect(() => config.walletConnectProjectId()).toThrow("NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID");
+  });
+
+  it("lets local development read live without one", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("NEXT_PUBLIC_MIRROR_MODE", "live");
+    vi.stubEnv("NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID", "");
+    const config = await import("./config");
+    expect(() => config.walletConnectProjectId()).not.toThrow();
   });
 
   // The generated addresses are stubbed rather than read from disk: once

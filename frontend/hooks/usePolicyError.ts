@@ -1,5 +1,6 @@
 "use client";
 
+import { targetChain } from "@/lib/chains";
 import { useCallback, useState } from "react";
 import {
   type Abi,
@@ -182,8 +183,8 @@ export function useMirrorRejection(
   /** Called once per new rejection, as it arrives. */
   onRejection?: (rejection: MirrorRejection) => void,
 ) {
-  const { address, chainId } = useAccount();
-  const vault = chainId ? addressesFor(chainId)?.copyVault : undefined;
+  const { address } = useAccount();
+  const vault = addressesFor(targetChain.id)?.copyVault;
   const [rejection, setRejection] = useState<MirrorRejection | null>(null);
 
   useWatchContractEvent({

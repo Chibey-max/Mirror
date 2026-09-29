@@ -1,5 +1,6 @@
 "use client";
 
+import { targetChain } from "@/lib/chains";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import type { Hex } from "viem";
 import { addressesFor, isDeployed, type MirrorAddresses } from "@/lib/contracts";
@@ -40,10 +41,10 @@ export function useVaultConnection(): {
   /** Waits for a write to be mined, so balance re-reads see it. */
   confirm: (hash: Hex) => Promise<void>;
 } {
-  const { address, chainId } = useAccount();
+  const { address } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync: send } = useWriteContract();
-  const addresses = chainId ? addressesFor(chainId) : undefined;
+  const addresses = addressesFor(targetChain.id);
 
   const live =
     !!address &&

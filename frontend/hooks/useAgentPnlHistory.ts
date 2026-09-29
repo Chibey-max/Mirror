@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { targetChain } from "@/lib/chains";
 import { formatUnits, type Address } from "viem";
-import { useAccount, useReadContract } from "wagmi";
+import { useReadContract } from "wagmi";
 import { addressesFor, isDeployed, trackRecordAbi } from "@/lib/contracts";
-import { fixtureAgents } from "@/lib/fixtures";
 import {
   pnlPctSeriesTimed,
   type MirroredTrade,
@@ -14,7 +13,6 @@ import { ORACLE_PRICE_DECIMALS } from "@/lib/usdg";
 import { useTokenMetadata } from "@/hooks/useTokenMetadata";
 
 const HISTORY_SAMPLE = 200;
-const DAY_SECONDS = 86_400;
 
 type RawFill = {
   fillId: bigint;
@@ -60,12 +58,9 @@ export function useAgentPnlHistory(agentId: number): {
   points: TimedPnlPoint[];
   isLoading: boolean;
 } {
-  const { chainId } = useAccount();
-  const trackRecord = chainId ? addressesFor(chainId)?.trackRecord : undefined;
+  // Mirror's own chain, wallet or not (see useAgents).
+  const trackRecord = addressesFor(targetChain.id)?.trackRecord;
   const live = isDeployed(trackRecord);
-  // Date.now() is impure to call during render, frozen once, at mount, so
-  // the fixture path's synthetic timestamps don't shift on every render.
-  const [nowSeconds] = useState(() => Math.floor(Date.now() / 1000));
 
   const fillsRead = useReadContract({
     address: trackRecord,
@@ -79,19 +74,7 @@ export function useAgentPnlHistory(agentId: number): {
   const tokens = [...new Set(fills.map((f) => f.token))];
   const metadata = useTokenMetadata(tokens, live);
 
-  if (!live) {
-    const agent = fixtureAgents.find((a) => a.id === agentId);
-    const series = agent?.pnlSeries ?? [0];
-    const spanSeconds = 30 * DAY_SECONDS;
-    const points: TimedPnlPoint[] = series.map((pnlPct, index) => ({
-      timestampSeconds:
-        nowSeconds -
-        spanSeconds +
-        Math.round((index / Math.max(1, series.length - 1)) * spanSeconds),
-      pnlPct,
-    }));
-    return { points, isLoading: false };
-  }
+  if (!live) return { points: [], isLoading: false };
 
   const trades: MirroredTrade[] = [...fills]
     .sort((a, b) => Number(a.fillId - b.fillId))

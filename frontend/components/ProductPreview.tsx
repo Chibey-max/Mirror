@@ -6,7 +6,7 @@ import { AgentBoard } from "@/components/AgentBoard";
 import { AgentTapeTable } from "@/components/AgentTapeTable";
 import { LeaderboardTable } from "@/components/LeaderboardTable";
 import { LedgerStats } from "@/components/LedgerStats";
-import { fixtureAgents, fixtureFills } from "@/lib/fixtures";
+import { useAgents } from "@/hooks/useAgents";
 
 const TABS = [
   { id: "agents", label: "Agents" },
@@ -30,24 +30,37 @@ export function ProductPreview() {
   const [tab, setTab] = useState<TabId>("agents");
   const [cap, setCap] = useState(50);
 
-  const totalFills = fixtureAgents.reduce((sum, a) => sum + a.fills, 0);
-  const totalFollowers = fixtureAgents.reduce((sum, a) => sum + a.followers, 0);
-  const totalVolume = fixtureAgents.reduce((sum, a) => sum + a.volumeUsd, 0);
-  const pulseFills = fixtureFills.filter((f) => f.agentId === 1).slice(0, 3);
+  // Everything here is read from the chain: the registry, TrackRecord and
+  // CopyVault, the same reads the agents page makes. Nothing is sample data.
+  const { agents, fills, isLoading } = useAgents();
+  const totalFills = agents.reduce((sum, a) => sum + a.fills, 0);
+  const totalFollowers = agents.reduce((sum, a) => sum + a.followers, 0);
+  const totalVolume = agents.reduce((sum, a) => sum + a.volumeUsd, 0);
+  const pending = isLoading && agents.length === 0;
 
   const stats = [
-    { label: "Agents live", value: fixtureAgents.length.toString() },
-    { label: "Fills recorded", value: totalFills.toLocaleString("en-US") },
-    { label: "Followers protected", value: totalFollowers.toString() },
+    { label: "Agents live", value: pending ? "…" : agents.length.toString() },
+    { label: "Fills recorded", value: pending ? "…" : totalFills.toLocaleString("en-US") },
+    { label: "Followers protected", value: pending ? "…" : totalFollowers.toString() },
     {
       label: "Mirrored volume",
-      value: `$${totalVolume.toLocaleString("en-US")}`,
+      value: pending
+        ? "…"
+        : `$${totalVolume.toLocaleString("en-US", { maximumFractionDigits: 2 })}`,
     },
   ];
 
-  // The cap is applied to a real fill off the tape, priced at that fill.
-  const sample = pulseFills[0];
-  const notional = Number(sample.size) * Number(sample.price);
+  // The cap is applied to the most recent real buy on the tape, priced at
+  // that fill (sells aren't capped), and the tape tab shows that agent.
+  const priced = (fill: (typeof fills)[number]) =>
+    Number(fill.size) > 0 && Number.isFinite(Number(fill.price));
+  const sample = fills.find((fill) => fill.side === "BUY" && priced(fill)) ?? fills.find(priced);
+  const sampleAgent = sample ? agents.find((a) => a.id === sample.agentId) : undefined;
+  const tapeFills = sample ? fills.filter((f) => f.agentId === sample.agentId).slice(0, 3) : [];
+  const notional = sample ? Number(sample.size) * Number(sample.price) : 0;
+  // The slider reaches well past the trade, so both outcomes are one drag
+  // away whatever size the real fill is.
+  const capMax = Math.max(120, Math.ceil((notional * 1.6) / 5) * 5);
   const blocked = notional > cap;
 
   return (
@@ -93,7 +106,7 @@ export function ProductPreview() {
                   ? "Agents · what they trade, what they just did"
                   : tab === "leaderboard"
                     ? "Leaderboard · ranked by PnL"
-                    : "Pulse · verified tape"}
+                    : `${sampleAgent?.name ?? "Agent"} · verified tape`}
               </h3>
               <p className="mt-1.5 text-sm text-muted">
                 {tab === "agents"
@@ -104,7 +117,7 @@ export function ProductPreview() {
               </p>
             </div>
             <Link
-              href={tab === "tape" ? "/agents/1" : "/agents"}
+              href={tab === "tape" && sample ? `/agents/${sample.agentId}` : "/agents"}
               className="flex-none text-xs text-accent hover:underline"
             >
               {tab === "tape" ? "Open agent" : "All agents"} &rarr;
@@ -112,11 +125,9 @@ export function ProductPreview() {
           </div>
 
           <div className="mt-3">
-            {tab === "agents" && (
-              <AgentBoard agents={fixtureAgents} fills={fixtureFills} />
-            )}
-            {tab === "leaderboard" && <LeaderboardTable agents={fixtureAgents} />}
-            {tab === "tape" && <AgentTapeTable fills={pulseFills} />}
+            {tab === "agents" && <AgentBoard agents={agents} fills={fills} />}
+            {tab === "leaderboard" && <LeaderboardTable agents={agents} />}
+            {tab === "tape" && <AgentTapeTable fills={tapeFills} />}
           </div>
 
           {/*
@@ -124,6 +135,7 @@ export function ProductPreview() {
             derived from the fill above it, so the number that gets blocked is
             a number the tape actually recorded.
           */}
+          {sample && (
           <div className="mt-8 rounded-2xl border border-border p-5">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div className="min-w-0">
@@ -131,7 +143,8 @@ export function ProductPreview() {
                   Your cap, applied
                 </h3>
                 <p className="mt-1.5 text-sm text-muted">
-                  Pulse buys{" "}
+                  {sampleAgent?.name ?? `Agent #${sample.agentId}`}{" "}
+                  {sample.side === "BUY" ? "buys" : "sells"}{" "}
                   <span className="tabular text-text">
                     {sample.size} {sample.token}
                   </span>{" "}
@@ -160,7 +173,7 @@ export function ProductPreview() {
               <input
                 type="range"
                 min={10}
-                max={120}
+                max={capMax}
                 step={5}
                 value={cap}
                 onChange={(event) => setCap(Number(event.target.value))}
@@ -194,6 +207,7 @@ export function ProductPreview() {
               )}
             </p>
           </div>
+          )}
         </div>
       </div>
     </div>

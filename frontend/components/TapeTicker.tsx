@@ -1,4 +1,6 @@
-import { fixtureAgents, fixtureFills } from "@/lib/fixtures";
+"use client";
+
+import { useAgents } from "@/hooks/useAgents";
 
 /**
  * The verified tape as a ticker, Mirror's own artifact, not decoration.
@@ -12,12 +14,14 @@ import { fixtureAgents, fixtureFills } from "@/lib/fixtures";
  * on a strip this long turned into two heavy stripes that competed with the
  * buttons above it; the ends dissolve into black instead of stopping on a cap.
  *
- * Reads fixtures for now, like the rest of the landing page; it should switch
- * to useFillEvents once the TrackRecord address lands (PRD §4).
+ * Read from the chain: the newest fills across every agent, as TrackRecord
+ * recorded them. Nothing shows until there's a tape to show.
  */
 export function TapeTicker({ className = "" }: { className?: string }) {
-  const names = new Map(fixtureAgents.map((a) => [a.id, a.name]));
-  const fills = [...fixtureFills].sort((a, b) => b.sequence - a.sequence);
+  const { agents, fills: allFills } = useAgents();
+  const names = new Map(agents.map((a) => [a.id, a.name]));
+  // Enough to fill the strip twice over; already newest first.
+  const fills = allFills.slice(0, 24);
 
   const row = (keyPrefix: string) =>
     fills.map((fill) => (
@@ -42,6 +46,8 @@ export function TapeTicker({ className = "" }: { className?: string }) {
         </span>
       </li>
     ));
+
+  if (fills.length === 0) return null;
 
   return (
     <div

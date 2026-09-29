@@ -1,20 +1,19 @@
 "use client";
 
+import { targetChain } from "@/lib/chains";
 import { formatUnits, type Address } from "viem";
-import { useAccount, useReadContracts } from "wagmi";
+import { useReadContracts } from "wagmi";
 import {
   addressesFor,
   isDeployed,
   trackRecordAbi,
 } from "@/lib/contracts";
-import { fixtureFills, type FixtureFill } from "@/lib/fixtures";
 import { relativeTime } from "@/lib/format";
 import { ORACLE_PRICE_DECIMALS } from "@/lib/usdg";
 import {
   useMirrorOutcomes,
   type MirrorOutcome,
-  type MirrorOutcomes,
-} from "@/hooks/useMirrorOutcomes";
+  } from "@/hooks/useMirrorOutcomes";
 import { latestFillPage } from "@/lib/onchain";
 import { useTokenMetadata } from "@/hooks/useTokenMetadata";
 
@@ -80,8 +79,10 @@ export function useMyMirrors(
   agentIds: number[],
   agentNames: Record<number, string>,
 ): { rows: MirrorRow[]; isLoading: boolean; outcomesLoaded: boolean } {
-  const { chainId } = useAccount();
-  const addresses = chainId ? addressesFor(chainId) : undefined;
+  // Public reads come from Mirror's own chain whether or not a wallet is
+  // connected: keyed on the wallet's chain, a visitor with none saw no
+  // contracts and got sample data instead.
+  const addresses = addressesFor(targetChain.id);
   const live = isDeployed(addresses?.trackRecord) && agentIds.length > 0;
 
   // The tape is oldest first, so each agent's count comes first and the
@@ -123,10 +124,7 @@ export function useMyMirrors(
   const tokens = [...new Set(liveFills.map(({ fill }) => fill.token))];
   const metadata = useTokenMetadata(tokens, live);
 
-  if (!live) {
-    const rows = buildFixtureRows(agentIds, agentNames, outcomes);
-    return { rows, isLoading: false, outcomesLoaded: true };
-  }
+  if (!live) return { rows: [], isLoading: false, outcomesLoaded: true };
 
   const rows: MirrorRow[] = liveFills
     .sort((a, b) => (a.fill.fillId < b.fill.fillId ? 1 : a.fill.fillId > b.fill.fillId ? -1 : 0))
@@ -153,28 +151,4 @@ export function useMyMirrors(
     isLoading: countsRead.isLoading || fillsRead.isLoading,
     outcomesLoaded: historyLoaded,
   };
-}
-
-function buildFixtureRows(
-  agentIds: number[],
-  agentNames: Record<number, string>,
-  outcomes: MirrorOutcomes,
-): MirrorRow[] {
-  const fills: FixtureFill[] = fixtureFills.filter((f) =>
-    agentIds.includes(f.agentId),
-  );
-  return fills
-    .sort((a, b) => b.sequence - a.sequence)
-    .map((fill) => ({
-      id: fill.id,
-      agentId: fill.agentId,
-      agentName: agentNames[fill.agentId] ?? `Agent #${fill.agentId}`,
-      side: fill.side,
-      token: fill.token,
-      size: fill.size,
-      price: fill.price,
-      time: fill.time,
-      timeAbsolute: fill.time,
-      outcome: outcomes[fill.id],
-    }));
 }

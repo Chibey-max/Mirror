@@ -1,5 +1,6 @@
 "use client";
 
+import { targetChain } from "@/lib/chains";
 import { useCallback } from "react";
 import { useAccount, usePublicClient } from "wagmi";
 import {
@@ -30,9 +31,9 @@ import {
  * before, but now in one place and labelled.
  */
 export function useKillVerification(agentId: number) {
-  const { address, chainId } = useAccount();
+  const { address } = useAccount();
   const publicClient = usePublicClient();
-  const addresses = chainId ? addressesFor(chainId) : undefined;
+  const addresses = addressesFor(targetChain.id);
 
   const live =
     !!address &&
