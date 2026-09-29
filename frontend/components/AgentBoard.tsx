@@ -31,7 +31,7 @@ export function AgentBoard({
           <li key={agent.id} data-surface className="bg-[var(--panel-bg)]">
             <Link
               href={`/agents/${agent.id}`}
-              className="group grid grid-cols-1 items-center gap-4 px-5 py-4 transition-colors hover:bg-[var(--row-hover)] focus:outline-none focus-visible:bg-[var(--row-hover)] sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_auto_auto]"
+              className="group grid grid-cols-1 items-center gap-4 px-5 py-4 transition-colors hover:bg-[var(--row-hover)] lit:bg-[var(--row-hover)] focus:outline-none focus-visible:bg-[var(--row-hover)] sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_auto_auto]"
             >
               {/* Who, and what it trades. */}
               <div className="min-w-0">

@@ -87,7 +87,7 @@ export function Sparkline({
         cy={y(last)}
         r="2.2"
         fill={color}
-        className="origin-center transition-transform duration-300 ease-out [transform-box:fill-box] group-hover:scale-[1.6]"
+        className="origin-center transition-transform duration-300 ease-out [transform-box:fill-box] lit:scale-[1.6]"
       />
     </svg>
   );

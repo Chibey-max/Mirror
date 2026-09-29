@@ -24,6 +24,23 @@
   initial-value: 0deg;
 }
 
+/*
+ * lit: the hovered card or row on a desktop, and on a touch screen the one
+ * under a finger or crossing the middle of the screen (SurfaceMotion sets
+ * data-pressed / data-hot). Use it instead of group-hover so a detail that
+ * answers the pointer also answers on a phone.
+ */
+@custom-variant lit {
+  @media (hover: hover) {
+    &:is(:where(.group):hover *) {
+      @slot;
+    }
+  }
+  &:is([data-hot] *, [data-pressed] *) {
+    @slot;
+  }
+}
+
 @theme {
   --color-bg: #000000;
   --color-surface: #0c0c0e;

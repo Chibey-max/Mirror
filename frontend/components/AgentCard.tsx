@@ -106,7 +106,7 @@ export function AgentCard({
         >
           <CopyableHash value={agent.strategyHash} label="Copy the full strategy hash" />
         </span>
-        <span className="text-sm font-medium text-accent group-hover:underline">
+        <span className="text-sm font-medium text-accent lit:underline">
           View tape
         </span>
       </div>
