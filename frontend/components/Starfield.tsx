@@ -412,7 +412,9 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
     const size = () => {
       vw = window.innerWidth;
       vh = window.innerHeight;
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      // 1.5x is plenty for points this small; 2x on a retina screen was
+      // nearly twice the pixels to clear and composite every frame.
+      dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       canvas.width = Math.round(vw * dpr);
       canvas.height = Math.round(vh * dpr);
       ring = measureRing();
@@ -990,13 +992,25 @@ export function Starfield({ ambient = false }: { ambient?: boolean } = {}) {
       }
     };
     const onResize = () => {
+      // A phone's address bar sliding in or out mid-scroll changes only the
+      // height, by a bar's worth: not worth reallocating the canvas and
+      // re-placing every launch for. The canvas stretches the difference.
+      if (window.innerWidth === vw && Math.abs(window.innerHeight - vh) < 160) {
+        wake();
+        return;
+      }
       size();
       wake();
     };
     // The hero's box can move without a window resize (fonts landing,
     // the header settling), so the ring is re-measured when it does.
     const hero = document.querySelector(".hero-canvas-mask");
-    const observer = hero ? new ResizeObserver(onResize) : null;
+    const observer = hero
+      ? new ResizeObserver(() => {
+          size();
+          wake();
+        })
+      : null;
     if (hero) observer!.observe(hero);
 
     raf = requestAnimationFrame(frame);

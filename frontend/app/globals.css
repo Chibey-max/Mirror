@@ -328,6 +328,16 @@ body::before {
   opacity: 0.8;
 }
 
+/* While the page scrolls (lib/scrollActivity toggles .is-scrolling on
+   <html>), the decorative loops hold still so the compositor spends each
+   frame on the scroll; they carry on from where they were when it stops. */
+.is-scrolling body::before,
+.is-scrolling .hero-section::before,
+.is-scrolling .step-liquid,
+.is-scrolling .step-liquid::after {
+  animation-play-state: paused;
+}
+
 @keyframes heroOrbit {
   from {
     opacity: var(--hero-orbit-opacity-soft);

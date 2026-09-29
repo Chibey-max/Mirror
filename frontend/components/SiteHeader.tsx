@@ -9,6 +9,7 @@ import {
   useReducedMotion,
 } from "@/components/MetalButton";
 import { Logo } from "@/components/Logo";
+import { useIsScrolling } from "@/lib/scrollActivity";
 import { NetworkBadge } from "@/components/NetworkBadge";
 import { PendingTxIndicator } from "@/components/TransactionToasts";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -89,6 +90,8 @@ function NavLink({
 export function SiteHeader() {
   const shader = useMetalShaderSlot();
   const reduced = useReducedMotion();
+  // The header's shader rests while the page scrolls (see MetalButton).
+  const scrolling = useIsScrolling();
   const pathname = usePathname();
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
@@ -136,7 +139,7 @@ export function SiteHeader() {
         } ease-out ${hidden ? "-translate-y-[calc(100%+1rem)]" : "translate-y-0"}`}
       >
         <div className="relative isolate flex h-16 max-w-full items-center gap-3 rounded-full pr-2.5 pl-5 sm:gap-6 sm:pl-7">
-          <MetalLayers shader={shader} speed={reduced ? 0 : 0.45} strip />
+          <MetalLayers shader={shader} speed={reduced || scrolling ? 0 : 0.45} strip />
 
           <div className="relative z-10">
             <Logo />

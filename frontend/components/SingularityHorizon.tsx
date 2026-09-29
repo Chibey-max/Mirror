@@ -149,6 +149,8 @@ const FOV = (20 * Math.PI) / 180;
  * costs almost nothing visually.
  */
 const PIXEL_BUDGET = 3_200_000;
+/** The draw loop's frame interval floor: ~30fps (see draw). */
+const MIN_FRAME_MS = 28;
 
 /**
  * The ring's radial structure: [radius, spread, share]. Particles are drawn
@@ -1146,6 +1148,14 @@ export function SingularityHorizon({
 
     const draw = (now: number) => {
       raf = 0;
+      // 30fps. The ring turns about once every two minutes, so half rate is
+      // indistinguishable, and it halves the heaviest GPU load on the page,
+      // which is what scrolling was competing with. Every frame while being
+      // dragged, where the camera follows a hand.
+      if (!reduced && last && now - last < MIN_FRAME_MS && !dragging) {
+        if (onScreen) raf = requestAnimationFrame(draw);
+        return;
+      }
       const dt = last ? Math.min((now - last) / 1000, 0.05) : 0.016;
       last = now;
       // Exponential approach, framerate-independent: ~0.5s to settle.
@@ -1158,10 +1168,11 @@ export function SingularityHorizon({
       const sinceChange = now - lastQualityChange;
       // Never below 70% (about half the pixels): under that the ring's fine
       // bands visibly soften. Back up in steps of 15% every 1.5s of health.
-      if (judging && avgDt > 1 / 45 && quality > 0.7 && sinceChange > 1500) {
+      // Judged against the 30fps it aims for: slow is under ~22fps.
+      if (judging && avgDt > 1 / 22 && quality > 0.7 && sinceChange > 1500) {
         quality = Math.max(0.7, quality * 0.85);
         lastQualityChange = now;
-      } else if (judging && avgDt < 1 / 55 && quality < 1 && sinceChange > 1500) {
+      } else if (judging && avgDt < 1 / 27 && quality < 1 && sinceChange > 1500) {
         quality = Math.min(1, quality * 1.15);
         lastQualityChange = now;
       }

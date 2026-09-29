@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { LiquidMetal } from "@paper-design/shaders-react";
+import { useIsScrolling } from "@/lib/scrollActivity";
 
 /**
  * The one button style across Mirror: a dark pill inside a thin rim of moving
@@ -229,7 +230,12 @@ export function MetalButton({
   const burstTimer = React.useRef(0);
   React.useEffect(() => () => window.clearTimeout(burstTimer.current), []);
 
-  const speed = reduced || disabled ? 0 : burst ? 2.4 : hover ? 1 : 0.6;
+  // Held still while the page scrolls: each shader is its own WebGL canvas
+  // drawing every frame, and during a scroll that GPU time belongs to the
+  // scroll. A paused rim keeps its last frame, so nothing visibly changes.
+  const scrolling = useIsScrolling();
+  const speed =
+    reduced || disabled ? 0 : scrolling && !hover ? 0 : burst ? 2.4 : hover ? 1 : 0.6;
 
   const handlers = {
     onPointerEnter: (e: React.PointerEvent<never>) => {
