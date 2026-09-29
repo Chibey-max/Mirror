@@ -29,7 +29,10 @@ const SURFACES = ".panel:not(.panel-static), .data-row, [data-surface]";
 export function SurfaceMotion() {
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+    // Touch mode only on a device with no mouse or trackpad at all (a phone
+    // or tablet). A desktop that merely reports touch as its primary input,
+    // a touchscreen laptop, keeps the pointer behaviour.
+    if (window.matchMedia("(any-hover: none)").matches) {
       return touchSurfaces();
     }
 
@@ -81,8 +84,17 @@ export function SurfaceMotion() {
       }
     };
 
+    // Chrome fires a synthetic pointermove after a scroll so hover can catch
+    // up with what slid under a still cursor; it arrives at the same
+    // coordinates. Only a real move lights a surface, so scrolling on a
+    // desktop never focuses anything by itself.
+    let lastX = Number.NaN;
+    let lastY = Number.NaN;
     const onMove = (event: PointerEvent) => {
       if (event.pointerType !== "mouse") return;
+      if (event.clientX === lastX && event.clientY === lastY) return;
+      lastX = event.clientX;
+      lastY = event.clientY;
       pending = event;
       if (!raf) raf = requestAnimationFrame(apply);
     };
@@ -91,10 +103,19 @@ export function SurfaceMotion() {
       if (hot) cool(hot);
       hot = null;
     };
+    // Scrolling moves the page out from under the pointer: let go of what
+    // was lit until the mouse moves again.
+    const onScroll = () => {
+      pending = null;
+      if (hot) cool(hot);
+      hot = null;
+    };
 
+    window.addEventListener("scroll", onScroll, { passive: true });
     document.addEventListener("pointermove", onMove, { passive: true });
     document.documentElement.addEventListener("pointerleave", onLeave);
     return () => {
+      window.removeEventListener("scroll", onScroll);
       document.removeEventListener("pointermove", onMove);
       document.documentElement.removeEventListener("pointerleave", onLeave);
       cancelAnimationFrame(raf);
