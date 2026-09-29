@@ -184,6 +184,33 @@
   --theme-toggle-cool: #7d8793;
 }
 
+/*
+ * Everything clickable shows the pointer. Tailwind v4's preflight dropped
+ * cursor: pointer from buttons, so only the ones that asked for it had it.
+ * In the base layer, so a utility (the chart's crosshair, a drag handle)
+ * still wins, and disabled controls say so instead.
+ */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="menuitem"],
+  [role="tab"],
+  summary,
+  select,
+  label[for],
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  input[type="range"]:not(:disabled) {
+    cursor: pointer;
+  }
+  button:disabled,
+  [aria-disabled="true"],
+  input:disabled,
+  select:disabled {
+    cursor: not-allowed;
+  }
+}
+
 body {
   background: var(--color-bg);
   color: var(--color-text);
