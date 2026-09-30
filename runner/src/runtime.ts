@@ -127,6 +127,10 @@ export class MirrorRunner {
     return tick;
   }
 
+  async gasBalance(): Promise<bigint> {
+    return this.publicClient.getBalance({ address: this.account.address });
+  }
+
   ledgerView(): { highestFillId: bigint; unresolvedRecords: number } {
     return this.journal.ledgerView();
   }

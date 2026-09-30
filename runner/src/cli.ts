@@ -1,4 +1,5 @@
 import { access, readFile, unlink, writeFile } from "node:fs/promises";
+import { formatEther } from "viem";
 import { resolve } from "node:path";
 import { loadConfig, loadFixture, loadManifest, loadStrategy, strategyFileHash } from "./config";
 import { RunnerLock } from "./lock";
@@ -125,6 +126,9 @@ async function runNext(steps: number, seedPath: string | undefined): Promise<voi
       throw error;
     }
 
+    // The gas report runs even when a step fails: an empty wallet is itself
+    // the most likely reason a step fails, and the warning matters most then.
+    try {
     for (let step = 0; step < steps; ++step) {
       const goal = Math.max(...AGENTS.map((agent) => runner.nextTick(agent)));
       const tape: PriceTick[] = extendTape(fixture, goal);
@@ -140,8 +144,34 @@ async function runNext(steps: number, seedPath: string | undefined): Promise<voi
         process.stdout.write(`Completed ${agent} tick ${goal}: ${fills} fill(s)\n`);
       }
     }
+    } finally {
+      await reportGas(runner).catch(() => undefined);
+    }
   } finally {
     await lock.release();
+  }
+}
+
+/**
+ * Below this the agents have roughly a day left at a 15-minute cadence
+ * (about 0.0000088 ETH per three-agent step).
+ */
+const LOW_GAS_WEI = BigInt("1000000000000000"); // 0.001 ETH
+
+/**
+ * An empty runner wallet stops the agents as quietly as the exhausted tape
+ * did, so every scheduled run says how much is left, and raises a GitHub
+ * warning annotation (visible on the run and in the Actions list) once it
+ * is low enough to need a top-up.
+ */
+async function reportGas(runner: MirrorRunner): Promise<void> {
+  const balance = await runner.gasBalance();
+  process.stdout.write(`Runner gas: ${formatEther(balance)} ETH\n`);
+  if (balance < LOW_GAS_WEI && process.env.GITHUB_ACTIONS === "true") {
+    process.stdout.write(
+      `::warning title=Runner gas low::${formatEther(balance)} ETH left, about a day of steps. ` +
+        "Send testnet ETH to the runner address in deployments/46630.json.\n",
+    );
   }
 }
 
