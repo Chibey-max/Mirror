@@ -34,7 +34,12 @@ function message(error: unknown): string {
 
 function isPotentiallyAccepted(error: unknown): boolean {
   const text = message(error).toLowerCase();
-  return text.includes("already known") || text.includes("nonce too low") || text.includes("replacement underpriced");
+  return (
+    text.includes("already known") ||
+    text.includes("already imported") ||
+    text.includes("nonce too low") ||
+    text.includes("replacement underpriced")
+  );
 }
 
 function isTransient(error: unknown): boolean {
