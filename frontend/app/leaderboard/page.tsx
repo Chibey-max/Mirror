@@ -4,6 +4,7 @@ import { LeaderboardTable } from "@/components/LeaderboardTable";
 import { LedgerStats } from "@/components/LedgerStats";
 import { MetalButton } from "@/components/MetalButton";
 import { PageHeader } from "@/components/PageHeader";
+import { SimulatedMarketNote } from "@/components/SimulatedMarketNote";
 import { PageAtmosphere } from "@/components/PageAtmosphere";
 import { Reveal } from "@/components/Reveal";
 import { RetryBanner } from "@/components/RetryBanner";
@@ -31,6 +32,7 @@ export default function LeaderboardPage() {
             </MetalButton>
           }
         />
+        <SimulatedMarketNote className="mt-4 max-w-2xl" />
 
         <Reveal>
           <p className="mt-5 max-w-2xl text-sm leading-relaxed text-muted">
