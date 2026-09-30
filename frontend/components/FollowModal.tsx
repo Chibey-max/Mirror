@@ -15,6 +15,7 @@ export function FollowModal({
   onClose,
   agentId,
   agentName,
+  largestBuyUsd,
   freeBalance,
   alreadyFollowing,
   onFollow,
@@ -23,6 +24,8 @@ export function FollowModal({
   onClose: () => void;
   agentId: number;
   agentName: string;
+  /** The agent's largest single buy so far, in USDG (see FixtureAgent). */
+  largestBuyUsd?: number;
   freeBalance: number;
   alreadyFollowing: boolean;
   onFollow: (
@@ -63,6 +66,25 @@ export function FollowModal({
 
   const parsedCap = Number(capAmount);
   const parsedSlippage = Number(maxSlippageBps);
+  /*
+   * Presets from the agent's own trades, not round numbers. The old 25/50/100
+   * sat below every trade most agents make ($46 to $300 notional on the
+   * live tape), so a follower who took a preset watched every copy get
+   * rejected and never saw one land. "One trade" is the largest buy rounded
+   * up to $10; the cap is a daily total, so "two a day" doubles it.
+   */
+  const oneTrade = largestBuyUsd ? Math.ceil(largestBuyUsd / 10) * 10 : undefined;
+  const presets = oneTrade
+    ? [
+        { amount: oneTrade, label: `${oneTrade} USDG · one trade` },
+        { amount: oneTrade * 2, label: `${oneTrade * 2} USDG · two a day` },
+      ]
+    : [
+        { amount: 100, label: "100 USDG" },
+        { amount: 200, label: "200 USDG" },
+      ];
+  const capBelowLargestBuy =
+    largestBuyUsd !== undefined && capAmount !== "" && parsedCap > 0 && parsedCap < largestBuyUsd;
   const capOverBalance = capAmount !== "" && parsedCap > freeBalance;
   const invalid =
     alreadyFollowing ||
@@ -172,7 +194,7 @@ export function FollowModal({
                   min="0"
                   value={capAmount}
                   onChange={(event) => setCapAmount(event.target.value)}
-                  placeholder="50.00"
+                  placeholder={oneTrade ? oneTrade.toFixed(2) : "100.00"}
                   className="tabular w-full bg-transparent text-lg text-text outline-none placeholder:text-muted"
                 />
                 <span className="text-sm text-muted">USDG</span>
@@ -180,15 +202,15 @@ export function FollowModal({
             </label>
 
             <div className="mt-2 flex flex-wrap gap-2">
-              {[25, 50, 100].map((preset) => (
+              {presets.map((preset) => (
                 <MetalButton
                   tone="quiet"
                   size="sm"
-                  key={preset}
-                  disabled={preset > freeBalance}
-                  onClick={() => setCapAmount(String(preset))}
+                  key={preset.amount}
+                  disabled={preset.amount > freeBalance}
+                  onClick={() => setCapAmount(String(preset.amount))}
                 >
-                  {preset} USDG
+                  {preset.label}
                 </MetalButton>
               ))}
               <MetalButton
@@ -200,6 +222,22 @@ export function FollowModal({
                 Max
               </MetalButton>
             </div>
+
+            {largestBuyUsd !== undefined && (
+              <p className="mt-3 text-xs leading-relaxed text-muted">
+                {agentName}&rsquo;s largest buy so far was{" "}
+                <span className="tabular text-text">${largestBuyUsd.toFixed(2)}</span>. The cap is a
+                daily total, and any trade that would take you past it is blocked on-chain, not
+                copied.
+              </p>
+            )}
+            {capBelowLargestBuy && (
+              <FieldHint>
+                At ${parsedCap.toFixed(2)}, {agentName}&rsquo;s larger trades will be blocked rather
+                than copied. That is the cap working, but you may see rejections before you see a
+                fill.
+              </FieldHint>
+            )}
 
             <label
               htmlFor={slippageId}

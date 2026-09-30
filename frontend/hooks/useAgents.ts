@@ -257,6 +257,10 @@ export function useAgents(): {
       (total, trade) => total + trade.size * trade.price,
       0,
     );
+    const largestBuyUsd = priced.reduce(
+      (largest, trade) => (trade.isBuy ? Math.max(largest, trade.size * trade.price) : largest),
+      0,
+    );
 
     agents.push({
       id,
@@ -273,6 +277,7 @@ export function useAgents(): {
       fills: Number(fillTotal),
       followers: typeof followers === "bigint" ? Number(followers) : 0,
       volumeUsd: Math.round(volumeUsd * 100) / 100,
+      largestBuyUsd: largestBuyUsd > 0 ? Math.round(largestBuyUsd * 100) / 100 : undefined,
       isLosing: (pnl?.pnlPct ?? 0) < 0,
       pnlSeries: pnlPctSeries(priced),
     });

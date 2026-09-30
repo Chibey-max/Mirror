@@ -427,6 +427,7 @@ export default function AgentDetailPage({
             onClose={() => setFollowOpen(false)}
             agentId={agent.id}
             agentName={agent.name}
+            largestBuyUsd={agent.largestBuyUsd}
             freeBalance={freeBalance}
             alreadyFollowing={allocated > 0}
             onFollow={(input, onProgress) =>
