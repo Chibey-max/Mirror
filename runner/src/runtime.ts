@@ -107,6 +107,30 @@ export class MirrorRunner {
     return new MirrorRunner(config, manifest, await RunnerJournal.open(config.journalPath));
   }
 
+  private tickId(agent: AgentKey, tick: number): string {
+    const deploymentKey = `${this.manifest.chainId}:${this.manifest.copyVault.toLowerCase()}`;
+    return `deployment:${deploymentKey}:agent:${agent}:tick:${tick}`;
+  }
+
+  /**
+   * The first tick this agent has not completed. Ticks run strictly in
+   * order (runTick refuses to skip one), so the completed ticks are always
+   * a prefix and the first gap is the next thing to run.
+   */
+  nextTick(agent: AgentKey): number {
+    let tick = 0;
+    while (this.journal.tickComplete(this.tickId(agent, tick))) ++tick;
+    return tick;
+  }
+
+  async fillCount(): Promise<bigint> {
+    return this.publicClient.readContract({
+      address: this.manifest.trackRecord,
+      abi: trackRecordAbi,
+      functionName: "fillCount",
+    });
+  }
+
   async verifyWiring(): Promise<void> {
     const actualChain = await this.publicClient.getChainId();
     if (actualChain !== this.manifest.chainId) {

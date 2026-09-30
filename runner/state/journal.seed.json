@@ -1,0 +1,110 @@
+{
+  "fillCount": "19",
+  "note": "Completed-tick markers from the live 46630 deployment, taken when TrackRecord held this many fills. No signed transactions. Used by `runner --next --seed` only when no journal exists AND the chain still agrees with fillCount.",
+  "journal": {
+    "schema": "mirror.runner-journal.v1",
+    "transactions": {},
+    "trades": {},
+    "ticks": {
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:pulse:tick:0": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:pulse:tick:1": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:pulse:tick:2": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:pulse:tick:3": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:pulse:tick:4": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:pulse:tick:5": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:pulse:tick:6": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:pulse:tick:7": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:pulse:tick:8": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:pulse:tick:9": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:red:tick:0": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:red:tick:1": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:red:tick:2": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:red:tick:3": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:red:tick:4": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:red:tick:5": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:red:tick:6": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:red:tick:7": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:red:tick:8": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:red:tick:9": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:drift:tick:0": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:drift:tick:1": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:drift:tick:2": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:drift:tick:3": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:drift:tick:4": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:drift:tick:5": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:drift:tick:6": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:drift:tick:7": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:drift:tick:8": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:drift:tick:9": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:pulse:tick:10": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:red:tick:10": {
+        "status": "complete"
+      },
+      "deployment:46630:0xf47b9234ba4af39ec28bf3c303b3edea3abe1061:agent:drift:tick:10": {
+        "status": "complete"
+      }
+    }
+  }
+}
