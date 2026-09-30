@@ -42,6 +42,21 @@ function isPotentiallyAccepted(error: unknown): boolean {
   );
 }
 
+/**
+ * The node refused the transaction because the runner cannot pay for it.
+ *
+ * Unlike a revert, nothing about the transaction is wrong: it was never
+ * included, and the signed bytes (same nonce, same hash) stay valid. Marking
+ * it failed would replay that failure on every later run, so a single empty
+ * wallet would stop the agents permanently, top-up or not. It is left signed
+ * instead, and the next run, once funded, rebroadcasts exactly those bytes.
+ */
+function isUnfunded(error: unknown): boolean {
+  return message(error).toLowerCase().includes("insufficient funds");
+}
+
+export class RunnerUnfundedError extends Error {}
+
 function isTransient(error: unknown): boolean {
   // A receipt that isn't there yet is the normal state straight after a
   // broadcast, not a failure. viem's wording ("could not be found") doesn't
@@ -102,6 +117,13 @@ export class DurableTransactionSender {
         }
       } catch (error) {
         if (error instanceof TransactionFailedError) throw error;
+        // Retrying inside this run is pointless while the wallet is empty.
+        if (isUnfunded(error)) {
+          throw new RunnerUnfundedError(
+            `Runner cannot pay for ${entry.hash}: ${message(error)}. ` +
+              "It stays signed; after a top-up the next run rebroadcasts the same transaction.",
+          );
+        }
         if (!isPotentiallyAccepted(error) && !isTransient(error)) {
           lastError = message(error);
           await this.journal.failTransaction(id, lastError);

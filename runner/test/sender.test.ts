@@ -6,6 +6,7 @@ import { TransactionReceiptNotFoundError } from "viem";
 import { RunnerJournal } from "../src/journal";
 import {
   DurableTransactionSender,
+  RunnerUnfundedError,
   TransactionFailedError,
   type TransactionPort,
 } from "../src/sender";
@@ -14,6 +15,37 @@ const raw = "0x0102" as const;
 const hash = `0x${"12".repeat(32)}` as const;
 
 describe("DurableTransactionSender", () => {
+  it("leaves an unfunded transaction signed, then rebroadcasts the same bytes once funded", async () => {
+    // Found on a fork: an empty wallet marked the transaction failed, and
+    // every later run replayed that failure, so topping up could not restart
+    // the agents.
+    const directory = await mkdtemp(join(tmpdir(), "mirror-runner-"));
+    const path = join(directory, "journal.json");
+    const broke: TransactionPort = {
+      broadcast: vi.fn().mockRejectedValue(new Error("Insufficient funds for gas * price + value")),
+      receipt: vi.fn(),
+    };
+    const signer = vi.fn().mockResolvedValue({ rawTransaction: raw, hash, nonce: 196 });
+    const first = new DurableTransactionSender(await RunnerJournal.open(path), broke, { sleep: async () => undefined });
+
+    await expect(first.send("oracle:1", signer)).rejects.toBeInstanceOf(RunnerUnfundedError);
+    // Stopped at once rather than burning the retry budget on an empty wallet.
+    expect(broke.broadcast).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(await readFile(path, "utf8")).transactions["oracle:1"].status).toBe("signed");
+
+    const funded: TransactionPort = {
+      broadcast: vi.fn().mockResolvedValue(hash),
+      receipt: vi.fn().mockResolvedValue({ status: "success", blockNumber: BigInt(12) }),
+    };
+    const forbiddenSigner = vi.fn().mockRejectedValue(new Error("must not sign twice"));
+    const second = new DurableTransactionSender(await RunnerJournal.open(path), funded, { sleep: async () => undefined });
+
+    const confirmed = await second.send("oracle:1", forbiddenSigner);
+    expect(forbiddenSigner).not.toHaveBeenCalled();
+    expect(funded.broadcast).toHaveBeenCalledWith(raw);
+    expect(confirmed).toMatchObject({ status: "confirmed", hash, nonce: 196 });
+  });
+
   it("persists before sending and reuses identical signed bytes after a restart", async () => {
     const directory = await mkdtemp(join(tmpdir(), "mirror-runner-"));
     const path = join(directory, "journal.json");
