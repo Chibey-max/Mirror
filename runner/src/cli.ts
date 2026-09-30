@@ -1,7 +1,12 @@
+import { access, readFile, unlink, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { loadConfig, loadFixture, loadManifest, loadStrategy, strategyFileHash } from "./config";
 import { RunnerLock } from "./lock";
 import { MirrorRunner } from "./runtime";
-import type { AgentKey } from "./types";
+import { extendTape } from "./tape";
+import type { AgentKey, DeploymentManifest, PriceTick, StrategyDefinition } from "./types";
+
+const AGENTS: AgentKey[] = ["pulse", "red", "drift"];
 
 function argument(name: string): string | undefined {
   const inline = process.argv.find((value) => value.startsWith(`--${name}=`));
@@ -10,36 +15,168 @@ function argument(name: string): string | undefined {
   return index >= 0 ? process.argv[index + 1] : undefined;
 }
 
+function flag(name: string): boolean {
+  return process.argv.includes(`--${name}`);
+}
+
 function parseAgent(value: string | undefined): AgentKey {
   if (value === "pulse" || value === "red" || value === "drift") return value;
   throw new Error("--agent must be pulse, red, or drift");
 }
 
-async function main(): Promise<void> {
-  const agent = parseAgent(argument("agent"));
-  const tick = Number(argument("tick"));
-  if (!Number.isSafeInteger(tick) || tick < 0) throw new Error("--tick must be a non-negative integer");
+async function checkedStrategy(agent: AgentKey, manifest: DeploymentManifest): Promise<StrategyDefinition> {
+  const [strategy, committedHash] = await Promise.all([loadStrategy(agent), strategyFileHash(agent)]);
+  const strategyIndex = agent === "pulse" ? 0 : agent === "red" ? 1 : 2;
+  if (committedHash !== manifest.strategyHashes[strategyIndex]) {
+    throw new Error(`${agent} strategy bytes do not match the on-chain manifest commitment`);
+  }
+  return strategy;
+}
 
+async function exists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A journal to start from when there is none.
+ *
+ * CI has no disk between runs, so its journal lives in the Actions cache, and
+ * a cache can be evicted. A runner that silently started over from an empty
+ * journal would re-run every tick from 0 and record every fill a second time
+ * — the one thing an append-only ledger can never take back.
+ *
+ * The seed is the completed-tick markers only (no signed transactions), plus
+ * the on-chain fill count it was taken at. It is used only if the chain still
+ * agrees with it; if more fills exist than the seed knows about, some run's
+ * journal has been lost and the runner stops rather than guess.
+ */
+type Seed = { fillCount: string; journal: unknown };
+
+async function seedJournal(journalPath: string, seedPath: string): Promise<bigint> {
+  const seed = JSON.parse(await readFile(seedPath, "utf8")) as Seed;
+  if (!seed.fillCount || !seed.journal) throw new Error(`${seedPath} is not a runner journal seed`);
+  await writeFile(journalPath, `${JSON.stringify(seed.journal, null, 2)}\n`, { mode: 0o600 });
+  return BigInt(seed.fillCount);
+}
+
+/**
+ * One scheduled step: every agent catches up to the most advanced one, then
+ * all of them take the next tick together.
+ *
+ * Lockstep matters because the price feeds are shared. Each tick an agent
+ * runs republishes that tick's prices, so an agent working through old ticks
+ * after the others have moved on would leave the feeds showing stale prices.
+ * Catching up first and advancing together means the last write of every
+ * step is always the newest tick.
+ */
+async function runNext(steps: number, seedPath: string | undefined): Promise<void> {
+  const config = loadConfig();
+  const lock = await RunnerLock.acquire(`${config.journalPath}.lock`);
+  let seededAt: bigint | undefined;
+  try {
+    if (!(await exists(config.journalPath))) {
+      if (!seedPath) throw new Error("No runner journal and no --seed to start from");
+      seededAt = await seedJournal(config.journalPath, resolve(seedPath));
+    }
+
+    const [manifest, fixture] = await Promise.all([
+      loadManifest(config.manifestPath, config.privateKey),
+      loadFixture(config.fixturePath),
+    ]);
+    const strategies = new Map<AgentKey, StrategyDefinition>();
+    for (const agent of AGENTS) strategies.set(agent, await checkedStrategy(agent, manifest));
+
+    const runner = await MirrorRunner.create(config, manifest);
+    await runner.verifyWiring();
+
+    if (seededAt !== undefined) {
+      const onChain = await runner.fillCount();
+      if (onChain !== seededAt) {
+        await unlink(config.journalPath);
+        throw new Error(
+          `Refusing to run: the seed was taken at ${seededAt} fills but the chain has ${onChain}. ` +
+            "A later journal has been lost; restore it rather than replaying ticks that already ran.",
+        );
+      }
+    }
+
+    for (let step = 0; step < steps; ++step) {
+      const goal = Math.max(...AGENTS.map((agent) => runner.nextTick(agent)));
+      const tape: PriceTick[] = extendTape(fixture, goal);
+
+      for (const agent of AGENTS) {
+        for (let tick = runner.nextTick(agent); tick < goal; ++tick) {
+          const fills = await runner.runTick(agent, tape, strategies.get(agent)!, tick);
+          process.stdout.write(`Caught up ${agent} tick ${tick}: ${fills} fill(s)\n`);
+        }
+      }
+      for (const agent of AGENTS) {
+        const fills = await runner.runTick(agent, tape, strategies.get(agent)!, goal);
+        process.stdout.write(`Completed ${agent} tick ${goal}: ${fills} fill(s)\n`);
+      }
+    }
+  } finally {
+    await lock.release();
+  }
+}
+
+async function runOne(agent: AgentKey, tick: number): Promise<void> {
   const config = loadConfig();
   const lock = await RunnerLock.acquire(`${config.journalPath}.lock`);
   try {
-    const [manifest, fixture, strategy, committedHash] = await Promise.all([
+    const [manifest, fixture] = await Promise.all([
       loadManifest(config.manifestPath, config.privateKey),
       loadFixture(config.fixturePath),
-      loadStrategy(agent),
-      strategyFileHash(agent),
     ]);
-    const strategyIndex = agent === "pulse" ? 0 : agent === "red" ? 1 : 2;
-    if (committedHash !== manifest.strategyHashes[strategyIndex]) {
-      throw new Error(`${agent} strategy bytes do not match the on-chain manifest commitment`);
-    }
+    const strategy = await checkedStrategy(agent, manifest);
     const runner = await MirrorRunner.create(config, manifest);
     await runner.verifyWiring();
-    const fills = await runner.runTick(agent, fixture, strategy, tick);
+    const fills = await runner.runTick(agent, extendTape(fixture, tick), strategy, tick);
     process.stdout.write(`Completed ${agent} tick ${tick}: ${fills} fill(s)\n`);
   } finally {
     await lock.release();
   }
+}
+
+/**
+ * CI owns the live chain once the schedule is on.
+ *
+ * Every runner keeps its own journal of what it has sent. Two runners with
+ * two journals against one deployment would each believe the other's ticks
+ * are still pending and record them again, and an append-only ledger can
+ * never take a duplicate back. The PRD had people running ticks by hand
+ * before rehearsals, so the likely way this happens is habit, not intent:
+ * outside GitHub Actions the runner refuses unless --allow-local says the
+ * scheduled workflow is paused.
+ */
+function assertRunnerOwner(): void {
+  if (process.env.GITHUB_ACTIONS === "true" || flag("allow-local")) return;
+  throw new Error(
+    "The scheduled Agents workflow owns this deployment. Running locally as well would record " +
+      "ticks it has already run. Disable the workflow first, then pass --allow-local.",
+  );
+}
+
+async function main(): Promise<void> {
+  assertRunnerOwner();
+  if (flag("next")) {
+    const steps = Number(argument("steps") ?? "1");
+    if (!Number.isSafeInteger(steps) || steps < 1 || steps > 12) {
+      throw new Error("--steps must be an integer from 1 to 12");
+    }
+    await runNext(steps, argument("seed"));
+    return;
+  }
+
+  const agent = parseAgent(argument("agent"));
+  const tick = Number(argument("tick"));
+  if (!Number.isSafeInteger(tick) || tick < 0) throw new Error("--tick must be a non-negative integer");
+  await runOne(agent, tick);
 }
 
 main().catch((error) => {

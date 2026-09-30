@@ -31,6 +31,13 @@ export const trackRecordAbi = [
   },
   {
     type: "function",
+    name: "fillCount",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
     name: "recordFill",
     stateMutability: "nonpayable",
     inputs: [
