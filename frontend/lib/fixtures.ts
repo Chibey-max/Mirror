@@ -21,6 +21,13 @@ export type FixtureAgent = {
   fills: number;
   followers: number;
   volumeUsd: number;
+  /**
+   * Notional of the largest single buy on this agent's tape, in USDG. Only
+   * buys draw on a follower's cap, and the cap is a daily total, so this is
+   * the smallest cap that could have copied every trade this agent has made
+   * one at a time. Absent until the agent has bought anything.
+   */
+  largestBuyUsd?: number;
   isLosing: boolean;
   /**
    * Cumulative PnL %, oldest to newest, ending at pnlPct. Sample data, like
