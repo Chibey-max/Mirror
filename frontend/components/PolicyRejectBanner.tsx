@@ -40,7 +40,7 @@ export function rejectionCopy(reason: PolicyRejectReason): string {
       // `attempted` is spentToday + this trade, a running total, not the
       // trade's own size (PRD v2.2 §7.6). The old copy read it as the size,
       // which made a $30 trade blocked at "$70" impossible to understand.
-      return `Blocked: this trade would take today's total for this agent to $${reason.attempted}, over your $${reason.cap} daily cap.`;
+      return `Blocked: this trade would take today's total for this agent to $${reason.attempted.toFixed(2)}, over your $${reason.cap.toFixed(2)} daily cap.`;
     case "TokenNotAllowed":
       return `Blocked: ${reason.token} isn't on the approved list for copy-trading yet.`;
     case "PolicyInactive":

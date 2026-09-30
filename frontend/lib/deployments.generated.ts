@@ -15,3 +15,7 @@ export const deployedAddresses = {
     "usdg": "0xC9e3E8d3e259Bf33318996AFDe2a5EC134BB3b50"
   }
 } as const;
+export const deploymentBlocks = {
+  "46630": 124326741,
+  "421614": 312718843
+} as const;

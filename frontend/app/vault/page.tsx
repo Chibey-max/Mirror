@@ -52,7 +52,7 @@ export default function VaultPage() {
     useFollow(vaultBalance, agentIds);
   const { withdraw } = useWithdraw(freeBalance, subtractFreeBalance, creditWallet);
   const track = useTrackedWrite();
-  const { requireConnection } = useRequireConnection();
+  const { isConnected, requireConnection } = useRequireConnection();
 
   const followedIds = agentIds.filter((id) => (allocatedByAgent[id] ?? 0) > 0);
   const spentToday = useSpentToday(followedIds);
@@ -62,7 +62,7 @@ export default function VaultPage() {
   );
 
   const agentNames = Object.fromEntries(agents.map((a) => [a.id, a.name]));
-  const { rows: mirrorRows, outcomesLoaded } = useMyMirrors(followedIds, agentNames);
+  const { rows: mirrorRows, outcomesLoaded, outcomesFailed } = useMyMirrors(followedIds, agentNames);
 
   const [depositOpen, setDepositOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
@@ -106,15 +106,22 @@ export default function VaultPage() {
         </Reveal>
 
         <Reveal delayMs={80}>
-          <LedgerStats
-            className="mt-8"
-            stats={[
-              { label: "Wallet", value: `${walletBalance.toFixed(2)} USDG` },
-              { label: "Vault free", value: `${freeBalance.toFixed(2)} USDG` },
-              { label: "Allocated", value: `${totalAllocated.toFixed(2)} USDG` },
-              { label: "Following", value: followedIds.length.toString() },
-            ]}
-          />
+          {isConnected ? (
+            <LedgerStats
+              className="mt-8"
+              stats={[
+                { label: "Wallet", value: `${walletBalance.toFixed(2)} USDG` },
+                { label: "Vault free", value: `${freeBalance.toFixed(2)} USDG` },
+                { label: "Allocated", value: `${totalAllocated.toFixed(2)} USDG` },
+                { label: "Following", value: followedIds.length.toString() },
+              ]}
+            />
+          ) : (
+            // No wallet, no position: zeros would read as an empty account.
+            <p className="panel mt-8 rounded-2xl px-5 py-4 text-sm text-muted">
+              Connect a wallet to see your balances, follows and mirrors.
+            </p>
+          )}
         </Reveal>
 
         <div className="mt-6 flex flex-wrap gap-2">
@@ -212,7 +219,11 @@ export default function VaultPage() {
             description="Every fill from every agent you follow, and what it did to your vault."
           />
           <Reveal>
-            <YourMirrors rows={mirrorRows} outcomesLoaded={outcomesLoaded} />
+            <YourMirrors
+              rows={mirrorRows}
+              outcomesLoaded={outcomesLoaded}
+              outcomesFailed={outcomesFailed}
+            />
           </Reveal>
         </section>
       </main>

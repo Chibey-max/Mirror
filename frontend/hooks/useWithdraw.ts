@@ -5,6 +5,7 @@ import { toUsdg } from "@/lib/usdg";
 import { StaleStateError } from "@/lib/writeErrors";
 import {
   useVaultConnection,
+  WALLET_REQUIRED,
   type WriteProgress,
 } from "@/hooks/useVaultConnection";
 
@@ -28,12 +29,13 @@ export function useWithdraw(
   subtractFreeBalance: (amount: number) => void,
   creditWallet: (amount: number) => void,
 ) {
-  const { live, addresses, writeContractAsync, confirm } = useVaultConnection();
+  const { live, demo, addresses, writeContractAsync, confirm } = useVaultConnection();
 
   async function withdraw(
     amount: number,
     onProgress?: WriteProgress,
   ): Promise<{ txHash: string }> {
+    if (!live && !demo) throw new Error(WALLET_REQUIRED);
     if (!Number.isFinite(amount) || amount <= 0 || amount > freeBalance) {
       throw new StaleStateError(
         "That amount no longer matches your free balance. Close this and try again.",

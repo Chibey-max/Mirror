@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useState } from "react";
+import { utcMidnightLocal } from "@/lib/format";
 import { txUrl } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
 import { FieldHint } from "@/components/FieldHint";
@@ -63,6 +64,9 @@ export function FollowModal({
   }, [handleClose, open, stage]);
 
   if (!open) return null;
+  // Only ever rendered in the browser (closed on the server), so the
+  // viewer's zone is known here.
+  const resetLocal = utcMidnightLocal();
 
   const parsedCap = Number(capAmount);
   const parsedSlippage = Number(maxSlippageBps);
@@ -288,7 +292,8 @@ export function FollowModal({
               of your vault per day, and only into allowlisted Stock Tokens.
               Sells do not consume the cap. You can kill this follow at any
               time; unfollow returns your principal, not a mark-to-market.
-              The daily cap resets at 00:00 UTC (08:00 SGT). Slippage is
+              The daily cap resets at 00:00 UTC
+              {resetLocal ? ` (${resetLocal} your time)` : ""}. Slippage is
               stored on the policy and is not enforced on-chain in V1.
             </p>
 

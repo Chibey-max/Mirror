@@ -5,6 +5,7 @@ import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import type { Hex } from "viem";
 import { addressesFor, isDeployed, type MirrorAddresses } from "@/lib/contracts";
 import { assertSuccessfulReceipt } from "@/lib/onchain";
+import { mirrorMode } from "@/lib/config";
 
 /**
  * How far along a write is, reported as it happens.
@@ -32,8 +33,15 @@ export type WriteProgress = (
  * that never moved. `live` is false until every address a write touches is
  * real, and each hook keeps its mock path only in explicit fixture mode.
  */
+/** What a write says when there's no wallet to send it from. */
+export const WALLET_REQUIRED = "Connect a wallet first.";
+
 export function useVaultConnection(): {
   live: boolean;
+  /** Fixture mode: the write hooks may play their sample balances and
+   *  pretend writes. Never in a live build, where no wallet means nothing
+   *  to show, not someone else's made-up position. */
+  demo: boolean;
   address?: Hex;
   addresses?: MirrorAddresses;
   writeContractAsync: ReturnType<typeof useWriteContract>["writeContractAsync"];
@@ -79,5 +87,13 @@ export function useVaultConnection(): {
     assertSuccessfulReceipt(receipt, hash);
   }
 
-  return { live, address, addresses, writeContractAsync, publicClient, confirm };
+  return {
+    live,
+    demo: mirrorMode === "fixture",
+    address,
+    addresses,
+    writeContractAsync,
+    publicClient,
+    confirm,
+  };
 }

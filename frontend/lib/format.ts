@@ -28,3 +28,18 @@ export function relativeTime(timestampSeconds: number, now = Date.now()): string
   const days = Math.floor(hours / 24);
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
+
+/**
+ * When 00:00 UTC falls on the viewer's own clock ("01:00 GMT+1"), for
+ * anything that resets on the UTC day. Browser only: the server doesn't
+ * know the viewer's zone.
+ */
+export function utcMidnightLocal(): string | undefined {
+  const midnight = new Date(Date.UTC(2026, 0, 1));
+  if (midnight.getTimezoneOffset() === 0) return undefined;
+  return midnight.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+}

@@ -8,6 +8,7 @@ import { fromUsdg, toUsdg } from "@/lib/usdg";
 import { StaleStateError } from "@/lib/writeErrors";
 import {
   useVaultConnection,
+  WALLET_REQUIRED,
   type WriteProgress,
 } from "@/hooks/useVaultConnection";
 
@@ -39,11 +40,11 @@ export type FollowInput = {
  * Until deployments/46630.json lands the fixture path runs instead.
  */
 export function useFollow(initialFreeBalance: number, agentIds: number[] = []) {
-  const { live, address, addresses, writeContractAsync, confirm } =
+  const { live, demo, address, addresses, writeContractAsync, confirm } =
     useVaultConnection();
 
   const [mockAllocated, setMockAllocated] = useState<Record<number, number>>(
-    fixtureWallet.allocated,
+    demo ? fixtureWallet.allocated : {},
   );
   const [mockFreeBalance, setMockFreeBalance] = useState(initialFreeBalance);
 
@@ -102,6 +103,7 @@ export function useFollow(initialFreeBalance: number, agentIds: number[] = []) {
     input: FollowInput,
     onProgress?: WriteProgress,
   ): Promise<{ txHash: string }> {
+    if (!live && !demo) throw new Error(WALLET_REQUIRED);
     const { agentId, capAmount, maxSlippageBps } = input;
     const alreadyFollowing = live
       ? followingByAgent[agentId] === true
@@ -162,6 +164,8 @@ export function useFollow(initialFreeBalance: number, agentIds: number[] = []) {
     const allocation = allocatedByAgent[agentId] ?? 0;
 
     if (!live || !addresses) {
+      if (!demo) throw new Error(WALLET_REQUIRED);
+
       await new Promise((resolve) => setTimeout(resolve, 500));
       onProgress?.({ stage: "submitted", txHash: MOCK_UNFOLLOW_TX });
       setMockAllocated((current) => {
