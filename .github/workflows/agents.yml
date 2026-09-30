@@ -1,0 +1,82 @@
+name: Agents
+
+# Runs the three agents on the live Robinhood Chain testnet deployment, so
+# the tape keeps moving without anyone at a terminal. Each run takes one step:
+# every agent catches up to the most advanced one, then all three take the
+# next tick together (see runNext in runner/src/cli.ts).
+#
+# Requires the repository secret RUNNER_PRIVATE_KEY: the testnet runner key
+# whose address is the `runner` in deployments/46630.json. RUNNER_RPC_URL is
+# optional and falls back to the public endpoint.
+
+on:
+  schedule:
+    # GitHub may start scheduled runs several minutes late under load; the
+    # runner does not care when a step lands, only that steps land in order.
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      steps:
+        description: "Ticks to advance in this run (1-12)"
+        default: "1"
+
+# One run at a time, and never cancel one mid-flight: a cancelled run can
+# leave a signed transaction the journal has not seen confirmed yet. The
+# runner's own lock guards the journal file; this guards the workflow.
+concurrency:
+  group: agents
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  step:
+    name: Advance the agents
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: runner
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: runner/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      # The journal is the runner's memory of what it has already sent. It
+      # lives in the Actions cache between runs: saved under a key unique to
+      # each run, restored by prefix, which returns the newest one.
+      - name: Restore journal
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: runner/.mirror-runner.journal.json
+          key: agents-journal-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: agents-journal-
+
+      # With no journal, --seed starts from state/journal.seed.json, but only
+      # if the chain's fill count still matches it. If the cache was evicted
+      # after later runs, the counts disagree and the runner refuses rather
+      # than replaying ticks that are already on chain.
+      - name: Run
+        env:
+          RUNNER_PRIVATE_KEY: ${{ secrets.RUNNER_PRIVATE_KEY }}
+          RUNNER_RPC_URL: ${{ secrets.RUNNER_RPC_URL || 'https://rpc.testnet.chain.robinhood.com' }}
+          RUNNER_PUBLIC_RPC_URL: https://rpc.testnet.chain.robinhood.com
+          DEPLOYMENT_MANIFEST: ../deployments/46630.json
+        run: npm run runner -- --next --steps=${{ inputs.steps || '1' }} --seed=state/journal.seed.json
+
+      # Saved even when the run fails: a step that got halfway still sent
+      # transactions, and the next run must know about them.
+      - name: Save journal
+        if: always() && hashFiles('runner/.mirror-runner.journal.json') != ''
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: runner/.mirror-runner.journal.json
+          key: agents-journal-${{ github.run_id }}-${{ github.run_attempt }}
