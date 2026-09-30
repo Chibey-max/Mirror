@@ -127,6 +127,10 @@ export class MirrorRunner {
     return tick;
   }
 
+  ledgerView(): { highestFillId: bigint; unresolvedRecords: number } {
+    return this.journal.ledgerView();
+  }
+
   async fillCount(): Promise<bigint> {
     return this.publicClient.readContract({
       address: this.manifest.trackRecord,

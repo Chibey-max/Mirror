@@ -113,6 +113,29 @@ export class RunnerJournal {
     await this.persist();
   }
 
+  /**
+   * What this journal can vouch for on the chain: the highest fill ID it has
+   * saved, and how many trades have a record transaction out without a fill
+   * ID saved yet. Those are the only fills that may exist on chain without
+   * this journal knowing their number — a run stopped between the record
+   * landing and the ID being written — and processTrade resumes them from
+   * the saved transaction rather than sending a new one.
+   */
+  ledgerView(): { highestFillId: bigint; unresolvedRecords: number } {
+    let highestFillId = BigInt(0);
+    let unresolvedRecords = 0;
+    for (const [id, trade] of Object.entries(this.state.trades)) {
+      if (trade.fillId !== undefined) {
+        const fillId = BigInt(trade.fillId);
+        if (fillId > highestFillId) highestFillId = fillId;
+        continue;
+      }
+      const record = this.state.transactions[`${id}:record`];
+      if (record && record.status !== "failed") unresolvedRecords += 1;
+    }
+    return { highestFillId, unresolvedRecords };
+  }
+
   private requiredTransaction(id: string): TransactionEntry {
     const entry = this.state.transactions[id];
     if (!entry) throw new Error(`Journal transaction ${id} does not exist`);
