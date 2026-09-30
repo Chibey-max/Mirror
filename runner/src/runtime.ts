@@ -76,6 +76,10 @@ class ViemTransactionPort implements TransactionPort {
   }
 }
 
+/** Reads straight after a write retry for up to ~15s while the RPC catches up. */
+const READ_ATTEMPTS = 20;
+const READ_BACKOFF_MS = 750;
+
 export class MirrorRunner {
   private readonly account;
   private readonly chain;
@@ -248,6 +252,27 @@ export class MirrorRunner {
     return decisions.length;
   }
 
+  /**
+   * Re-read until the value is what the caller expects, or give up and return
+   * the last one read.
+   *
+   * The public Robinhood RPC is load-balanced, so a read issued straight after
+   * a write can land on a node that has not imported the write's block yet.
+   * The first CI run of the scheduled agents hit exactly that: the tick-12
+   * setPrice mined, and the read-back returned tick 11's price. Every caller
+   * still checks the returned value itself and throws on a mismatch, so a
+   * write that genuinely did not land fails exactly as before; this only
+   * stops a lagging node from being mistaken for one.
+   */
+  private async readUntil<T>(read: () => Promise<T>, settled: (value: T) => boolean): Promise<T> {
+    let value = await read();
+    for (let attempt = 1; attempt < READ_ATTEMPTS && !settled(value); ++attempt) {
+      await new Promise((resolve) => setTimeout(resolve, READ_BACKOFF_MS));
+      value = await read();
+    }
+    return value;
+  }
+
   private async updateOraclePrices(agent: AgentKey, deploymentKey: string, tick: PriceTick): Promise<void> {
     for (let index = 0; index < symbols.length; ++index) {
       const symbol = symbols[index];
@@ -268,11 +293,15 @@ export class MirrorRunner {
           });
         }),
       );
-      const [, answer] = await this.publicClient.readContract({
-        address: this.manifest.priceFeeds[index],
-        abi: aggregatorAbi,
-        functionName: "latestRoundData",
-      });
+      const [, answer] = await this.readUntil(
+        () =>
+          this.publicClient.readContract({
+            address: this.manifest.priceFeeds[index],
+            abi: aggregatorAbi,
+            functionName: "latestRoundData",
+          }),
+        ([, recorded]) => recorded === price,
+      );
       if (answer !== price) throw new Error(`${symbol} oracle recorded ${answer}; expected ${price}`);
     }
   }
@@ -295,11 +324,15 @@ export class MirrorRunner {
       const symbolIndex = symbols.indexOf(symbol);
       const token = this.manifest.stockTokens[symbolIndex];
       const feed = this.manifest.priceFeeds[symbolIndex];
-      const [roundId, price] = await this.publicClient.readContract({
-        address: feed,
-        abi: aggregatorAbi,
-        functionName: "latestRoundData",
-      });
+      const [roundId, price] = await this.readUntil(
+        () =>
+          this.publicClient.readContract({
+            address: feed,
+            abi: aggregatorAbi,
+            functionName: "latestRoundData",
+          }),
+        ([, current]) => current === expectedPrice,
+      );
       if (price <= BigInt(0) || price !== expectedPrice) {
         throw new Error(`${symbol} oracle price ${price} does not match fixture ${expectedPrice}`);
       }
@@ -327,7 +360,11 @@ export class MirrorRunner {
       let fillId = trade.fillId ? BigInt(trade.fillId) : undefined;
       if (fillId === undefined) {
         const recordEntry = this.journal.transaction(recordTxId)!;
-        const receipt = await this.publicClient.getTransactionReceipt({ hash: recordEntry.hash });
+        const receipt = await this.readUntil(
+          () => this.publicClient.getTransactionReceipt({ hash: recordEntry.hash }).catch(() => undefined),
+          (found) => found !== undefined,
+        );
+        if (!receipt) throw new Error(`No receipt yet for ${recordEntry.hash}; the next run will pick it up`);
         fillId = this.fillIdFrom(receipt);
         await this.journal.recordFill(tradeId, fillId);
         trade = this.journal.trade(tradeId)!;
