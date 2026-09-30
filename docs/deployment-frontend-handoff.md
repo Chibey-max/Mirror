@@ -168,7 +168,12 @@ expected contract name and Solidity source.
 
 ## 7. Primary-chain runner and smoke evidence
 
-Do not run demo agents before preparing the smoke follower: the proof assumes a fresh TrackRecord.
+For the already-deployed chain, use [Live runner operations](live-runner-operations.md).
+The fixture sequence below is for a fresh rehearsal only; never replay it with a new journal
+against the existing deployment. The smoke script now takes `SMOKE_ACCEPTED_FILL_ID` and
+`SMOKE_REJECTED_FILL_ID` from actual receipt events rather than assuming a fresh TrackRecord.
+
+For a fresh rehearsal, prepare the smoke follower before running demo agents.
 The fixed scenario deposits 100 USDG, follows Pulse with a 60 USDG cap, accepts the first tick-3
 mNVDA buy, rejects the following mTSLA buy, kills the policy and returns all principal.
 

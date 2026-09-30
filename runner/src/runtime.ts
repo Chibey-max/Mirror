@@ -20,8 +20,9 @@ import type { RunnerConfig } from "./config";
 import { RunnerJournal } from "./journal";
 import { DurableTransactionSender, type SignedTransaction, type TransactionPort } from "./sender";
 import { decisionsAtTick } from "./strategy";
-import type { AgentKey, DeploymentManifest, PriceTick, Symbol } from "./types";
+import type { AgentKey, DeploymentManifest, FillDecision, PriceTick, Symbol } from "./types";
 import { symbols } from "./types";
+import { evidenceAbi } from "./evidence";
 
 const agentIndex: Record<AgentKey, number> = { pulse: 0, red: 1, drift: 2 };
 
@@ -82,6 +83,7 @@ export class MirrorRunner {
   private readonly publicClient;
   private readonly walletClient;
   private readonly sender;
+  private beforeNewSignature: ((kind: "oracle" | "record" | "mirror") => void) | undefined;
 
   private constructor(
     private readonly config: RunnerConfig,
@@ -224,6 +226,41 @@ export class MirrorRunner {
     return decisions.length;
   }
 
+  /** Prices and decisions must already be durable before entering this method. */
+  async runLiveObservation(agent: AgentKey, observationId: string, tick: PriceTick, decisions: FillDecision[],
+    beforeNewSignature: (kind: "oracle" | "record" | "mirror") => void) {
+    const key = `${this.manifest.chainId}:${this.manifest.copyVault.toLowerCase()}:live:${observationId}`;
+    const id = `deployment:${key}:agent:${agent}:tick:${tick.tick}`;
+    if (this.journal.tickComplete(id)) return;
+    this.beforeNewSignature = beforeNewSignature;
+    if (decisions.length) await this.updateOraclePrices(agent, key, tick);
+    for (const decision of decisions) {
+      await this.processTrade(agent, key, tick.tick, decision.symbol, decision.isBuy, decision.size,
+        tick.prices[decision.symbol]);
+    }
+    await this.journal.completeTick(id);
+    this.beforeNewSignature = undefined;
+  }
+
+  async liveOutcomes(agent: AgentKey, observationId: string): Promise<unknown[]> {
+    const prefix = `deployment:${this.manifest.chainId}:${this.manifest.copyVault.toLowerCase()}:live:${observationId}:agent:${agent}:`;
+    const results: unknown[] = [];
+    for (const [id, tx] of Object.entries(this.journal.snapshot().transactions)) {
+      if (!id.startsWith(prefix) || !id.endsWith(":mirror") || tx.status !== "confirmed") continue;
+      const receipt = await this.publicClient.getTransactionReceipt({ hash: tx.hash });
+      for (const log of receipt.logs) {
+        if (getAddress(log.address) !== getAddress(this.manifest.copyVault)) continue;
+        try {
+          const event = decodeEventLog({ abi: evidenceAbi, data: log.data, topics: log.topics });
+          if (event.eventName === "Mirrored" || event.eventName === "MirrorRejected") {
+            results.push({ event: event.eventName, ...event.args, transactionHash: tx.hash });
+          }
+        } catch { /* unrelated event */ }
+      }
+    }
+    return results;
+  }
+
   private async updateOraclePrices(agent: AgentKey, deploymentKey: string, tick: PriceTick): Promise<void> {
     for (let index = 0; index < symbols.length; ++index) {
       const symbol = symbols[index];
@@ -271,20 +308,16 @@ export class MirrorRunner {
       const symbolIndex = symbols.indexOf(symbol);
       const token = this.manifest.stockTokens[symbolIndex];
       const feed = this.manifest.priceFeeds[symbolIndex];
-      const [roundId, price] = await this.publicClient.readContract({
-        address: feed,
-        abi: aggregatorAbi,
-        functionName: "latestRoundData",
-      });
-      if (price <= BigInt(0) || price !== expectedPrice) {
-        throw new Error(`${symbol} oracle price ${price} does not match fixture ${expectedPrice}`);
-      }
-      const oracleRoundId = toHex(roundId, { size: 32 });
       const id = BigInt(this.manifest.agentIds[agentIndex[agent]]);
       const recordTxId = `${tradeId}:record`;
 
-      await this.sender.send(recordTxId, () =>
-        this.signContractCall(this.manifest.trackRecord, encodeFunctionData({
+      await this.sender.send(recordTxId, async () => {
+        const [roundId, price] = await this.publicClient.readContract({
+          address: feed, abi: aggregatorAbi, functionName: "latestRoundData",
+        });
+        if (price <= 0n || price !== expectedPrice) throw new Error(`${symbol} oracle price differs from saved observation`);
+        const oracleRoundId = toHex(roundId, { size: 32 });
+        return this.signContractCall(this.manifest.trackRecord, encodeFunctionData({
           abi: trackRecordAbi,
           functionName: "recordFill",
           args: [id, token, isBuy, size, BigInt(price), oracleRoundId],
@@ -296,8 +329,8 @@ export class MirrorRunner {
             functionName: "recordFill",
             args: [id, token, isBuy, size, BigInt(price), oracleRoundId],
           });
-        }),
-      );
+        });
+      });
 
       let trade = this.journal.trade(tradeId)!;
       let fillId = trade.fillId ? BigInt(trade.fillId) : undefined;
@@ -349,15 +382,17 @@ export class MirrorRunner {
   }
 
   private async signContractCall(to: Address, data: Hex, simulate: () => Promise<void>): Promise<SignedTransaction> {
+    this.beforeNewSignature?.(to === this.manifest.copyVault ? "mirror" : to === this.manifest.trackRecord ? "record" : "oracle");
     await simulate();
     const request = await this.walletClient.prepareTransactionRequest({ account: this.account, to, data });
+    this.beforeNewSignature?.(to === this.manifest.copyVault ? "mirror" : to === this.manifest.trackRecord ? "record" : "oracle");
     const rawTransaction = await this.walletClient.signTransaction(request);
     return { rawTransaction, hash: keccak256(rawTransaction), nonce: request.nonce };
   }
 
   private fillIdFrom(receipt: ViemReceipt): bigint {
     for (const log of receipt.logs) {
-      if (getAddress(log.address) !== this.manifest.trackRecord) continue;
+      if (getAddress(log.address) !== getAddress(this.manifest.trackRecord)) continue;
       try {
         const decoded = decodeEventLog({ abi: trackRecordAbi, data: log.data, topics: log.topics });
         if (decoded.eventName === "FillRecorded") return decoded.args.fillId;

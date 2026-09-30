@@ -1,0 +1,9 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "runner/Dockerfile"
+
+[deploy]
+numReplicas = 1
+restartPolicyType = "NEVER"
+# Fatal conditions require reconciliation; do not restart-loop a broken trade.
+startCommand = "npm run watch"

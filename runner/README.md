@@ -1,5 +1,11 @@
 # Mirror runner
 
+For continuous live-price operation, migration of the existing journal, Railway trial setup,
+and receipt-verified smoke evidence, see [Live runner operations](../docs/live-runner-operations.md).
+`npm run watch` is read-only on-chain by default; `--broadcast` explicitly enables transactions.
+Live operation requires a Pyth trial key, confirmed public-use terms, feed IDs, and the original
+runner journal. It is not activated by merging the code.
+
 The runner advances the three test feeds, evaluates one committed strategy at a fixture tick, records each fill, and then mirrors it. It is deliberately single-sender and sequential.
 
 ## Safety model

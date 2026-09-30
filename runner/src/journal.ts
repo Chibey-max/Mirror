@@ -58,6 +58,10 @@ export class RunnerJournal {
     return this.state.transactions[id];
   }
 
+  snapshot(): JournalState {
+    return structuredClone(this.state);
+  }
+
   trade(id: string): TradeEntry | undefined {
     return this.state.trades[id];
   }

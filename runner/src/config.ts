@@ -58,7 +58,7 @@ function hash(value: unknown, field: string): Hex {
   return value as Hex;
 }
 
-export async function loadManifest(path: string, privateKey: Hex): Promise<DeploymentManifest> {
+export async function loadManifest(path: string, privateKey?: Hex): Promise<DeploymentManifest> {
   const raw = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
   if (raw.schema !== "mirror.deployments.v1") throw new Error("Unsupported deployment manifest schema");
   if (!Array.isArray(raw.coreRuntimeCodeHashes) || raw.coreRuntimeCodeHashes.length !== 4) {
@@ -104,8 +104,8 @@ export async function loadManifest(path: string, privateKey: Hex): Promise<Deplo
       };
     })(),
   };
-  const signer = privateKeyToAccount(privateKey).address;
-  if (getAddress(signer) !== manifest.runner) {
+  const signer = privateKey ? privateKeyToAccount(privateKey).address : undefined;
+  if (signer && getAddress(signer) !== manifest.runner) {
     throw new Error(`Runner key ${signer} does not match manifest runner ${manifest.runner}`);
   }
   if (manifest.deploymentBlock === 0) throw new Error("Deployment manifest was not finalized from mined receipts");

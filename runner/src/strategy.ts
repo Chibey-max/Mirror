@@ -6,7 +6,7 @@ import type {
   Symbol,
 } from "./types";
 
-type Position = { symbol: Symbol; size: bigint; entryPrice: bigint; entryTick: number };
+export type Position = { symbol: Symbol; size: bigint; entryPrice: bigint; entryTick: number };
 
 function returnBps(current: bigint, previous: bigint): bigint {
   return ((current - previous) * BigInt(10_000)) / previous;
@@ -18,7 +18,7 @@ function numberSignal(strategy: StrategyDefinition, key: string): number {
   return value;
 }
 
-function applyDecision(positions: Map<Symbol, Position>, decision: FillDecision, price: bigint, tick: number) {
+export function applyDecision(positions: Map<Symbol, Position>, decision: FillDecision, price: bigint, tick: number) {
   if (decision.isBuy) {
     positions.set(decision.symbol, {
       symbol: decision.symbol,
@@ -154,4 +154,16 @@ export function decisionsAtTick(
     if (index === targetIndex) target = decisions;
   }
   return target;
+}
+
+/** Evaluate only the latest observation against actual, persisted agent positions. */
+export function decisionsForObservation(
+  agent: AgentKey, strategy: StrategyDefinition, ticks: PriceTick[], positions: Map<Symbol, Position>,
+): FillDecision[] {
+  if (strategy.execution.maxFillsPerTokenPerOracleRound !== 1) throw new Error("Unsupported round policy");
+  const index = ticks.length - 1;
+  if (index < 0) return [];
+  return agent === "pulse" ? momentum(strategy, ticks, index, positions)
+    : agent === "red" ? meanReversion(strategy, ticks, index, positions)
+      : pairsRotation(strategy, ticks, index, positions);
 }

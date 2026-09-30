@@ -9,9 +9,10 @@ import {TrackRecord} from "../src/TrackRecord.sol";
 import {ITrackRecord} from "../src/interfaces/ITrackRecord.sol";
 import {IPolicyModule} from "../src/interfaces/IPolicyModule.sol";
 import {MockUSDG} from "../src/mocks/MockUSDG.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @notice Deterministic, non-privileged proof of the live principal lifecycle on chain 46630.
-/// @dev Run prepare(), then Pulse runner ticks 0..3, then exit(). Interrupted broadcasts must be
+/// @dev Run prepare(), then eligible Pulse trades, then exit(). Interrupted broadcasts must be
 ///      resumed from their Forge artifact rather than restarted as a new logical operation.
 contract SmokeLifecycle is Script {
     error WrongChain(uint256 actual);
@@ -22,8 +23,6 @@ contract SmokeLifecycle is Script {
     uint256 private constant DEPOSIT = 100_000_000;
     uint256 private constant CAP = 60_000_000;
     uint256 private constant SLIPPAGE_BPS = 50;
-    uint256 private constant PULSE_SIZE = 420_000_000_000_000_000;
-    uint256 private constant PULSE_NVDA_NOTIONAL = 54_684_000;
 
     struct Deployment {
         MockUSDG usdg;
@@ -47,10 +46,10 @@ contract SmokeLifecycle is Script {
         }
 
         vm.startBroadcast(privateKey);
-        deployment.usdg.mint(follower, DEPOSIT);
-        IERC20(address(deployment.usdg)).approve(address(deployment.vault), DEPOSIT);
-        deployment.vault.deposit(DEPOSIT);
-        deployment.vault.follow(deployment.pulseId, CAP, SLIPPAGE_BPS);
+        deployment.usdg.mint(follower, _deposit());
+        IERC20(address(deployment.usdg)).approve(address(deployment.vault), _deposit());
+        deployment.vault.deposit(_deposit());
+        deployment.vault.follow(deployment.pulseId, _cap(), SLIPPAGE_BPS);
         vm.stopBroadcast();
         _assertPrepared(deployment, follower);
     }
@@ -61,7 +60,7 @@ contract SmokeLifecycle is Script {
 
         vm.startBroadcast(privateKey);
         deployment.vault.unfollow(deployment.pulseId);
-        deployment.vault.withdraw(DEPOSIT);
+        deployment.vault.withdraw(_deposit());
         vm.stopBroadcast();
 
         _assertExited(deployment, follower);
@@ -87,41 +86,47 @@ contract SmokeLifecycle is Script {
 
     function _assertPrepared(Deployment memory deployment, address follower) private view {
         if (deployment.usdg.balanceOf(follower) != 0) revert SmokeStateMismatch("prepared.walletBalance");
-        if (deployment.vault.balanceOf(follower) != DEPOSIT - CAP) {
+        if (deployment.vault.balanceOf(follower) != _deposit() - _cap()) {
             revert SmokeStateMismatch("prepared.freeBalance");
         }
-        if (deployment.vault.allocationOf(follower, deployment.pulseId) != CAP) {
+        if (deployment.vault.allocationOf(follower, deployment.pulseId) != _cap()) {
             revert SmokeStateMismatch("prepared.allocation");
         }
         IPolicyModule.Policy memory policy = deployment.policy.getPolicy(follower, deployment.pulseId);
-        if (!policy.active || policy.maxNotionalPerDay != CAP || policy.maxSlippageBps != SLIPPAGE_BPS) {
+        if (!policy.active || policy.maxNotionalPerDay != _cap() || policy.maxSlippageBps != SLIPPAGE_BPS) {
             revert SmokeStateMismatch("prepared.policy");
         }
     }
 
     function _assertRunner(Deployment memory deployment, address follower) private view {
-        if (deployment.trackRecord.fillCount() != 2) revert SmokeStateMismatch("runner.fillCount");
-
-        ITrackRecord.Fill memory accepted = deployment.trackRecord.getFill(1);
-        ITrackRecord.Fill memory rejected = deployment.trackRecord.getFill(2);
-        if (
-            accepted.agentId != deployment.pulseId || accepted.token != deployment.mNvda || !accepted.isBuy
-                || accepted.size != PULSE_SIZE || accepted.price != 13_020_000_000
-        ) revert SmokeStateMismatch("runner.acceptedFill");
-        if (
-            rejected.agentId != deployment.pulseId || rejected.token != deployment.mTsla || !rejected.isBuy
-                || rejected.size != PULSE_SIZE || rejected.price != 41_600_000_000
-        ) revert SmokeStateMismatch("runner.rejectedFill");
-        if (!deployment.vault.isMirrored(1) || !deployment.vault.isMirrored(2)) {
+        uint256 acceptedId = vm.envUint("SMOKE_ACCEPTED_FILL_ID");
+        uint256 rejectedId = vm.envUint("SMOKE_REJECTED_FILL_ID");
+        uint256 boundary = deployment.vault.followFillBoundaryOf(follower, deployment.pulseId);
+        if (acceptedId <= boundary || rejectedId <= acceptedId) revert SmokeStateMismatch("runner.eligibility");
+        ITrackRecord.Fill memory accepted = deployment.trackRecord.getFill(acceptedId);
+        ITrackRecord.Fill memory rejected = deployment.trackRecord.getFill(rejectedId);
+        if (accepted.fillId == 0 || accepted.agentId != deployment.pulseId || !accepted.isBuy) {
+            revert SmokeStateMismatch("runner.acceptedFill");
+        }
+        if (rejected.fillId == 0 || rejected.agentId != deployment.pulseId || !rejected.isBuy) {
+            revert SmokeStateMismatch("runner.rejectedFill");
+        }
+        if (!deployment.vault.isMirrored(acceptedId) || !deployment.vault.isMirrored(rejectedId)) {
             revert SmokeStateMismatch("runner.processed");
         }
-        if (deployment.vault.positionOf(follower, deployment.pulseId, deployment.mNvda) != PULSE_SIZE) {
+        if (deployment.vault.positionOf(follower, deployment.pulseId, accepted.token) != accepted.size) {
             revert SmokeStateMismatch("runner.acceptedPosition");
         }
-        if (deployment.vault.positionOf(follower, deployment.pulseId, deployment.mTsla) != 0) {
+        uint256 expectedRejectedPosition = rejected.token == accepted.token ? accepted.size : 0;
+        if (deployment.vault.positionOf(follower, deployment.pulseId, rejected.token) != expectedRejectedPosition) {
             revert SmokeStateMismatch("runner.rejectedPosition");
         }
-        if (deployment.policy.spentToday(follower, deployment.pulseId) != PULSE_NVDA_NOTIONAL) {
+        uint256 notional = Math.mulDiv(accepted.size, accepted.price, 1e20, Math.Rounding.Ceil);
+        uint256 rejectedNotional = Math.mulDiv(rejected.size, rejected.price, 1e20, Math.Rounding.Ceil);
+        if (notional > _cap() || rejectedNotional <= _cap() - notional) {
+            revert SmokeStateMismatch("runner.capScenario");
+        }
+        if (deployment.policy.spentToday(follower, deployment.pulseId) != notional) {
             revert SmokeStateMismatch("runner.spentToday");
         }
     }
@@ -136,7 +141,17 @@ contract SmokeLifecycle is Script {
             revert SmokeStateMismatch("exited.followers");
         }
         if (deployment.vault.balanceOf(follower) != 0) revert SmokeStateMismatch("exited.freeBalance");
-        if (deployment.usdg.balanceOf(follower) != DEPOSIT) revert SmokeStateMismatch("exited.walletBalance");
+        if (deployment.usdg.balanceOf(follower) != _deposit()) revert SmokeStateMismatch("exited.walletBalance");
+    }
+
+    function _cap() private view returns (uint256) {
+        uint256 amount = vm.envOr("SMOKE_CAP", CAP);
+        if (amount == 0 || amount > _deposit()) revert SmokeStateMismatch("config.cap");
+        return amount;
+    }
+
+    function _deposit() private view returns (uint256) {
+        return vm.envOr("SMOKE_DEPOSIT", DEPOSIT);
     }
 
     function _load() private view returns (Deployment memory deployment, uint256 privateKey, address follower) {
