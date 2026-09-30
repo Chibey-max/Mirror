@@ -1,7 +1,9 @@
 import { access, readFile, unlink, writeFile } from "node:fs/promises";
+import { formatEther } from "viem";
 import { resolve } from "node:path";
 import { loadConfig, loadFixture, loadManifest, loadStrategy, strategyFileHash } from "./config";
 import { RunnerLock } from "./lock";
+import { ledgerDisagreement } from "./ledger";
 import { MirrorRunner } from "./runtime";
 import { extendTape } from "./tape";
 import type { AgentKey, DeploymentManifest, PriceTick, StrategyDefinition } from "./types";
@@ -42,26 +44,46 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
+/** The committed seed, relative to the runner directory. */
+const DEFAULT_SEED = "state/journal.seed.json";
+
 /**
- * A journal to start from when there is none.
+ * A journal to start from when there is none, and the fill count it was
+ * taken at.
  *
- * CI has no disk between runs, so its journal lives in the Actions cache, and
- * a cache can be evicted. A runner that silently started over from an empty
- * journal would re-run every tick from 0 and record every fill a second time
- * — the one thing an append-only ledger can never take back.
- *
- * The seed is the completed-tick markers only (no signed transactions), plus
- * the on-chain fill count it was taken at. It is used only if the chain still
- * agrees with it; if more fills exist than the seed knows about, some run's
- * journal has been lost and the runner stops rather than guess.
+ * CI has no disk between runs, so its journal lives in the Actions cache.
+ * The seed holds completed-tick markers only (no signed transactions) and
+ * the on-chain fill count when it was taken. That count is also the floor
+ * of what any journal descended from it must account for — see
+ * ledgerDisagreement, which every run checks before it sends anything.
  */
 type Seed = { fillCount: string; journal: unknown };
 
-async function seedJournal(journalPath: string, seedPath: string): Promise<bigint> {
+async function readSeed(seedPath: string): Promise<Seed> {
   const seed = JSON.parse(await readFile(seedPath, "utf8")) as Seed;
   if (!seed.fillCount || !seed.journal) throw new Error(`${seedPath} is not a runner journal seed`);
-  await writeFile(journalPath, `${JSON.stringify(seed.journal, null, 2)}\n`, { mode: 0o600 });
-  return BigInt(seed.fillCount);
+  return seed;
+}
+
+/** The seed's fill count, or 0 when there is no seed to measure against. */
+async function seedFloor(seedPath: string | undefined): Promise<bigint> {
+  const path = resolve(seedPath ?? DEFAULT_SEED);
+  if (!(await exists(path))) return BigInt(0);
+  return BigInt((await readSeed(path)).fillCount);
+}
+
+/**
+ * Refuse before sending anything unless the chain and the journal agree on
+ * what has been recorded. Runs on every start, not only a seeded one: a
+ * cache that restores an older journal is as dangerous as a lost one.
+ */
+async function assertLedgerAgrees(runner: MirrorRunner, floor: bigint): Promise<void> {
+  const disagreement = ledgerDisagreement({
+    chainFillCount: await runner.fillCount(),
+    floorFillCount: floor,
+    ...runner.ledgerView(),
+  });
+  if (disagreement) throw new Error(`Refusing to run: ${disagreement}`);
 }
 
 /**
@@ -77,11 +99,13 @@ async function seedJournal(journalPath: string, seedPath: string): Promise<bigin
 async function runNext(steps: number, seedPath: string | undefined): Promise<void> {
   const config = loadConfig();
   const lock = await RunnerLock.acquire(`${config.journalPath}.lock`);
-  let seededAt: bigint | undefined;
+  let seeded = false;
   try {
     if (!(await exists(config.journalPath))) {
       if (!seedPath) throw new Error("No runner journal and no --seed to start from");
-      seededAt = await seedJournal(config.journalPath, resolve(seedPath));
+      const seed = await readSeed(resolve(seedPath));
+      await writeFile(config.journalPath, `${JSON.stringify(seed.journal, null, 2)}\n`, { mode: 0o600 });
+      seeded = true;
     }
 
     const [manifest, fixture] = await Promise.all([
@@ -93,18 +117,18 @@ async function runNext(steps: number, seedPath: string | undefined): Promise<voi
 
     const runner = await MirrorRunner.create(config, manifest);
     await runner.verifyWiring();
-
-    if (seededAt !== undefined) {
-      const onChain = await runner.fillCount();
-      if (onChain !== seededAt) {
-        await unlink(config.journalPath);
-        throw new Error(
-          `Refusing to run: the seed was taken at ${seededAt} fills but the chain has ${onChain}. ` +
-            "A later journal has been lost; restore it rather than replaying ticks that already ran.",
-        );
-      }
+    try {
+      await assertLedgerAgrees(runner, await seedFloor(seedPath));
+    } catch (error) {
+      // A seed the chain has moved past must not survive as this run's
+      // journal, or the cache would carry it forward to the next run.
+      if (seeded) await unlink(config.journalPath);
+      throw error;
     }
 
+    // The gas report runs even when a step fails: an empty wallet is itself
+    // the most likely reason a step fails, and the warning matters most then.
+    try {
     for (let step = 0; step < steps; ++step) {
       const goal = Math.max(...AGENTS.map((agent) => runner.nextTick(agent)));
       const tape: PriceTick[] = extendTape(fixture, goal);
@@ -120,8 +144,34 @@ async function runNext(steps: number, seedPath: string | undefined): Promise<voi
         process.stdout.write(`Completed ${agent} tick ${goal}: ${fills} fill(s)\n`);
       }
     }
+    } finally {
+      await reportGas(runner).catch(() => undefined);
+    }
   } finally {
     await lock.release();
+  }
+}
+
+/**
+ * Below this the agents have roughly a day left at a 15-minute cadence
+ * (about 0.0000088 ETH per three-agent step).
+ */
+const LOW_GAS_WEI = BigInt("1000000000000000"); // 0.001 ETH
+
+/**
+ * An empty runner wallet stops the agents as quietly as the exhausted tape
+ * did, so every scheduled run says how much is left, and raises a GitHub
+ * warning annotation (visible on the run and in the Actions list) once it
+ * is low enough to need a top-up.
+ */
+async function reportGas(runner: MirrorRunner): Promise<void> {
+  const balance = await runner.gasBalance();
+  process.stdout.write(`Runner gas: ${formatEther(balance)} ETH\n`);
+  if (balance < LOW_GAS_WEI && process.env.GITHUB_ACTIONS === "true") {
+    process.stdout.write(
+      `::warning title=Runner gas low::${formatEther(balance)} ETH left, about a day of steps. ` +
+        "Send testnet ETH to the runner address in deployments/46630.json.\n",
+    );
   }
 }
 
@@ -136,6 +186,7 @@ async function runOne(agent: AgentKey, tick: number): Promise<void> {
     const strategy = await checkedStrategy(agent, manifest);
     const runner = await MirrorRunner.create(config, manifest);
     await runner.verifyWiring();
+    await assertLedgerAgrees(runner, await seedFloor(argument("seed")));
     const fills = await runner.runTick(agent, extendTape(fixture, tick), strategy, tick);
     process.stdout.write(`Completed ${agent} tick ${tick}: ${fills} fill(s)\n`);
   } finally {

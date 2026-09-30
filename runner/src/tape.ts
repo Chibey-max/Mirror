@@ -20,13 +20,15 @@ import { symbols, type PriceTick, type Symbol } from "./types";
  *      the tape cannot invalidate what was committed at deploy.
  *
  * The continuation moves in regimes rather than as a plain random walk: a
- * run of ticks drifting one way, noise on top, then a new direction. A pure
- * walk has no trends for momentum to follow, so which agent led would be a
- * coin toss, and the product's "we show the losing agent honestly" story
- * would depend on luck. Trending regimes are what Pulse (momentum) is built
- * to catch and what Red (buys weakness against the trend) is built to lose
- * on — the same shape as the committed fixture, carried forward. The tape is
- * synthetic and the README says so; the regimes are why, not a secret.
+ * run of ticks drifting one way, noise on top, then a new direction — the
+ * same shape as the committed fixture, carried forward. A pure walk has no
+ * trends, so no strategy on it would mean anything.
+ *
+ * Nothing here decides who wins. The tests pin determinism, the committed
+ * ticks and the price band, and deliberately not any agent's result: a test
+ * that guaranteed an outcome would make the track record an engineered one.
+ * The prices are simulated, and the site and README say so wherever an
+ * agent's performance is shown.
  */
 
 export const TAPE_SEED = "mirror:tape:v1";

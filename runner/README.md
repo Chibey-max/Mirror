@@ -39,8 +39,18 @@ price for it. Nothing in the tape is an on-chain commitment — `strategyHash` c
 `strategies/*.json` only — so extending it invalidates nothing.
 
 The continuation moves in regimes that lean back toward where the fixture ended, which keeps prices
-in a believable band and keeps the agents apart: momentum (Pulse) catches trends, and buying weakness
-against them (Red) loses. `test/tape.test.ts` fails if either stops being true.
+in a believable band. `test/tape.test.ts` pins determinism, the committed ticks and that band — and
+deliberately not any agent's result, which the tape does not guarantee. The prices are simulated, and
+the site says so wherever performance is shown.
+
+## The ledger check
+
+Before sending anything, every run compares `TrackRecord.fillCount()` with its journal: the journal
+must account for the chain's fills — the higher of the seed's `fillCount` and its highest saved fill
+ID — plus at most the trades it sent without saving an ID yet (a run that stopped mid-way, which it
+then finishes). A journal behind the chain means a stale cache, a lost save or a second runner, and
+running from it would record trades twice, so the runner refuses and sends nothing
+(`src/ledger.ts`, `test/ledger.test.ts`).
 
 ## Scheduled runs
 
@@ -56,11 +66,12 @@ so the shared price feeds always end a run on the newest tick. `--steps=N` (1–
 The journal lives in the Actions cache between runs. If there is none, `--seed` starts from
 `state/journal.seed.json` — completed-tick markers only, no signed transactions — **but only if the
 chain's fill count still matches the seed's**. If the cache was evicted after later runs, the counts
-disagree and the runner refuses rather than replaying ticks that are already on chain.
+disagree and the runner refuses rather than replaying ticks that are already on chain. The same
+check runs on every start, not only a seeded one — see the ledger check above.
 
 **CI is the only runner.** A second runner has a second journal, and each would treat the other's
 ticks as still pending and record them again — duplicate fills on a ledger that can never delete
 one. Outside GitHub Actions the CLI refuses to run; to run by hand, disable the Agents workflow first
-and pass `--allow-local`. The fill-count check above only covers a lost cache, not a second runner.
+and pass `--allow-local`. The ledger check also refuses once a second runner has recorded anything.
 
 To pause the agents, disable the workflow. To top up gas, send testnet ETH to the manifest's `runner`.
