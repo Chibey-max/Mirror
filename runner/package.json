@@ -4,8 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "watch": "tsx src/watch.ts",
+    "evidence": "tsx src/evidence-cli.ts",
     "runner": "tsx src/cli.ts",
-    "test": "vitest run",
+    "test": "vitest run --exclude 'integration/**'",
+    "test:integration": "vitest run integration",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

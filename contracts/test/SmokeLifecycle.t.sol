@@ -36,6 +36,10 @@ contract SmokeLifecycleTest is Test {
         vm.setEnv("SMOKE_DEPLOYMENT_MANIFEST", string.concat(vm.projectRoot(), "/../deployments/.pending/46630.json"));
 
         SmokeLifecycle smoke = new SmokeLifecycle();
+        // The live deployment already has history; the proof must work with later fill IDs.
+        vm.prank(runner);
+        deployment.trackRecord
+            .recordFill(deployment.agentIds[0], address(deployment.stocks[0]), true, 1, 1, bytes32(uint256(1)));
         smoke.prepare();
         smoke.checkPrepared();
 
@@ -61,6 +65,9 @@ contract SmokeLifecycleTest is Test {
             );
         deployment.copyVault.mirrorFill(rejectedId);
         vm.stopPrank();
+
+        vm.setEnv("SMOKE_ACCEPTED_FILL_ID", vm.toString(acceptedId));
+        vm.setEnv("SMOKE_REJECTED_FILL_ID", vm.toString(rejectedId));
 
         smoke.checkRunner();
         smoke.exit();

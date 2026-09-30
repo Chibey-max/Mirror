@@ -2,6 +2,7 @@ import { loadConfig, loadFixture, loadManifest, loadStrategy, strategyFileHash }
 import { RunnerLock } from "./lock";
 import { MirrorRunner } from "./runtime";
 import type { AgentKey } from "./types";
+import { access } from "node:fs/promises";
 
 function argument(name: string): string | undefined {
   const inline = process.argv.find((value) => value.startsWith(`--${name}=`));
@@ -23,6 +24,11 @@ async function main(): Promise<void> {
   const config = loadConfig();
   const lock = await RunnerLock.acquire(`${config.journalPath}.lock`);
   try {
+    const live = await access(`${config.journalPath}.live`).then(() => true, (error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return false;
+      throw error;
+    });
+    if (live) throw new Error("This journal has cut over to live prices; fixture execution is disabled");
     const [manifest, fixture, strategy, committedHash] = await Promise.all([
       loadManifest(config.manifestPath, config.privateKey),
       loadFixture(config.fixturePath),
