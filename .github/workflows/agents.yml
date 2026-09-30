@@ -11,9 +11,13 @@ name: Agents
 
 on:
   schedule:
-    # GitHub may start scheduled runs several minutes late under load; the
-    # runner does not care when a step lands, only that steps land in order.
-    - cron: "*/15 * * * *"
+    # Every 15 minutes, but off the quarter hours. GitHub's scheduler is
+    # best-effort, and :00/:15/:30/:45 are the busiest slots on the platform:
+    # with */15 the first scheduled run never arrived, both 23:00 and 23:15
+    # passing with nothing. The runner does not care when a step lands, only
+    # that steps land in order, so a late or dropped slot is picked up by the
+    # next one.
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
     inputs:
       steps:
