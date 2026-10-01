@@ -190,7 +190,7 @@ function OutcomeTag({ outcome }: { outcome?: MirrorOutcome }) {
 export function reasonClause(reason: PolicyRejectReason): string {
   switch (reason.type) {
     case "CapExceeded":
-      return `would take today's total to $${reason.attempted}, over your $${reason.cap} cap`;
+      return `would take today's total to $${reason.attempted.toFixed(2)}, over your $${reason.cap.toFixed(2)} cap`;
     case "TokenNotAllowed":
       return `${reason.token} isn't on the approved list`;
     case "PolicyInactive":

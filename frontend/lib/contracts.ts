@@ -1,6 +1,6 @@
 import type { Abi, Address } from "viem";
 import { mirrorMode } from "@/lib/config";
-import { deployedAddresses } from "@/lib/deployments.generated";
+import { deployedAddresses, deploymentBlocks } from "@/lib/deployments.generated";
 
 /**
  * Contract addresses per chain.
@@ -33,6 +33,17 @@ export const addresses: Record<number, MirrorAddresses> = {
 
 export function addressesFor(chainId: number): MirrorAddresses | undefined {
   return addresses[chainId];
+}
+
+/**
+ * The block a chain's deployment went out in, where every log read starts.
+ * Not "earliest": the Robinhood RPC rejects that tag outright, and a read
+ * that errors leaves every screen that waits on it stuck. Block 0 for a
+ * local chain, which is short enough to read from the start.
+ */
+export function deploymentBlockFor(chainId: number): bigint {
+  const block = (deploymentBlocks as Record<number, number>)[chainId];
+  return BigInt(block ?? 0);
 }
 
 /**

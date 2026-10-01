@@ -17,11 +17,13 @@ import { txUrl } from "@/lib/chains";
 export function YourMirrors({
   rows,
   outcomesLoaded = true,
+  outcomesFailed = false,
 }: {
   rows: MirrorRow[];
   /** False until the vault's past outcomes are in; until then a row with no
    *  outcome is unknown, not "not mirrored". */
   outcomesLoaded?: boolean;
+  outcomesFailed?: boolean;
 }) {
   if (rows.length === 0) {
     return (
@@ -71,7 +73,7 @@ export function YourMirrors({
                   <span className="text-muted">@ ${row.price}</span>
                 </td>
                 <td className="px-4 py-3">
-                  <MirrorOutcomeCell row={row} outcomesLoaded={outcomesLoaded} />
+                  <MirrorOutcomeCell row={row} outcomesLoaded={outcomesLoaded} outcomesFailed={outcomesFailed} />
                 </td>
                 <td className="px-4 py-3">
                   {row.outcome?.status !== "skipped" && row.outcome?.txHash ? (
@@ -116,7 +118,7 @@ export function YourMirrors({
               <span className="text-muted">@ ${row.price}</span>
             </p>
             <div className="mt-2 flex items-start justify-between gap-3">
-              <MirrorOutcomeCell row={row} outcomesLoaded={outcomesLoaded} />
+              <MirrorOutcomeCell row={row} outcomesLoaded={outcomesLoaded} outcomesFailed={outcomesFailed} />
               {row.outcome?.status !== "skipped" && row.outcome?.txHash && (
                 <a
                   href={txUrl(row.outcome.txHash)}
@@ -138,9 +140,11 @@ export function YourMirrors({
 function MirrorOutcomeCell({
   row,
   outcomesLoaded,
+  outcomesFailed,
 }: {
   row: MirrorRow;
   outcomesLoaded: boolean;
+  outcomesFailed: boolean;
 }) {
   if (row.outcome?.status === "mirrored") {
     return <span className="text-profit">Mirrored</span>;
@@ -155,9 +159,13 @@ function MirrorOutcomeCell({
       </div>
     );
   }
+  // The history read gave up: unknown, and said plainly, not "Checking…"
+  // forever.
+  if (outcomesFailed) return <span className="text-muted">Couldn&apos;t check, reload to retry</span>;
   // Until the vault's past outcomes have loaded, no outcome means unknown.
   if (!outcomesLoaded) return <span className="text-muted">Checking…</span>;
-  // Neither Mirrored nor MirrorRejected: weren't following yet, or a sell
-  // clamped to zero held (§7.2). Not a rejection, never "blocked".
+  // Neither Mirrored nor MirrorRejected: fills from before the follow are
+  // already left out, so this is a sell clamped to zero held (§7.2). Not a
+  // rejection, never "blocked".
   return <span className="text-muted">Not mirrored, nothing held</span>;
 }

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   assertSuccessfulReceipt,
+  displayRecordedPrice,
   formatRecordedPrice,
   latestFillPage,
+  logWindows,
   TransactionRevertedError,
 } from "@/lib/onchain";
 
@@ -44,5 +46,37 @@ describe("on-chain unit boundaries", () => {
     expect(() => assertSuccessfulReceipt({ status: "reverted" }, HASH)).toThrow(
       TransactionRevertedError,
     );
+  });
+});
+
+describe("log windows", () => {
+  it("covers the range exactly, in order, with no overlap", () => {
+    const windows = logWindows(BigInt(10), BigInt(34), BigInt(10));
+    expect(windows).toEqual([
+      { fromBlock: BigInt(10), toBlock: BigInt(19) },
+      { fromBlock: BigInt(20), toBlock: BigInt(29) },
+      { fromBlock: BigInt(30), toBlock: BigInt(34) },
+    ]);
+  });
+
+  it("is one window when the range fits", () => {
+    expect(logWindows(BigInt(5), BigInt(5))).toEqual([
+      { fromBlock: BigInt(5), toBlock: BigInt(5) },
+    ]);
+  });
+
+  it("is empty when the start is past the end", () => {
+    expect(logWindows(BigInt(6), BigInt(5))).toEqual([]);
+  });
+});
+
+describe("recorded prices for display", () => {
+  it("rounds the simulated tape's eight decimals to the cent", () => {
+    expect(displayRecordedPrice(BigInt("23243970054"))).toBe("232.44");
+  });
+
+  it("keeps whole prices to two decimals, with no thousands separator", () => {
+    expect(displayRecordedPrice(BigInt("41600000000"))).toBe("416.00");
+    expect(displayRecordedPrice(BigInt("123456000000"))).toBe("1234.56");
   });
 });

@@ -2,19 +2,19 @@
 
 import { targetChain } from "@/lib/chains";
 import { formatUnits, type Address } from "viem";
-import { useReadContracts } from "wagmi";
+import { useAccount, useReadContracts } from "wagmi";
 import {
   addressesFor,
+  copyVaultAbi,
   isDeployed,
   trackRecordAbi,
 } from "@/lib/contracts";
 import { relativeTime } from "@/lib/format";
-import { ORACLE_PRICE_DECIMALS } from "@/lib/usdg";
 import {
   useMirrorOutcomes,
   type MirrorOutcome,
   } from "@/hooks/useMirrorOutcomes";
-import { latestFillPage } from "@/lib/onchain";
+import { displayRecordedPrice, latestFillPage } from "@/lib/onchain";
 import { useTokenMetadata } from "@/hooks/useTokenMetadata";
 
 /** The personal view of the public log (briefing §09.C): every fill from
@@ -78,7 +78,15 @@ function trimZeros(value: string): string {
 export function useMyMirrors(
   agentIds: number[],
   agentNames: Record<number, string>,
-): { rows: MirrorRow[]; isLoading: boolean; outcomesLoaded: boolean } {
+): {
+  rows: MirrorRow[];
+  isLoading: boolean;
+  outcomesLoaded: boolean;
+  /** The outcome history couldn't be read, rows say so instead of
+   *  "Checking…" forever. */
+  outcomesFailed: boolean;
+} {
+  const { address } = useAccount();
   // Public reads come from Mirror's own chain whether or not a wallet is
   // connected: keyed on the wallet's chain, a visitor with none saw no
   // contracts and got sample data instead.
@@ -96,6 +104,24 @@ export function useMyMirrors(
     })),
     query: { enabled: live },
   });
+  // Each follow only copies fills after the one current when it was made
+  // (CopyVault's follow boundary), so older fills were never this wallet's
+  // to mirror and don't belong in its list.
+  const boundariesRead = useReadContracts({
+    contracts: agentIds.map((id) => ({
+      address: addresses?.copyVault,
+      abi: copyVaultAbi,
+      functionName: "followFillBoundaryOf",
+      args: address ? [address, BigInt(id)] : undefined,
+    })),
+    query: { enabled: live && !!address && isDeployed(addresses?.copyVault) },
+  });
+  const boundaries = new Map<number, bigint>();
+  agentIds.forEach((id, index) => {
+    const boundary = boundariesRead.data?.[index]?.result;
+    if (typeof boundary === "bigint") boundaries.set(id, boundary);
+  });
+
   const pages = agentIds.flatMap((id, index) => {
     const count = countsRead.data?.[index]?.result;
     if (typeof count !== "bigint" || count === BigInt(0)) return [];
@@ -114,17 +140,26 @@ export function useMyMirrors(
 
   // No agentId: every Mirrored/MirrorRejected for this wallet, not one
   // agent's slice of it.
-  const { outcomes, historyLoaded } = useMirrorOutcomes();
+  const { outcomes, historyLoaded, historyFailed } = useMirrorOutcomes();
 
   const liveFills: { fill: RawFill }[] = live
     ? pages.flatMap((_, index) =>
-        asRawFills(fillsRead.data?.[index]?.result).map((fill) => ({ fill })),
+        asRawFills(fillsRead.data?.[index]?.result)
+          // Unknown boundary: hold the row back until it's read rather than
+          // flash a fill that may predate the follow.
+          .filter((fill) => {
+            const boundary = boundaries.get(Number(fill.agentId));
+            return boundary !== undefined && fill.fillId > boundary;
+          })
+          .map((fill) => ({ fill })),
       )
     : [];
   const tokens = [...new Set(liveFills.map(({ fill }) => fill.token))];
   const metadata = useTokenMetadata(tokens, live);
 
-  if (!live) return { rows: [], isLoading: false, outcomesLoaded: true };
+  if (!live) {
+    return { rows: [], isLoading: false, outcomesLoaded: true, outcomesFailed: false };
+  }
 
   const rows: MirrorRow[] = liveFills
     .sort((a, b) => (a.fill.fillId < b.fill.fillId ? 1 : a.fill.fillId > b.fill.fillId ? -1 : 0))
@@ -139,7 +174,7 @@ export function useMyMirrors(
         side: fill.isBuy ? "BUY" : "SELL",
         token: token?.symbol ?? "n/a",
         size: token ? trimZeros(formatUnits(fill.size, token.decimals)) : "n/a",
-        price: formatUnits(fill.price, ORACLE_PRICE_DECIMALS),
+        price: displayRecordedPrice(fill.price),
         time: relativeTime(Number(fill.timestamp)),
         timeAbsolute: date.toISOString(),
         outcome: outcomes[id],
@@ -148,7 +183,8 @@ export function useMyMirrors(
 
   return {
     rows,
-    isLoading: countsRead.isLoading || fillsRead.isLoading,
+    isLoading: countsRead.isLoading || fillsRead.isLoading || boundariesRead.isLoading,
     outcomesLoaded: historyLoaded,
+    outcomesFailed: historyFailed,
   };
 }

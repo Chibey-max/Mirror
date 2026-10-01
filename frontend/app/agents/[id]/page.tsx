@@ -277,24 +277,30 @@ export default function AgentDetailPage({
                 <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">
                   Your position
                 </p>
-                <dl className="mt-3 divide-y divide-border">
-                  {[
-                    { label: "Wallet", value: walletBalance },
-                    { label: "Vault free", value: freeBalance },
-                    { label: "Allocated here", value: allocated },
-                  ].map((row) => (
-                    <div
-                      key={row.label}
-                      className="data-row -mx-2 flex items-baseline justify-between gap-3 rounded-lg px-2 py-2.5"
-                    >
-                      <dt className="text-sm text-muted">{row.label}</dt>
-                      <dd className="pop origin-right tabular font-semibold">
-                        {row.value.toFixed(2)}{" "}
-                        <span className="text-xs text-muted">USDG</span>
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
+                {isConnected ? (
+                  <dl className="mt-3 divide-y divide-border">
+                    {[
+                      { label: "Wallet", value: walletBalance },
+                      { label: "Vault free", value: freeBalance },
+                      { label: "Allocated here", value: allocated },
+                    ].map((row) => (
+                      <div
+                        key={row.label}
+                        className="data-row -mx-2 flex items-baseline justify-between gap-3 rounded-lg px-2 py-2.5"
+                      >
+                        <dt className="text-sm text-muted">{row.label}</dt>
+                        <dd className="pop origin-right tabular font-semibold">
+                          {row.value.toFixed(2)}{" "}
+                          <span className="text-xs text-muted">USDG</span>
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : (
+                  <p className="mt-3 text-sm text-muted">
+                    Connect a wallet to see your balance and this follow.
+                  </p>
+                )}
 
                 {/*
                   The follow panel design prompt §5 asks for: cap, spent

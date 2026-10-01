@@ -8,6 +8,7 @@ import { fromUsdg, toUsdg } from "@/lib/usdg";
 import { StaleStateError } from "@/lib/writeErrors";
 import {
   useVaultConnection,
+  WALLET_REQUIRED,
   type WriteProgress,
 } from "@/hooks/useVaultConnection";
 
@@ -38,12 +39,12 @@ export const FAUCET_AMOUNT = 1000;
  * same shape, no chain.
  */
 export function useDeposit() {
-  const { live, address, addresses, writeContractAsync, publicClient, confirm } =
+  const { live, demo, address, addresses, writeContractAsync, publicClient, confirm } =
     useVaultConnection();
   const { chain } = useAccount();
 
-  const [mockWallet, setMockWallet] = useState(fixtureWallet.walletUsdg);
-  const [mockVault, setMockVault] = useState(fixtureWallet.vaultFree);
+  const [mockWallet, setMockWallet] = useState(demo ? fixtureWallet.walletUsdg : 0);
+  const [mockVault, setMockVault] = useState(demo ? fixtureWallet.vaultFree : 0);
 
   const walletRead = useReadContract({
     address: addresses?.usdg,
@@ -68,6 +69,7 @@ export function useDeposit() {
     amount: number,
     onProgress?: WriteProgress,
   ): Promise<{ txHash: string }> {
+    if (!live && !demo) throw new Error(WALLET_REQUIRED);
     if (!Number.isFinite(amount) || amount <= 0 || amount > walletBalance) {
       throw new StaleStateError(
         "That amount no longer matches your wallet balance. Close this and try again.",
@@ -135,12 +137,13 @@ export function useDeposit() {
    * visitor with an empty wallet can't deposit, so the whole flow stops at
    * step one. Never offered on a mainnet, where USDG is the real token.
    */
-  const faucetAvailable = !live || chain?.testnet === true;
+  const faucetAvailable = demo || (live && chain?.testnet === true);
 
   async function getTestUsdg(
     onProgress?: WriteProgress,
   ): Promise<{ txHash: string }> {
     if (!live || !addresses || !address) {
+      if (!demo) throw new Error(WALLET_REQUIRED);
       onProgress?.({ stage: "submitted", txHash: MOCK_MINT_TX });
       await new Promise((resolve) => setTimeout(resolve, 500));
       setMockWallet((balance) => balance + FAUCET_AMOUNT);

@@ -10,7 +10,13 @@ import {
   decodePolicyReason,
   type TokenSymbolResolver,
 } from "@/hooks/usePolicyError";
-import { addressesFor, copyVaultAbi, isDeployed } from "@/lib/contracts";
+import {
+  addressesFor,
+  copyVaultAbi,
+  deploymentBlockFor,
+  isDeployed,
+} from "@/lib/contracts";
+import { logWindows } from "@/lib/onchain";
 
 /**
  * What one agent fill did to YOUR vault (PRD v2.2 §7.1/§10).
@@ -93,9 +99,10 @@ function outcomesFrom(
 export function useMirrorOutcomes(
   agentId?: number,
   resolveSymbol?: TokenSymbolResolver,
-): { outcomes: MirrorOutcomes; historyLoaded: boolean } {
+): { outcomes: MirrorOutcomes; historyLoaded: boolean; historyFailed: boolean } {
   const { address } = useAccount();
-  const publicClient = usePublicClient();
+  // Mirror's chain, not whichever one the wallet happens to be on.
+  const publicClient = usePublicClient({ chainId: targetChain.id });
   const vault = addressesFor(targetChain.id)?.copyVault;
   const [watched, setWatched] = useState<MirrorOutcomes>({});
 
@@ -109,24 +116,31 @@ export function useMirrorOutcomes(
     queryKey: ["mirror-outcome-history", targetChain.id, vault, address, agentId ?? "all"],
     enabled: live && !!publicClient,
     queryFn: async () => {
-      const [mirrored, rejected] = await Promise.all([
+      // From the deployment block, in windows: "earliest" is rejected by
+      // the Robinhood RPC, which left every outcome on "Checking…".
+      const latest = await publicClient!.getBlockNumber();
+      const windows = logWindows(deploymentBlockFor(targetChain.id), latest);
+      const reads = windows.flatMap(({ fromBlock, toBlock }) => [
         publicClient!.getContractEvents({
           address: vault!,
           abi: copyVaultAbi,
           eventName: "Mirrored",
           args,
-          fromBlock: "earliest",
+          fromBlock,
+          toBlock,
         }),
         publicClient!.getContractEvents({
           address: vault!,
           abi: copyVaultAbi,
           eventName: "MirrorRejected",
           args,
-          fromBlock: "earliest",
+          fromBlock,
+          toBlock,
         }),
       ]);
+      const logs = (await Promise.all(reads)).flat();
       // Chain order, so a later outcome for the same fill wins.
-      return [...mirrored, ...rejected]
+      return logs
         .sort((a, b) =>
           a.blockNumber === b.blockNumber
             ? (a.logIndex ?? 0) - (b.logIndex ?? 0)
@@ -181,10 +195,12 @@ export function useMirrorOutcomes(
   });
 
   // Nothing to read (no wallet, or no deployment): no outcomes, not samples.
-  if (!live) return { outcomes: {}, historyLoaded: true };
+  if (!live) return { outcomes: {}, historyLoaded: true, historyFailed: false };
   return {
     // Watched outcomes are newer than anything in the one-off history read.
     outcomes: { ...outcomesFrom(history.data ?? [], resolveSymbol), ...watched },
     historyLoaded: history.isSuccess,
+    // After react-query's own retries: say so rather than check forever.
+    historyFailed: history.isError,
   };
 }
