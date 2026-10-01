@@ -57,10 +57,15 @@ jobs:
       # The journal is the runner's memory of what it has already sent. It
       # lives in the Actions cache between runs: saved under a key unique to
       # each run, restored by prefix, which returns the newest one.
+      # The live price log rides in the same cache entry as the journal, so
+      # the two are always restored together: a journal whose live ticks had
+      # no prices recorded would replay them on the wrong market.
       - name: Restore journal
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: runner/.mirror-runner.journal.json
+          path: |
+            runner/.mirror-runner.journal.json
+            runner/.mirror-runner.live-tape.json
           key: agents-journal-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: agents-journal-
 
@@ -74,6 +79,12 @@ jobs:
           RUNNER_RPC_URL: ${{ secrets.RUNNER_RPC_URL || 'https://rpc.testnet.chain.robinhood.com' }}
           RUNNER_PUBLIC_RPC_URL: https://rpc.testnet.chain.robinhood.com
           DEPLOYMENT_MANIFEST: ../deployments/46630.json
+          # tape (default): the seeded, simulated tape. chainlink: real prices
+          # from Robinhood Chain mainnet's Chainlink stock feeds. Set as a
+          # repository variable (Settings > Secrets and variables > Actions >
+          # Variables) to switch without a code change. One-way once live.
+          MIRROR_PRICE_SOURCE: ${{ vars.MIRROR_PRICE_SOURCE || 'tape' }}
+          PRICE_FEED_RPC_URL: ${{ vars.PRICE_FEED_RPC_URL || 'https://rpc.mainnet.chain.robinhood.com' }}
         run: npm run runner -- --next --steps=${{ inputs.steps || '1' }} --seed=state/journal.seed.json
 
       # Saved even when the run fails: a step that got halfway still sent
@@ -82,5 +93,7 @@ jobs:
         if: always() && hashFiles('runner/.mirror-runner.journal.json') != ''
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: runner/.mirror-runner.journal.json
+          path: |
+            runner/.mirror-runner.journal.json
+            runner/.mirror-runner.live-tape.json
           key: agents-journal-${{ github.run_id }}-${{ github.run_attempt }}
