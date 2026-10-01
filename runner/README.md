@@ -75,3 +75,27 @@ one. Outside GitHub Actions the CLI refuses to run; to run by hand, disable the 
 and pass `--allow-local`. The ledger check also refuses once a second runner has recorded anything.
 
 To pause the agents, disable the workflow. To top up gas, send testnet ETH to the manifest's `runner`.
+
+## Live prices (Chainlink)
+
+`MIRROR_PRICE_SOURCE=chainlink` makes `--next` trade on real stock prices instead of the seeded tape.
+The default is `tape`, and nothing changes until it is set (in CI, as the repository variable
+`MIRROR_PRICE_SOURCE`).
+
+Production Stock Token feeds exist only on Robinhood Chain **mainnet**; testnet ships mocks. The runner
+reads the mainnet Chainlink feeds — NVDA/USD, AAPL/USD, TSLA/USD, 8 decimals, 0.5% deviation or 24h
+heartbeat (`src/livePrices.ts`) — with a free `eth_call`: no wallet, no gas, no LINK. It publishes those
+values into this deployment's oracle exactly as before, so the contracts are unchanged and every price
+on chain is the real one.
+
+- **History.** Real prices cannot be regenerated, so each live tick's prices are written to
+  `.mirror-runner.live-tape.json` before the tick sends anything, with the mainnet round each came from.
+  A retry reuses them. CI caches the file in the same entry as the journal.
+- **The hand-over.** The tape had TSLA near $463 when the real price was $356. Spliced naively that is a
+  23% crash in one tick: Pulse sells into it and Red buys the "dip". Strategies therefore decide on live
+  prices converted into the tape's scale, anchored so the first live tick equals the last seeded one; real
+  moves after that keep their true percentages. The chain only ever sees real prices.
+- **Market closed.** If no feed has moved since the last tick, no tick is created and nothing is sent.
+- **One-way.** Once live prices start, `tape` mode and `--tick` refuse: they would replay live ticks on
+  simulated prices.
+- **Outcomes.** Nothing guarantees which agent wins on real prices.

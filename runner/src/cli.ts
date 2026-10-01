@@ -4,6 +4,8 @@ import { resolve } from "node:path";
 import { loadConfig, loadFixture, loadManifest, loadStrategy, strategyFileHash } from "./config";
 import { RunnerLock } from "./lock";
 import { ledgerDisagreement } from "./ledger";
+import { liveFeedClient, readLivePrices } from "./livePrices";
+import { decisionTape, liveStep, loadLiveLog, marketTick, saveLiveLog, type LiveLog } from "./liveTape";
 import { MirrorRunner } from "./runtime";
 import { extendTape } from "./tape";
 import type { AgentKey, DeploymentManifest, PriceTick, StrategyDefinition } from "./types";
@@ -87,6 +89,39 @@ async function assertLedgerAgrees(runner: MirrorRunner, floor: bigint): Promise<
 }
 
 /**
+ * Where the agents' prices come from. `tape` (the default) is the seeded,
+ * simulated tape; `chainlink` reads Robinhood Chain mainnet's Chainlink stock
+ * feeds and publishes those real prices into this deployment's oracle.
+ */
+type PriceSource = "tape" | "chainlink";
+
+function priceSource(): PriceSource {
+  const value = process.env.MIRROR_PRICE_SOURCE?.trim() || "tape";
+  if (value !== "tape" && value !== "chainlink") {
+    throw new Error(`MIRROR_PRICE_SOURCE must be tape or chainlink, not ${value}`);
+  }
+  return value;
+}
+
+function liveLogPath(): string {
+  return resolve(process.env.RUNNER_LIVE_TAPE?.trim() || ".mirror-runner.live-tape.json");
+}
+
+/**
+ * Once live prices have started there is no going back: the seeded tape
+ * would replay those ticks on prices that never happened, and the agents
+ * would act on positions they do not hold.
+ */
+function assertSourceFits(source: PriceSource, log: LiveLog | undefined): void {
+  if (source === "tape" && log) {
+    throw new Error(
+      `Live Chainlink prices started at tick ${log.startTick}; the seeded tape would replay those ticks ` +
+        "on simulated prices. Set MIRROR_PRICE_SOURCE=chainlink.",
+    );
+  }
+}
+
+/**
  * One scheduled step: every agent catches up to the most advanced one, then
  * all of them take the next tick together.
  *
@@ -128,19 +163,48 @@ async function runNext(steps: number, seedPath: string | undefined): Promise<voi
 
     // The gas report runs even when a step fails: an empty wallet is itself
     // the most likely reason a step fails, and the warning matters most then.
+    const source = priceSource();
+    const livePath = liveLogPath();
+    let liveLog = await loadLiveLog(livePath);
+    assertSourceFits(source, liveLog);
+    const feeds = source === "chainlink" ? liveFeedClient() : undefined;
+
     try {
     for (let step = 0; step < steps; ++step) {
       const goal = Math.max(...AGENTS.map((agent) => runner.nextTick(agent)));
-      const tape: PriceTick[] = extendTape(fixture, goal);
+      let tape: PriceTick[];
+      let market: (tick: number) => PriceTick | undefined = () => undefined;
+      let runGoal = true;
+
+      if (feeds) {
+        const result = await liveStep(goal, liveLog, () => readLivePrices(feeds));
+        liveLog = result.log;
+        if (result.kind === "recorded") {
+          // Durability boundary: the prices are on disk before anything is
+          // sent, so a run that dies mid-tick resumes at the same prices.
+          await saveLiveLog(livePath, liveLog);
+          if (liveLog.startTick === goal) process.stdout.write(`Live Chainlink prices start at tick ${goal}\n`);
+        }
+        if (result.kind === "idle") {
+          runGoal = false;
+          process.stdout.write(`No feed has moved since tick ${result.since}; no new tick this step\n`);
+        }
+        const log = liveLog;
+        tape = decisionTape(fixture, log, runGoal ? goal : goal - 1);
+        market = (tick) => (tick >= log.startTick ? marketTick(log, tick) : undefined);
+      } else {
+        tape = extendTape(fixture, goal);
+      }
 
       for (const agent of AGENTS) {
         for (let tick = runner.nextTick(agent); tick < goal; ++tick) {
-          const fills = await runner.runTick(agent, tape, strategies.get(agent)!, tick);
+          const fills = await runner.runTick(agent, tape, strategies.get(agent)!, tick, market(tick));
           process.stdout.write(`Caught up ${agent} tick ${tick}: ${fills} fill(s)\n`);
         }
       }
+      if (!runGoal) break;
       for (const agent of AGENTS) {
-        const fills = await runner.runTick(agent, tape, strategies.get(agent)!, goal);
+        const fills = await runner.runTick(agent, tape, strategies.get(agent)!, goal, market(goal));
         process.stdout.write(`Completed ${agent} tick ${goal}: ${fills} fill(s)\n`);
       }
     }
@@ -184,6 +248,8 @@ async function runOne(agent: AgentKey, tick: number): Promise<void> {
       loadFixture(config.fixturePath),
     ]);
     const strategy = await checkedStrategy(agent, manifest);
+    // --tick replays the seeded tape; it has no way to price a live tick.
+    assertSourceFits("tape", await loadLiveLog(liveLogPath()));
     const runner = await MirrorRunner.create(config, manifest);
     await runner.verifyWiring();
     await assertLedgerAgrees(runner, await seedFloor(argument("seed")));
