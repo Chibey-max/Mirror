@@ -61,11 +61,27 @@ jobs:
       # the two are always restored together: a journal whose live ticks had
       # no prices recorded would replay them on the wrong market.
       - name: Restore journal
+        id: journal
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             runner/.mirror-runner.journal.json
             runner/.mirror-runner.live-tape.json
+          key: agents-journal-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: agents-journal-
+
+      # A cache's version is derived from its path list, so caches saved when
+      # the journal was the only path are invisible to the restore above. The
+      # first run after the live price log was added found none, fell back to
+      # the seed, and correctly refused (24 fills on chain, 19 in the seed).
+      # Fall back to the journal-only shape; the save below writes the new
+      # shape, so this matters for one run. A stale old-shape journal is still
+      # caught by the ledger check, which runs before anything is sent.
+      - name: Restore journal (journal-only cache)
+        if: steps.journal.outputs.cache-matched-key == ''
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: runner/.mirror-runner.journal.json
           key: agents-journal-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: agents-journal-
 
