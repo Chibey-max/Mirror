@@ -6,7 +6,7 @@ import { Badge } from "@/components/Badge";
 import { CopyableHash } from "@/components/Copyable";
 import { PageHeader, SectionHeader } from "@/components/PageHeader";
 import { PnlChart } from "@/components/PnlChart";
-import { SimulatedMarketNote } from "@/components/SimulatedMarketNote";
+import { MarketNote } from "@/components/MarketNote";
 import { RetryBanner } from "@/components/RetryBanner";
 import { Reveal } from "@/components/Reveal";
 import { PageAtmosphere } from "@/components/PageAtmosphere";
@@ -227,7 +227,7 @@ export default function AgentDetailPage({
             </div>
             <div className="mt-5">
               <PnlChart points={pnlHistory} />
-              <SimulatedMarketNote className="mt-3" />
+              <MarketNote className="mt-3" />
             </div>
           </section>
         </Reveal>

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { AgentCard } from "@/components/AgentCard";
 import { LedgerStats } from "@/components/LedgerStats";
 import { PageHeader } from "@/components/PageHeader";
-import { SimulatedMarketNote } from "@/components/SimulatedMarketNote";
+import { MarketNote } from "@/components/MarketNote";
 import { PageAtmosphere } from "@/components/PageAtmosphere";
 import { Reveal } from "@/components/Reveal";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -66,7 +66,7 @@ export default function AgentsPage() {
             verifiable as a positive one, and hiding it would defeat the
             point.
           </p>
-          <SimulatedMarketNote className="mt-3 max-w-2xl" />
+          <MarketNote className="mt-3 max-w-2xl" />
         </Reveal>
 
         {ready && (

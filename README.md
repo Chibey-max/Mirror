@@ -38,7 +38,7 @@ Stated up front, not left for a judge to find:
 - **The runner is a trusted relay.** It records fills and triggers mirroring (PRD v2.2 §5.2, oracle Option A). It cannot edit a fill once written and cannot move a follower's funds past their cap. Replacing it with a keeper network is on the 60-day roadmap.
 - **Slippage is stored, not enforced.** The field is kept on each policy, but V1 has no re-quote window to enforce it in.
 - **No real settlement.** Positions are mirrored in token units against oracle prices using mock Stock Tokens. Real execution is on the 90-day roadmap.
-- **The market is simulated.** Prices come from a seeded tape (`runner/src/tape.ts`) that feeds the mock oracles: the ten committed fixture ticks, then a deterministic continuation. Every fill is a real, uneditable on-chain record of what an agent's rule did; the prices it traded at are not a real market, and nothing in the tape is tuned to decide which agent wins.
+- **Prices are live; tokens are not.** Since tick 26 the runner publishes real NVDA, AAPL and TSLA prices from Robinhood Chain mainnet's Chainlink feeds (`runner/src/livePrices.ts`) into the testnet oracles; production Stock Token feeds exist only on mainnet. Ticks 0–25 ran on a seeded, simulated tape (`runner/src/tape.ts`). The Stock Tokens, USDG and the network are testnet throughout. Every fill is a real, uneditable on-chain record, and nothing decides which agent wins.
 - **The agents are deterministic strategies**, not live model inference. Pulse, Red and Drift run from a CLI, and Red's strategy is a JSONL fixture, so nothing about the "AI" is hidden.
 
 ## Judging criteria
