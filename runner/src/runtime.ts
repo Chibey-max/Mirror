@@ -19,6 +19,7 @@ import { aggregatorAbi, copyVaultAbi, trackRecordAbi } from "./abi";
 import type { RunnerConfig } from "./config";
 import { RunnerJournal } from "./journal";
 import { DurableTransactionSender, type SignedTransaction, type TransactionPort } from "./sender";
+import { nextNonce } from "./nonce";
 import { decisionsAtTick } from "./strategy";
 import type { AgentKey, DeploymentManifest, PriceTick, Symbol } from "./types";
 import { symbols } from "./types";
@@ -64,7 +65,14 @@ function errorText(error: unknown): string {
 }
 
 class ViemTransactionPort implements TransactionPort {
-  constructor(private readonly client: PublicClient) {}
+  constructor(
+    private readonly client: PublicClient,
+    private readonly address: Address,
+  ) {}
+
+  async confirmedNonce(): Promise<number> {
+    return this.client.getTransactionCount({ address: this.address, blockTag: "latest" });
+  }
 
   async broadcast(rawTransaction: Hex): Promise<Hex> {
     return this.client.sendRawTransaction({ serializedTransaction: rawTransaction });
@@ -104,7 +112,7 @@ export class MirrorRunner {
       transport: fallback([http(config.rpcUrl), http(config.publicRpcUrl)]),
     });
     this.walletClient = createWalletClient({ account: this.account, chain: this.chain, transport: http(config.rpcUrl) });
-    this.sender = new DurableTransactionSender(this.journal, new ViemTransactionPort(this.publicClient));
+    this.sender = new DurableTransactionSender(this.journal, new ViemTransactionPort(this.publicClient, this.account.address));
   }
 
   static async create(config: RunnerConfig, manifest: DeploymentManifest): Promise<MirrorRunner> {
@@ -434,7 +442,12 @@ export class MirrorRunner {
 
   private async signContractCall(to: Address, data: Hex, simulate: () => Promise<void>): Promise<SignedTransaction> {
     await simulate();
-    const request = await this.walletClient.prepareTransactionRequest({ account: this.account, to, data });
+    const chainPending = await this.publicClient.getTransactionCount({
+      address: this.account.address,
+      blockTag: "pending",
+    });
+    const nonce = nextNonce(chainPending, this.journal.highestMinedNonce());
+    const request = await this.walletClient.prepareTransactionRequest({ account: this.account, to, data, nonce });
     const rawTransaction = await this.walletClient.signTransaction(request);
     return { rawTransaction, hash: keccak256(rawTransaction), nonce: request.nonce };
   }
