@@ -229,7 +229,22 @@ export class MirrorRunner {
     }
   }
 
-  async runTick(agent: AgentKey, ticks: PriceTick[], strategy: Parameters<typeof decisionsAtTick>[1], tick: number) {
+  /**
+   * `ticks` is what the strategy decides on; `market`, when given, is what the
+   * tick publishes to the oracle and prices its fills at. They are the same
+   * thing on the seeded tape. With live Chainlink prices they differ in scale
+   * only: decisions run on live prices converted into the tape's scale, so the
+   * switch from simulated to real reads as a flat step rather than an
+   * imaginary jump, while the chain only ever sees the real price.
+   */
+  async runTick(
+    agent: AgentKey,
+    ticks: PriceTick[],
+    strategy: Parameters<typeof decisionsAtTick>[1],
+    tick: number,
+    market?: PriceTick,
+  ) {
+    if (market && market.tick !== tick) throw new Error(`Market prices are for tick ${market.tick}, not ${tick}`);
     const decisions = decisionsAtTick(agent, strategy, ticks, tick);
     const index = ticks.findIndex((candidate) => candidate.tick === tick);
     if (index < 0) throw new Error(`Unknown fixture tick ${tick}`);
@@ -243,7 +258,7 @@ export class MirrorRunner {
       }
     }
 
-    const priceTick = ticks[index];
+    const priceTick = market ?? ticks[index];
     await this.updateOraclePrices(agent, deploymentKey, priceTick);
     for (const decision of decisions) {
       await this.processTrade(
