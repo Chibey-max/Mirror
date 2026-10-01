@@ -15,6 +15,8 @@ export type TransactionReceipt = {
 export interface TransactionPort {
   broadcast(rawTransaction: Hex): Promise<Hex>;
   receipt(hash: Hex): Promise<TransactionReceipt>;
+  /** How many of the runner's transactions are mined: its next free nonce. */
+  confirmedNonce(): Promise<number>;
 }
 
 export type SenderOptions = {
@@ -22,9 +24,15 @@ export type SenderOptions = {
   baseDelayMs?: number;
   sleep?: (milliseconds: number) => Promise<void>;
   random?: () => number;
+  /** Checks, spaced deadCheckIntervalMs apart, before a transaction is judged dead. */
+  deadChecks?: number;
+  deadCheckIntervalMs?: number;
 };
 
 export class TransactionFailedError extends Error {}
+
+/** The transaction never reached a receipt within this run's budget. Not a failure: it may still land. */
+export class RetryBudgetExhaustedError extends Error {}
 
 const defaultSleep = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 
@@ -82,6 +90,10 @@ export class DurableTransactionSender {
   private readonly baseDelayMs: number;
   private readonly sleep: (milliseconds: number) => Promise<void>;
   private readonly random: () => number;
+  private readonly deadChecks: number;
+  private readonly deadCheckIntervalMs: number;
+  /** Ids this process signed. Only a transaction carried over from an earlier run can be judged dead. */
+  private readonly signedThisRun = new Set<string>();
 
   constructor(
     private readonly journal: RunnerJournal,
@@ -92,6 +104,8 @@ export class DurableTransactionSender {
     this.baseDelayMs = options.baseDelayMs ?? 250;
     this.sleep = options.sleep ?? defaultSleep;
     this.random = options.random ?? Math.random;
+    this.deadChecks = options.deadChecks ?? 3;
+    this.deadCheckIntervalMs = options.deadCheckIntervalMs ?? 10_000;
   }
 
   async send(id: string, signOnce: () => Promise<SignedTransaction>): Promise<TransactionEntry> {
@@ -99,13 +113,66 @@ export class DurableTransactionSender {
     if (entry?.status === "confirmed") return entry;
     if (entry?.status === "failed") throw new TransactionFailedError(entry.failure ?? `${id} previously failed`);
 
-    if (!entry) {
-      const signed = await signOnce();
-      entry = { status: "signed", ...signed };
-      // Durability boundary: signed bytes and their hash exist on disk before the first RPC send.
-      await this.journal.saveTransaction(id, entry);
-    }
+    if (!entry) entry = await this.signAndSave(id, signOnce);
 
+    try {
+      return await this.deliver(id, entry);
+    } catch (error) {
+      if (!(error instanceof RetryBudgetExhaustedError)) throw error;
+      // Only a transaction from an earlier run is old enough to judge: lag is
+      // seconds, runs are minutes apart. One signed in this run that wedges is
+      // left for the next run to judge.
+      if (this.signedThisRun.has(id) || !(await this.provablyDead(entry))) throw error;
+      const replacement = await this.signAndSave(id, signOnce, entry.hash);
+      return await this.deliver(id, replacement);
+    }
+  }
+
+  private async signAndSave(id: string, signOnce: () => Promise<SignedTransaction>, replaces?: Hex): Promise<TransactionEntry> {
+    const signed = await signOnce();
+    const entry: TransactionEntry = { status: "signed", ...signed, ...(replaces ? { replaces } : {}) };
+    // Durability boundary: signed bytes and their hash exist on disk before the first RPC send.
+    await this.journal.saveTransaction(id, entry);
+    this.signedThisRun.add(id);
+    return entry;
+  }
+
+  /**
+   * Whether a signed transaction can never be mined.
+   *
+   * A nonce is used exactly once on chain. If the runner's nonce has moved
+   * past this transaction's and this transaction's own hash has no receipt,
+   * some other transaction took the slot and this one never ran. Checked
+   * several times, spaced apart, so a lagging node cannot pass for a missing
+   * receipt; any answer that is not a clear "not found" counts as not dead.
+   *
+   * This is what wedged the runner on 1 Oct: a write signed with an
+   * already-used nonce got "nonce too low" on every rebroadcast, which the
+   * sender reads as "may already be mined", and waited for a receipt that
+   * could not exist, run after run.
+   */
+  private async provablyDead(entry: TransactionEntry): Promise<boolean> {
+    for (let check = 0; check < this.deadChecks; ++check) {
+      if (check > 0) await this.sleep(this.deadCheckIntervalMs);
+      let mined: number;
+      try {
+        mined = await this.port.confirmedNonce();
+      } catch {
+        return false;
+      }
+      if (mined <= entry.nonce) return false;
+      try {
+        await this.port.receipt(entry.hash);
+        return false;
+      } catch (error) {
+        const notFound = error instanceof TransactionReceiptNotFoundError || /not (be )?found/i.test(message(error));
+        if (!notFound) return false;
+      }
+    }
+    return true;
+  }
+
+  private async deliver(id: string, entry: TransactionEntry): Promise<TransactionEntry> {
     let lastError = "transaction did not reach a receipt";
     for (let attempt = 0; attempt < this.maxAttempts; ++attempt) {
       try {
@@ -155,7 +222,7 @@ export class DurableTransactionSender {
     }
 
     // Do not mark a timeout failed: it may still be pending, and the next run must resume the same hash.
-    throw new Error(`Retry budget exhausted for ${entry.hash}: ${lastError}`);
+    throw new RetryBudgetExhaustedError(`Retry budget exhausted for ${entry.hash}: ${lastError}`);
   }
 
   private delay(attempt: number): number {

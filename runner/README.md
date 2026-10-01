@@ -99,3 +99,19 @@ on chain is the real one.
 - **One-way.** Once live prices start, `tape` mode and `--tick` refuse: they would replay live ticks on
   simulated prices.
 - **Outcomes.** Nothing guarantees which agent wins on real prices.
+
+## Nonces and dead transactions
+
+The public RPC is load-balanced, and a node that has not imported the runner's last transaction reports
+a nonce already used. On 1 Oct at 16:15 UTC a price write was signed that way, every rebroadcast got
+"nonce too low" (which the sender reads as "may already be mined"), and the agents stopped for five
+hours.
+
+- **Signing** (`src/nonce.ts`) uses the higher of the RPC's pending nonce and one past the highest nonce
+  the journal knows was mined. The runner is the only sender for its key, so a lagging node can no
+  longer make it reuse a nonce. Only mined nonces count, so it can never open a gap.
+- **Dead transactions** (`DurableTransactionSender.provablyDead`). A transaction carried over from an
+  earlier run is re-signed only when the runner's nonce has moved past it and its own hash has no
+  receipt, checked three times ten seconds apart. A nonce is used once, so such a transaction can never
+  be mined, and re-signing it cannot duplicate anything. One signed in the current run is never judged;
+  the next run does that. The replacement records the dead hash in `replaces`.
