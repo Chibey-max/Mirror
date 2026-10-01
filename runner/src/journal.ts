@@ -12,6 +12,8 @@ export type TransactionEntry = {
   nonce: number;
   blockNumber?: string;
   failure?: string;
+  /** The hash of a dead transaction this one was signed to replace. */
+  replaces?: Hex;
 };
 
 export type TradeEntry = {
@@ -111,6 +113,24 @@ export class RunnerJournal {
     const trade = this.state.trades[id] ?? { status: "planned" as const };
     this.state.trades[id] = { ...trade, status: "failed", failure };
     await this.persist();
+  }
+
+  /**
+   * The highest nonce this journal knows was mined: confirmed transactions,
+   * plus ones that reverted (a revert is mined, and consumes its nonce).
+   * Signed-but-unconfirmed and pre-inclusion failures are excluded on
+   * purpose: their nonce may never have been used, and counting it would
+   * leave a gap that every later transaction waits behind forever.
+   */
+  highestMinedNonce(): number | undefined {
+    let highest: number | undefined;
+    for (const entry of Object.values(this.state.transactions)) {
+      const mined =
+        entry.status === "confirmed" ||
+        (entry.status === "failed" && /^Transaction 0x[0-9a-fA-F]+ reverted$/.test(entry.failure ?? ""));
+      if (mined && (highest === undefined || entry.nonce > highest)) highest = entry.nonce;
+    }
+    return highest;
   }
 
   /**

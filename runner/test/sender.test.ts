@@ -6,6 +6,7 @@ import { TransactionReceiptNotFoundError } from "viem";
 import { RunnerJournal } from "../src/journal";
 import {
   DurableTransactionSender,
+  RetryBudgetExhaustedError,
   RunnerUnfundedError,
   TransactionFailedError,
   type TransactionPort,
@@ -22,6 +23,7 @@ describe("DurableTransactionSender", () => {
     const directory = await mkdtemp(join(tmpdir(), "mirror-runner-"));
     const path = join(directory, "journal.json");
     const broke: TransactionPort = {
+      confirmedNonce: vi.fn().mockResolvedValue(0),
       broadcast: vi.fn().mockRejectedValue(new Error("Insufficient funds for gas * price + value")),
       receipt: vi.fn(),
     };
@@ -34,6 +36,7 @@ describe("DurableTransactionSender", () => {
     expect(JSON.parse(await readFile(path, "utf8")).transactions["oracle:1"].status).toBe("signed");
 
     const funded: TransactionPort = {
+      confirmedNonce: vi.fn().mockResolvedValue(0),
       broadcast: vi.fn().mockResolvedValue(hash),
       receipt: vi.fn().mockResolvedValue({ status: "success", blockNumber: BigInt(12) }),
     };
@@ -51,6 +54,7 @@ describe("DurableTransactionSender", () => {
     const path = join(directory, "journal.json");
     const firstJournal = await RunnerJournal.open(path);
     const firstPort: TransactionPort = {
+      confirmedNonce: vi.fn().mockResolvedValue(0),
       broadcast: vi.fn().mockRejectedValue(new Error("RPC timeout")),
       receipt: vi.fn().mockRejectedValue(new Error("transaction not found")),
     };
@@ -66,6 +70,7 @@ describe("DurableTransactionSender", () => {
 
     const secondJournal = await RunnerJournal.open(path);
     const secondPort: TransactionPort = {
+      confirmedNonce: vi.fn().mockResolvedValue(0),
       broadcast: vi.fn().mockResolvedValue(hash),
       receipt: vi.fn().mockResolvedValue({ status: "success", blockNumber: BigInt(99) }),
     };
@@ -82,6 +87,7 @@ describe("DurableTransactionSender", () => {
     const directory = await mkdtemp(join(tmpdir(), "mirror-runner-"));
     const journal = await RunnerJournal.open(join(directory, "journal.json"));
     const port: TransactionPort = {
+      confirmedNonce: vi.fn().mockResolvedValue(0),
       broadcast: vi.fn().mockResolvedValue(hash),
       // viem's real error, whose message says "could not be found": the
       // wording the old text match missed, so a mined transaction was
@@ -104,6 +110,7 @@ describe("DurableTransactionSender", () => {
     const path = join(directory, "journal.json");
     const journal = await RunnerJournal.open(path);
     const port: TransactionPort = {
+      confirmedNonce: vi.fn().mockResolvedValue(0),
       broadcast: vi.fn().mockResolvedValue(hash),
       receipt: vi.fn().mockResolvedValue({ status: "reverted", blockNumber: BigInt(8) }),
     };
@@ -120,6 +127,7 @@ describe("DurableTransactionSender", () => {
     const directory = await mkdtemp(join(tmpdir(), "mirror-runner-"));
     const journal = await RunnerJournal.open(join(directory, "journal.json"));
     const port: TransactionPort = {
+      confirmedNonce: vi.fn().mockResolvedValue(0),
       broadcast: vi.fn().mockRejectedValue(new Error("nonce too low")),
       receipt: vi.fn().mockResolvedValue({ status: "success", blockNumber: BigInt(12) }),
     };
@@ -135,6 +143,7 @@ describe("DurableTransactionSender", () => {
     const journal = await RunnerJournal.open(join(directory, "journal.json"));
     const otherHash = `0x${"34".repeat(32)}` as const;
     const port: TransactionPort = {
+      confirmedNonce: vi.fn().mockResolvedValue(0),
       broadcast: vi.fn().mockResolvedValue(otherHash),
       receipt: vi.fn(),
     };
@@ -143,5 +152,85 @@ describe("DurableTransactionSender", () => {
       sender.send("fill:wrong-hash", async () => ({ rawTransaction: raw, hash, nonce: 1 })),
     ).rejects.toBeInstanceOf(TransactionFailedError);
     expect(port.receipt).not.toHaveBeenCalled();
+  });
+});
+
+describe("DurableTransactionSender: dead transactions", () => {
+  const stale = { rawTransaction: "0x0aaa" as const, hash: `0x${"aa".repeat(32)}` as const, nonce: 405 };
+  const fresh = { rawTransaction: "0x0bbb" as const, hash: `0x${"bb".repeat(32)}` as const, nonce: 411 };
+  const tooLow = () => new Error("nonce too low: next nonce 411, tx nonce 405");
+  const fast = { maxAttempts: 2, sleep: async () => undefined };
+
+  /** A port where the stale transaction can never land and the fresh one lands at once. */
+  function chain(overrides: Partial<TransactionPort> = {}): TransactionPort {
+    return {
+      broadcast: vi.fn(async (raw: string) => {
+        if (raw === stale.rawTransaction) throw tooLow();
+        return fresh.hash;
+      }),
+      receipt: vi.fn(async (h: string) => {
+        if (h === fresh.hash) return { status: "success" as const, blockNumber: BigInt(77) };
+        throw new TransactionReceiptNotFoundError({ hash: h as `0x${string}` });
+      }),
+      confirmedNonce: vi.fn(async () => 411),
+      ...overrides,
+    };
+  }
+
+  /** The 16:15 incident: a transaction left signed with a used nonce by an earlier run. */
+  async function carriedOver(): Promise<string> {
+    const path = join(await mkdtemp(join(tmpdir(), "mirror-dead-")), "journal.json");
+    const earlier = await RunnerJournal.open(path);
+    await earlier.saveTransaction("red:tick:37:oracle:mAAPL", { status: "signed", ...stale });
+    return path;
+  }
+
+  it("re-signs a transaction from an earlier run whose nonce is taken and that never mined", async () => {
+    const path = await carriedOver();
+    const signer = vi.fn().mockResolvedValue(fresh);
+    const sender = new DurableTransactionSender(await RunnerJournal.open(path), chain(), fast);
+
+    const confirmed = await sender.send("red:tick:37:oracle:mAAPL", signer);
+    expect(signer).toHaveBeenCalledTimes(1);
+    expect(confirmed).toMatchObject({ status: "confirmed", hash: fresh.hash, nonce: 411, replaces: stale.hash });
+  });
+
+  it("never judges a transaction signed in this run: the next run does", async () => {
+    const path = join(await mkdtemp(join(tmpdir(), "mirror-dead-")), "journal.json");
+    const signer = vi.fn().mockResolvedValue(stale);
+    const sender = new DurableTransactionSender(await RunnerJournal.open(path), chain(), fast);
+
+    await expect(sender.send("red:tick:37:oracle:mAAPL", signer)).rejects.toBeInstanceOf(RetryBudgetExhaustedError);
+    expect(signer).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not re-sign when the receipt turns up during the checks (it was mined, a node lagged)", async () => {
+    const path = await carriedOver();
+    const signer = vi.fn().mockResolvedValue(fresh);
+    let calls = 0;
+    const lagging = chain({
+      receipt: vi.fn(async (h: string) => {
+        // Missing for the whole delivery budget, then visible.
+        if (++calls > fast.maxAttempts) return { status: "success" as const, blockNumber: BigInt(70) };
+        throw new TransactionReceiptNotFoundError({ hash: h as `0x${string}` });
+      }),
+    });
+    const sender = new DurableTransactionSender(await RunnerJournal.open(path), lagging, fast);
+
+    await expect(sender.send("red:tick:37:oracle:mAAPL", signer)).rejects.toBeInstanceOf(RetryBudgetExhaustedError);
+    expect(signer).not.toHaveBeenCalled();
+  });
+
+  it("does not re-sign while the transaction's nonce is still free (it may yet be mined)", async () => {
+    const path = await carriedOver();
+    const signer = vi.fn().mockResolvedValue(fresh);
+    const pending = chain({
+      broadcast: vi.fn(async () => stale.hash),
+      confirmedNonce: vi.fn(async () => stale.nonce),
+    });
+    const sender = new DurableTransactionSender(await RunnerJournal.open(path), pending, fast);
+
+    await expect(sender.send("red:tick:37:oracle:mAAPL", signer)).rejects.toBeInstanceOf(RetryBudgetExhaustedError);
+    expect(signer).not.toHaveBeenCalled();
   });
 });
