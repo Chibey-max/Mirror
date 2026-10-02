@@ -16,6 +16,7 @@ import { computeAgentPnl, pnlPctSeries, type MirroredTrade } from "@/lib/pnl";
 import { formatRecordedPrice } from "@/lib/onchain";
 import { toDisplayFill, useFillEvents, type IndexedFill } from "@/hooks/useFillEvents";
 import { useTokenMetadata } from "@/hooks/useTokenMetadata";
+import { useFillTxHashes } from "@/hooks/useFillTxHashes";
 
 export type Agent = FixtureAgent;
 export type AgentFill = FixtureFill;
@@ -205,6 +206,9 @@ export function useAgents(): {
     ...new Set([...fillsByAgent.values()].flat().map((fill) => fill.token)),
   ];
   const metadata = useTokenMetadata(tokens, live);
+  const fetchedFills = [...fillsByAgent.values()].reduce((n, list) => n + list.length, 0);
+  // Every agent's FillRecorded events: the transactions the view leaves out.
+  const txHashes = useFillTxHashes(undefined, live ? fetchedFills : 0);
 
   const refetch = useCallback(() => {
     void count.refetch();
@@ -284,12 +288,17 @@ export function useAgents(): {
   });
 
   // TrackRecord's Fill struct carries agentId and timestamp too, so these
-  // display exactly as useFillEvents' do. No txHash: the view returns the
-  // fill, not the transaction that recorded it.
+  // display exactly as useFillEvents' do. The view returns the fill, not the
+  // transaction that recorded it; that comes from its FillRecorded event.
   const fills: AgentFill[] = [...fillsByAgent.values()]
     .flat()
     .sort((a, b) => (a.fillId < b.fillId ? 1 : a.fillId > b.fillId ? -1 : 0))
-    .map((fill) => toDisplayFill(fill as unknown as IndexedFill, metadata.get(fill.token)));
+    .map((fill) =>
+      toDisplayFill(
+        { ...(fill as unknown as IndexedFill), txHash: txHashes.get(fill.fillId.toString()) },
+        metadata.get(fill.token),
+      ),
+    );
 
   return {
     agents,

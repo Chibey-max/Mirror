@@ -10,6 +10,7 @@ import { relativeTime } from "@/lib/format";
 import { shortAddress, type TokenMetadata } from "@/lib/tokens";
 import { displayRecordedPrice, latestFillPage } from "@/lib/onchain";
 import { useTokenMetadata } from "@/hooks/useTokenMetadata";
+import { useFillTxHashes } from "@/hooks/useFillTxHashes";
 
 /**
  * TrackRecord's FillRecorded event, hand-kept in sync with
@@ -177,6 +178,9 @@ export function useFillEvents(agentId?: number): {
   const unique = new Map(onChain.map((fill) => [fill.fillId.toString(), fill]));
   const tokens = [...new Set([...unique.values()].map((fill) => fill.token))];
   const metadata = useTokenMetadata(tokens, live);
+  // The view returns fills without the transaction that recorded them;
+  // their FillRecorded events have it.
+  const txHashes = useFillTxHashes(live ? agentId : undefined, live ? unique.size : 0);
 
   const refetch = () => {
     void countRead.refetch();
@@ -194,7 +198,12 @@ export function useFillEvents(agentId?: number): {
   // and the id is the order TrackRecord actually recorded them in.
   const fills = [...unique.values()]
     .sort((a, b) => (a.fillId < b.fillId ? 1 : a.fillId > b.fillId ? -1 : 0))
-    .map((fill) => toDisplayFill(fill, metadata.get(fill.token)));
+    .map((fill) =>
+      toDisplayFill(
+        { ...fill, txHash: fill.txHash ?? txHashes.get(fill.fillId.toString()) },
+        metadata.get(fill.token),
+      ),
+    );
 
   // Older fills exist exactly when the window doesn't reach the first one.
   const hasMore = page.offset > BigInt(0);
@@ -223,8 +232,9 @@ export function toDisplayFill(
       : "n/a",
     priceFormatted: displayRecordedPrice(fill.price),
     timeFormatted: relativeTime(Number(fill.timestamp)),
-    // Only a watched fill has one. A row without it renders without the
-    // explorer link rather than linking somewhere wrong.
+    // From the watch, or read back from FillRecorded (useFillTxHashes). A
+    // row still without one renders without the explorer link rather than
+    // linking somewhere wrong.
     txHash: fill.txHash ?? "",
     // fillIds are issued in order, which is all `sequence` is for.
     sequence: Number(fill.fillId),
