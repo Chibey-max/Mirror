@@ -1,7 +1,8 @@
 "use client";
 
 import { Badge } from "@/components/Badge";
-import { Pager, Showing } from "@/components/Pager";
+import { useRef } from "react";
+import { Pager } from "@/components/Pager";
 import { usePaged } from "@/hooks/usePaged";
 import { txUrl } from "@/lib/chains";
 import type { AgentFill } from "@/hooks/useAgents";
@@ -10,8 +11,9 @@ import type { AgentFill } from "@/hooks/useAgents";
 const PAGE_SIZE = 8;
 
 export function AgentTapeTable({ fills }: { fills: AgentFill[] }) {
-  const paging = usePaged(fills, PAGE_SIZE);
-  const { page, pageCount, goTo, rows, start, missing, paged, rowMotion } = paging;
+  const anchor = useRef<HTMLDivElement>(null);
+  const paging = usePaged(fills, PAGE_SIZE, anchor);
+  const { page, rows, missing, paged, rowMotion } = paging;
   if (fills.length === 0) {
     return (
       <div className="panel rounded-3xl p-6 text-sm text-muted">
@@ -21,7 +23,7 @@ export function AgentTapeTable({ fills }: { fills: AgentFill[] }) {
   }
 
   return (
-    <>
+    <div ref={anchor}>
       {/* Phones get one card per fill; the table needed 680px and scrolled
           sideways, hiding the explorer link off the right edge. */}
       <ul className="flex flex-col gap-2 sm:hidden">
@@ -57,9 +59,8 @@ export function AgentTapeTable({ fills }: { fills: AgentFill[] }) {
         ))}
       </ul>
       {paged && (
-        <div className="mt-3 flex flex-col items-center gap-2 sm:hidden">
-          <Pager page={page} pageCount={pageCount} onChange={goTo} label="Verified tape pages" />
-          <Showing start={start} shown={rows.length} total={fills.length} />
+        <div className="panel mt-3 overflow-hidden rounded-3xl sm:hidden">
+          <Pager paging={paging} label="Verified tape pages" />
         </div>
       )}
       <div className="hidden overflow-hidden panel rounded-3xl sm:block">
@@ -125,13 +126,8 @@ export function AgentTapeTable({ fills }: { fills: AgentFill[] }) {
             </tbody>
           </table>
         </div>
-        {paged && (
-          <div className="flex items-center justify-between gap-4 border-t border-border px-4 py-3">
-            <Showing start={start} shown={rows.length} total={fills.length} />
-            <Pager page={page} pageCount={pageCount} onChange={goTo} label="Verified tape pages" />
-          </div>
-        )}
+        {paged && <Pager paging={paging} label="Verified tape pages" />}
       </div>
-    </>
+    </div>
   );
 }

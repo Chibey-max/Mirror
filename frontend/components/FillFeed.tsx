@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Badge } from "@/components/Badge";
 import { MetalButton } from "@/components/MetalButton";
-import { Pager, Showing } from "@/components/Pager";
+import { Pager } from "@/components/Pager";
 import { usePaged } from "@/hooks/usePaged";
 import {
   enforcedBy,
@@ -67,7 +67,25 @@ export function FillFeed({
   const announcement = arrived
     ? `New fill: ${arrived.side === "BUY" ? "bought" : "sold"} ${arrived.size} ${arrived.token} at $${arrived.price}.`
     : "";
-  const { page, pageCount, goTo, rows, start, paged, rowMotion } = usePaged(fills, 8);
+  const anchor = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const paging = usePaged(fills, 8, anchor);
+  const { page, pageCount, phase, rows, paged, rowMotion } = paging;
+
+  // Pages differ in height (a blocked fill takes two lines), so the list
+  // glides to its new height instead of snapping: held at the old height
+  // while rows leave, eased to the new one as they arrive, then let go.
+  useLayoutEffect(() => {
+    const wrap = anchor.current, list = listRef.current;
+    if (!wrap || !list) return;
+    if (phase === "out") {
+      wrap.style.height = `${wrap.offsetHeight}px`;
+    } else if (phase === "in") {
+      wrap.style.height = `${list.offsetHeight}px`;
+    } else {
+      wrap.style.height = "";
+    }
+  }, [phase, page]);
   const liveRegion = (
     <p className="sr-only" aria-live="polite" aria-atomic="true">
       {announcement}
@@ -89,7 +107,11 @@ export function FillFeed({
   return (
     <div>
       {liveRegion}
-      <ul className="flex flex-col gap-2">
+      <div
+        ref={anchor}
+        className="overflow-hidden transition-[height] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+      >
+      <ul ref={listRef} className="flex flex-col gap-2 pb-1">
         {rows.map((fill, index) => {
           const outcome = outcomes[fill.id];
           const motion = rowMotion(index);
@@ -156,20 +178,24 @@ export function FillFeed({
           );
         })}
       </ul>
-
-      <div className="mt-3 flex flex-col-reverse items-center gap-2 sm:flex-row sm:justify-between">
-        <Showing start={start} shown={rows.length} total={totalCount ?? fills.length} />
-        <div className="flex items-center gap-2">
-          {paged && (
-            <Pager page={page} pageCount={pageCount} onChange={goTo} label="Live activity pages" />
-          )}
-          {onLoadMore && hasMore && page === pageCount - 1 && (
-            <MetalButton tone="quiet" size="sm" onClick={onLoadMore}>
-              Load earlier
-            </MetalButton>
-          )}
-        </div>
       </div>
+
+      {paged && (
+        <div className="panel mt-3 overflow-hidden rounded-3xl">
+          <Pager paging={paging} label="Live activity pages" />
+        </div>
+      )}
+      {onLoadMore && hasMore && page === pageCount - 1 && (
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <p className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-muted">
+            {fills.length}
+            {typeof totalCount === "number" ? ` of ${totalCount}` : ""} loaded
+          </p>
+          <MetalButton tone="quiet" size="sm" onClick={onLoadMore}>
+            Load earlier
+          </MetalButton>
+        </div>
+      )}
     </div>
   );
 }
