@@ -806,3 +806,30 @@ body::before {
     animation: none;
   }
 }
+
+/* A page of rows arriving: a short slide from the side the reader is
+   heading, and the blur of something moving past, settling as it lands. */
+@keyframes pageInNext {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+@keyframes pageInPrev {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}

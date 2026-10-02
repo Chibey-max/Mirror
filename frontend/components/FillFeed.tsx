@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Badge } from "@/components/Badge";
 import { MetalButton } from "@/components/MetalButton";
+import { Pager, Showing } from "@/components/Pager";
+import { usePaged } from "@/hooks/usePaged";
 import {
   enforcedBy,
   type PolicyRejectReason,
@@ -25,9 +27,10 @@ import type { FixtureFill } from "@/lib/fixtures";
  * `fills` comes from hooks/useFillEvents, which backfills from TrackRecord
  * and watches FillRecorded; `outcomes` from hooks/useMirrorOutcomes.
  *
- * Pagination (briefing §09.E): a button, not infinite scroll, a panel with
- * a sticky follow column beside it can't afford to have the kill switch
- * pushed off-screen by an autoloading feed.
+ * Pagination (briefing §09.E): pages of eight, not infinite scroll, a panel
+ * with a sticky follow column beside it can't afford to have the kill switch
+ * pushed off-screen by an autoloading feed. Older fills not fetched yet load
+ * from the last page.
  */
 export function FillFeed({
   fills,
@@ -64,6 +67,7 @@ export function FillFeed({
   const announcement = arrived
     ? `New fill: ${arrived.side === "BUY" ? "bought" : "sold"} ${arrived.size} ${arrived.token} at $${arrived.price}.`
     : "";
+  const { page, pageCount, goTo, rows, start, paged, rowMotion } = usePaged(fills, 8);
   const liveRegion = (
     <p className="sr-only" aria-live="polite" aria-atomic="true">
       {announcement}
@@ -86,12 +90,14 @@ export function FillFeed({
     <div>
       {liveRegion}
       <ul className="flex flex-col gap-2">
-        {fills.map((fill) => {
+        {rows.map((fill, index) => {
           const outcome = outcomes[fill.id];
+          const motion = rowMotion(index);
           return (
             <li
-              key={fill.id}
-              className={`motion-reduce:animate-none animate-[rowIn_0.25s_ease-out] lift panel flex items-start gap-3 rounded-2xl px-4 py-3 sm:items-center ${
+              key={`${page}-${fill.id}`}
+              style={motion.style}
+              className={`${motion.className} lift panel flex items-start gap-3 rounded-2xl px-4 py-3 sm:items-center ${
                 outcome?.status === "rejected" ? "border-loss/40" : ""
               }`}
             >
@@ -151,19 +157,19 @@ export function FillFeed({
         })}
       </ul>
 
-      {onLoadMore && (
-        <div className="mt-3 flex items-center justify-between gap-3">
-          <p className="text-xs text-muted">
-            Showing {fills.length}
-            {typeof totalCount === "number" ? ` of ${totalCount}` : ""}.
-          </p>
-          {hasMore && (
+      <div className="mt-3 flex flex-col-reverse items-center gap-2 sm:flex-row sm:justify-between">
+        <Showing start={start} shown={rows.length} total={totalCount ?? fills.length} />
+        <div className="flex items-center gap-2">
+          {paged && (
+            <Pager page={page} pageCount={pageCount} onChange={goTo} label="Live activity pages" />
+          )}
+          {onLoadMore && hasMore && page === pageCount - 1 && (
             <MetalButton tone="quiet" size="sm" onClick={onLoadMore}>
-              Load earlier fills
+              Load earlier
             </MetalButton>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
