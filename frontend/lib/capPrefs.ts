@@ -148,21 +148,22 @@ export function customCaps(
 }
 
 /**
- * Suggested caps from the agent's own trades, not round numbers. Round
- * numbers sat below every trade most agents make ($46 to $300 notional on
- * the live tape), so a follower who took one watched every copy get rejected
- * and never saw one land. "One trade" is the largest buy rounded up to $10;
- * the cap is a daily total, so "two a day" doubles it.
+ * What one of this agent's trades costs, for sizing a cap in trades rather
+ * than dollars: its largest buy so far, rounded up to $10. Round numbers sat
+ * below every trade most agents make ($46 to $300 notional on the live tape),
+ * so a follower who picked one watched every copy get rejected.
  */
-export function capPresets(largestBuyUsd: number | undefined): { amount: number; label: string }[] {
-  const oneTrade = largestBuyUsd ? Math.ceil(largestBuyUsd / 10) * 10 : undefined;
-  return oneTrade
-    ? [
-        { amount: oneTrade, label: `${oneTrade} USDG · one trade` },
-        { amount: oneTrade * 2, label: `${oneTrade * 2} USDG · two a day` },
-      ]
-    : [
-        { amount: 100, label: "100 USDG" },
-        { amount: 200, label: "200 USDG" },
-      ];
+export function tradeUnit(largestBuyUsd: number | undefined): number {
+  return largestBuyUsd ? Math.ceil(largestBuyUsd / 10) * 10 : 100;
+}
+
+/** The cap that fits `trades` of this agent's largest trades a day. */
+export function capForTrades(trades: number, largestBuyUsd: number | undefined): number {
+  return Math.max(1, Math.round(trades)) * tradeUnit(largestBuyUsd);
+}
+
+/** How many of the agent's largest trades a cap covers, whole trades only. */
+export function tradesForCap(cap: number, largestBuyUsd: number | undefined): number {
+  if (!Number.isFinite(cap) || cap <= 0) return 0;
+  return Math.floor(cap / tradeUnit(largestBuyUsd));
 }

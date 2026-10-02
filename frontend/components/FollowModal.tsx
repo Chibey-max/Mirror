@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useId, useState } from "react";
 import { utcMidnightLocal } from "@/lib/format";
-import { capPresets } from "@/lib/capPrefs";
+import { tradeUnit } from "@/lib/capPrefs";
+import { TradesPicker, chipClass } from "@/components/TradesPicker";
 import { txUrl } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
 import { FieldHint } from "@/components/FieldHint";
@@ -76,8 +77,7 @@ export function FollowModal({
 
   const parsedCap = Number(capAmount);
   const parsedSlippage = Number(maxSlippageBps);
-  const presets = capPresets(largestBuyUsd);
-  const oneTrade = presets.length && largestBuyUsd ? presets[0].amount : undefined;
+  const oneTrade = tradeUnit(largestBuyUsd);
   const capBelowLargestBuy =
     largestBuyUsd !== undefined && capAmount !== "" && parsedCap > 0 && parsedCap < largestBuyUsd;
   const capOverBalance = capAmount !== "" && parsedCap > freeBalance;
@@ -189,34 +189,29 @@ export function FollowModal({
                   min="0"
                   value={capAmount}
                   onChange={(event) => setCapAmount(event.target.value)}
-                  placeholder={oneTrade ? oneTrade.toFixed(2) : "100.00"}
+                  placeholder={oneTrade.toFixed(2)}
                   className="tabular w-full bg-transparent text-lg text-text outline-none placeholder:text-muted"
                 />
                 <span className="text-sm text-muted">USDG</span>
               </div>
             </label>
 
-            <div className="mt-2 flex flex-wrap gap-2">
-              {presets.map((preset) => (
-                <MetalButton
-                  tone="quiet"
-                  size="sm"
-                  key={preset.amount}
-                  disabled={preset.amount > freeBalance}
-                  onClick={() => setCapAmount(String(preset.amount))}
+            <TradesPicker
+              agentName={agentName}
+              largestBuyUsd={largestBuyUsd}
+              cap={capAmount !== "" && parsedCap > 0 ? parsedCap : undefined}
+              onPick={(cap) => setCapAmount(String(cap))}
+              extra={
+                <button
+                  type="button"
+                  disabled={freeBalance <= 0}
+                  onClick={() => setCapAmount(String(freeBalance))}
+                  className={`${chipClass(parsedCap === freeBalance && freeBalance > 0)} disabled:opacity-40`}
                 >
-                  {preset.label}
-                </MetalButton>
-              ))}
-              <MetalButton
-                tone="quiet"
-                size="sm"
-                disabled={freeBalance <= 0}
-                onClick={() => setCapAmount(String(freeBalance))}
-              >
-                Max
-              </MetalButton>
-            </div>
+                  Max
+                </button>
+              }
+            />
 
             {largestBuyUsd !== undefined && (
               <p className="mt-3 text-xs leading-relaxed text-muted">

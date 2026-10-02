@@ -3,7 +3,8 @@
 import { useId, useState } from "react";
 import { FieldHint } from "@/components/FieldHint";
 import { MetalButton } from "@/components/MetalButton";
-import { capPresets, setAgentCap, useCapPrefs } from "@/lib/capPrefs";
+import { setAgentCap, tradeUnit, useCapPrefs } from "@/lib/capPrefs";
+import { TradesPicker, chipClass } from "@/components/TradesPicker";
 import { describeWriteError } from "@/lib/writeErrors";
 
 /**
@@ -51,7 +52,6 @@ export function AgentCapPanel({
   const shown = draft ?? (following ? String(followedCap) : saved !== undefined ? String(saved) : "");
   const value = Number(shown);
   const validNumber = shown !== "" && Number.isFinite(value) && value > 0;
-  const presets = capPresets(largestBuyUsd);
   const belowLargestBuy = validNumber && largestBuyUsd !== undefined && value < largestBuyUsd;
   // The principal comes back before the new follow is made, so it counts.
   const available = freeBalance + followedCap;
@@ -138,36 +138,32 @@ export function AgentCapPanel({
               onBlur={() => {
                 if (!following) setDraft(null);
               }}
-              placeholder={presets[0].amount.toFixed(2)}
+              placeholder={tradeUnit(largestBuyUsd).toFixed(2)}
               className="tabular w-full bg-transparent text-base text-text outline-none placeholder:text-muted"
             />
             <span className="text-xs text-muted">USDG</span>
           </div>
 
-          <div className="mt-2 flex flex-wrap gap-2">
-            {presets.map((preset) => (
-              <MetalButton
-                tone="quiet"
-                size="sm"
-                key={preset.amount}
-                onClick={() => choose(String(preset.amount))}
-              >
-                {preset.label}
-              </MetalButton>
-            ))}
-            {!following && own !== undefined && general !== undefined && own !== general && (
-              <MetalButton
-                tone="quiet"
-                size="sm"
-                onClick={() => {
-                  setAgentCap(agentId, undefined);
-                  setDraft(null);
-                }}
-              >
-                Use general (${general})
-              </MetalButton>
-            )}
-          </div>
+          <TradesPicker
+            agentName={agentName}
+            largestBuyUsd={largestBuyUsd}
+            cap={validNumber ? value : undefined}
+            onPick={(cap) => choose(String(cap))}
+            extra={
+              !following && own !== undefined && general !== undefined && own !== general ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAgentCap(agentId, undefined);
+                    setDraft(null);
+                  }}
+                  className={chipClass(false)}
+                >
+                  Use general (${general})
+                </button>
+              ) : undefined
+            }
+          />
 
           {belowLargestBuy && (
             <FieldHint>

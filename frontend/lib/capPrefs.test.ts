@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capFor, customCaps, parseCapPrefs } from "./capPrefs";
+import { capFor, capForTrades, customCaps, parseCapPrefs, tradeUnit, tradesForCap } from "./capPrefs";
 
 describe("saved caps", () => {
   it("reads nothing from a missing or broken entry", () => {
@@ -35,5 +35,21 @@ describe("agents with their own cap", () => {
 
   it("is empty when every cap matches", () => {
     expect(customCaps({ general: 80, agents: { 1: 80 } }, { 2: 80 }, 80)).toEqual([]);
+  });
+});
+
+describe("caps sized in trades", () => {
+  it("prices a trade as the largest buy rounded up to $10", () => {
+    expect(tradeUnit(299.7)).toBe(300);
+    expect(tradeUnit(59.79)).toBe(60);
+    expect(tradeUnit(undefined)).toBe(100);
+  });
+
+  it("turns any number of trades a day into a cap, and back", () => {
+    expect(capForTrades(5, 299.7)).toBe(1500);
+    expect(capForTrades(0, 299.7)).toBe(300);
+    expect(tradesForCap(1500, 299.7)).toBe(5);
+    expect(tradesForCap(450, 299.7)).toBe(1);
+    expect(tradesForCap(0, 299.7)).toBe(0);
   });
 });
