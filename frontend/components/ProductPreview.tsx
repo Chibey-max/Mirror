@@ -1,12 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { AgentBoard } from "@/components/AgentBoard";
 import { AgentTapeTable } from "@/components/AgentTapeTable";
 import { LeaderboardTable } from "@/components/LeaderboardTable";
 import { LedgerStats } from "@/components/LedgerStats";
+import { CapOverridesDialog } from "@/components/CapOverridesDialog";
 import { useAgents } from "@/hooks/useAgents";
+import { useFollow } from "@/hooks/useFollow";
+import { customCaps, setGeneralCap, useCapPrefs } from "@/lib/capPrefs";
+
+/** Where the slider starts before a general cap has ever been chosen. */
+const DEFAULT_GENERAL_CAP = 50;
 
 const TABS = [
   { id: "agents", label: "Agents" },
@@ -25,14 +31,37 @@ type TabId = (typeof TABS)[number]["id"];
  * to a real fill from the tape and shows what the vault would do with it.
  * That second one is the whole product promise in one control, which no
  * amount of copy above the fold gets across.
+ *
+ * The slider is also the visitor's general cap, saved in this browser: the
+ * default for every agent without a cap of its own (see lib/capPrefs).
+ * Moving it while some agents have their own asks first, listing them.
  */
 export function ProductPreview() {
   const [tab, setTab] = useState<TabId>("agents");
-  const [cap, setCap] = useState(50);
-
   // Everything here is read from the chain: the registry, TrackRecord and
   // CopyVault, the same reads the agents page makes. Nothing is sample data.
   const { agents, fills, isLoading } = useAgents();
+
+  const prefs = useCapPrefs();
+  const cap = prefs.general ?? DEFAULT_GENERAL_CAP;
+  // The connected wallet's live follows: their caps are on-chain, and the
+  // general cap never reaches them.
+  const { allocatedByAgent } = useFollow(0, agents.map((a) => a.id));
+  const overrides = customCaps(prefs, allocatedByAgent, cap);
+  const agentNames = Object.fromEntries(agents.map((a) => [a.id, a.name]));
+  // Asked once per visit: after a yes, the slider moves freely.
+  const [confirmed, setConfirmed] = useState(false);
+  const [pendingCap, setPendingCap] = useState<number | null>(null);
+  const closeDialog = useCallback(() => setPendingCap(null), []);
+
+  function changeCap(next: number) {
+    if (pendingCap !== null || next === cap) return;
+    if (overrides.length > 0 && !confirmed) {
+      setPendingCap(next);
+      return;
+    }
+    setGeneralCap(next);
+  }
   const totalFills = agents.reduce((sum, a) => sum + a.fills, 0);
   const totalFollowers = agents.reduce((sum, a) => sum + a.followers, 0);
   const totalVolume = agents.reduce((sum, a) => sum + a.volumeUsd, 0);
@@ -60,7 +89,7 @@ export function ProductPreview() {
   const notional = sample ? Number(sample.size) * Number(sample.price) : 0;
   // The slider reaches well past the trade, so both outcomes are one drag
   // away whatever size the real fill is.
-  const capMax = Math.max(120, Math.ceil((notional * 1.6) / 5) * 5);
+  const capMax = Math.max(120, Math.ceil((notional * 1.6) / 5) * 5, cap);
   const blocked = notional > cap;
 
   return (
@@ -169,17 +198,28 @@ export function ProductPreview() {
             </div>
 
             <label className="mt-4 block">
-              <span className="sr-only">Daily cap for this agent, in USDG</span>
+              <span className="sr-only">Your general daily cap, in USDG</span>
               <input
                 type="range"
                 min={10}
                 max={capMax}
                 step={5}
                 value={cap}
-                onChange={(event) => setCap(Number(event.target.value))}
+                onChange={(event) => changeCap(Number(event.target.value))}
                 className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-surface-2 [accent-color:var(--color-accent)]"
               />
             </label>
+
+            <p className="mt-2 text-xs leading-relaxed text-muted">
+              Saved as your general cap: following any agent without its own cap starts from it.
+              {overrides.length > 0 && (
+                <>
+                  {" "}
+                  {overrides.length === 1 ? "One agent has" : `${overrides.length} agents have`} their
+                  own cap.
+                </>
+              )}
+            </p>
 
             <p
               className={`mt-4 rounded-xl border p-3 text-sm ${
@@ -210,6 +250,24 @@ export function ProductPreview() {
           )}
         </div>
       </div>
+
+      <CapOverridesDialog
+        key={pendingCap ?? "closed"}
+        open={pendingCap !== null}
+        current={cap}
+        next={pendingCap ?? cap}
+        min={10}
+        max={capMax}
+        step={5}
+        overrides={overrides}
+        agentNames={agentNames}
+        onConfirm={(value) => {
+          setGeneralCap(value);
+          setConfirmed(true);
+          setPendingCap(null);
+        }}
+        onCancel={closeDialog}
+      />
     </div>
   );
 }

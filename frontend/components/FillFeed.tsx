@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Badge } from "@/components/Badge";
 import { MetalButton } from "@/components/MetalButton";
+import { Pager } from "@/components/Pager";
+import { usePaged } from "@/hooks/usePaged";
 import {
   enforcedBy,
   type PolicyRejectReason,
@@ -25,9 +27,10 @@ import type { FixtureFill } from "@/lib/fixtures";
  * `fills` comes from hooks/useFillEvents, which backfills from TrackRecord
  * and watches FillRecorded; `outcomes` from hooks/useMirrorOutcomes.
  *
- * Pagination (briefing §09.E): a button, not infinite scroll, a panel with
- * a sticky follow column beside it can't afford to have the kill switch
- * pushed off-screen by an autoloading feed.
+ * Pagination (briefing §09.E): pages of eight, not infinite scroll, a panel
+ * with a sticky follow column beside it can't afford to have the kill switch
+ * pushed off-screen by an autoloading feed. Older fills not fetched yet load
+ * from the last page.
  */
 export function FillFeed({
   fills,
@@ -64,6 +67,25 @@ export function FillFeed({
   const announcement = arrived
     ? `New fill: ${arrived.side === "BUY" ? "bought" : "sold"} ${arrived.size} ${arrived.token} at $${arrived.price}.`
     : "";
+  const anchor = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const paging = usePaged(fills, 8, anchor);
+  const { page, pageCount, phase, rows, paged, rowMotion } = paging;
+
+  // Pages differ in height (a blocked fill takes two lines), so the list
+  // glides to its new height instead of snapping: held at the old height
+  // while rows leave, eased to the new one as they arrive, then let go.
+  useLayoutEffect(() => {
+    const wrap = anchor.current, list = listRef.current;
+    if (!wrap || !list) return;
+    if (phase === "out") {
+      wrap.style.height = `${wrap.offsetHeight}px`;
+    } else if (phase === "in") {
+      wrap.style.height = `${list.offsetHeight}px`;
+    } else {
+      wrap.style.height = "";
+    }
+  }, [phase, page]);
   const liveRegion = (
     <p className="sr-only" aria-live="polite" aria-atomic="true">
       {announcement}
@@ -85,13 +107,19 @@ export function FillFeed({
   return (
     <div>
       {liveRegion}
-      <ul className="flex flex-col gap-2">
-        {fills.map((fill) => {
+      <div
+        ref={anchor}
+        className="overflow-hidden transition-[height] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+      >
+      <ul ref={listRef} className="flex flex-col gap-2 pb-1">
+        {rows.map((fill, index) => {
           const outcome = outcomes[fill.id];
+          const motion = rowMotion(index);
           return (
             <li
-              key={fill.id}
-              className={`motion-reduce:animate-none animate-[rowIn_0.25s_ease-out] lift panel flex items-start gap-3 rounded-2xl px-4 py-3 sm:items-center ${
+              key={`${page}-${fill.id}`}
+              style={motion.style}
+              className={`${motion.className} lift panel flex items-start gap-3 rounded-2xl px-4 py-3 sm:items-center ${
                 outcome?.status === "rejected" ? "border-loss/40" : ""
               }`}
             >
@@ -150,18 +178,22 @@ export function FillFeed({
           );
         })}
       </ul>
+      </div>
 
-      {onLoadMore && (
+      {paged && (
+        <div className="panel mt-3 overflow-hidden rounded-3xl">
+          <Pager paging={paging} label="Live activity pages" />
+        </div>
+      )}
+      {onLoadMore && hasMore && page === pageCount - 1 && (
         <div className="mt-3 flex items-center justify-between gap-3">
-          <p className="text-xs text-muted">
-            Showing {fills.length}
-            {typeof totalCount === "number" ? ` of ${totalCount}` : ""}.
+          <p className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-muted">
+            {fills.length}
+            {typeof totalCount === "number" ? ` of ${totalCount}` : ""} loaded
           </p>
-          {hasMore && (
-            <MetalButton tone="quiet" size="sm" onClick={onLoadMore}>
-              Load earlier fills
-            </MetalButton>
-          )}
+          <MetalButton tone="quiet" size="sm" onClick={onLoadMore}>
+            Load earlier
+          </MetalButton>
         </div>
       )}
     </div>

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useId, useState } from "react";
 import { utcMidnightLocal } from "@/lib/format";
+import { tradeUnit } from "@/lib/capPrefs";
+import { TradesPicker, chipClass } from "@/components/TradesPicker";
 import { txUrl } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
 import { FieldHint } from "@/components/FieldHint";
@@ -17,6 +19,7 @@ export function FollowModal({
   agentId,
   agentName,
   largestBuyUsd,
+  initialCap,
   freeBalance,
   alreadyFollowing,
   onFollow,
@@ -27,6 +30,8 @@ export function FollowModal({
   agentName: string;
   /** The agent's largest single buy so far, in USDG (see FixtureAgent). */
   largestBuyUsd?: number;
+  /** The cap saved for this agent, or the general one: where the field starts. */
+  initialCap?: number;
   freeBalance: number;
   alreadyFollowing: boolean;
   onFollow: (
@@ -34,7 +39,9 @@ export function FollowModal({
     onProgress?: WriteProgress,
   ) => Promise<{ txHash: string }>;
 }) {
-  const [capAmount, setCapAmount] = useState("");
+  // null until the visitor types or picks: the field shows the saved cap.
+  const [capInput, setCapAmount] = useState<string | null>(null);
+  const capAmount = capInput ?? (initialCap !== undefined ? String(initialCap) : "");
   const [maxSlippageBps, setMaxSlippageBps] = useState("50");
   const [stage, setStage] = useState<Stage>("idle");
   const [txHash, setTxHash] = useState<string>();
@@ -43,7 +50,7 @@ export function FollowModal({
   const slippageId = useId();
 
   const handleClose = useCallback(() => {
-    setCapAmount("");
+    setCapAmount(null);
     setMaxSlippageBps("50");
     setStage("idle");
     setTxHash(undefined);
@@ -70,23 +77,7 @@ export function FollowModal({
 
   const parsedCap = Number(capAmount);
   const parsedSlippage = Number(maxSlippageBps);
-  /*
-   * Presets from the agent's own trades, not round numbers. The old 25/50/100
-   * sat below every trade most agents make ($46 to $300 notional on the
-   * live tape), so a follower who took a preset watched every copy get
-   * rejected and never saw one land. "One trade" is the largest buy rounded
-   * up to $10; the cap is a daily total, so "two a day" doubles it.
-   */
-  const oneTrade = largestBuyUsd ? Math.ceil(largestBuyUsd / 10) * 10 : undefined;
-  const presets = oneTrade
-    ? [
-        { amount: oneTrade, label: `${oneTrade} USDG · one trade` },
-        { amount: oneTrade * 2, label: `${oneTrade * 2} USDG · two a day` },
-      ]
-    : [
-        { amount: 100, label: "100 USDG" },
-        { amount: 200, label: "200 USDG" },
-      ];
+  const oneTrade = tradeUnit(largestBuyUsd);
   const capBelowLargestBuy =
     largestBuyUsd !== undefined && capAmount !== "" && parsedCap > 0 && parsedCap < largestBuyUsd;
   const capOverBalance = capAmount !== "" && parsedCap > freeBalance;
@@ -198,34 +189,29 @@ export function FollowModal({
                   min="0"
                   value={capAmount}
                   onChange={(event) => setCapAmount(event.target.value)}
-                  placeholder={oneTrade ? oneTrade.toFixed(2) : "100.00"}
+                  placeholder={oneTrade.toFixed(2)}
                   className="tabular w-full bg-transparent text-lg text-text outline-none placeholder:text-muted"
                 />
                 <span className="text-sm text-muted">USDG</span>
               </div>
             </label>
 
-            <div className="mt-2 flex flex-wrap gap-2">
-              {presets.map((preset) => (
-                <MetalButton
-                  tone="quiet"
-                  size="sm"
-                  key={preset.amount}
-                  disabled={preset.amount > freeBalance}
-                  onClick={() => setCapAmount(String(preset.amount))}
+            <TradesPicker
+              agentName={agentName}
+              largestBuyUsd={largestBuyUsd}
+              cap={capAmount !== "" && parsedCap > 0 ? parsedCap : undefined}
+              onPick={(cap) => setCapAmount(String(cap))}
+              extra={
+                <button
+                  type="button"
+                  disabled={freeBalance <= 0}
+                  onClick={() => setCapAmount(String(freeBalance))}
+                  className={`${chipClass(parsedCap === freeBalance && freeBalance > 0)} disabled:opacity-40`}
                 >
-                  {preset.label}
-                </MetalButton>
-              ))}
-              <MetalButton
-                tone="quiet"
-                size="sm"
-                disabled={freeBalance <= 0}
-                onClick={() => setCapAmount(String(freeBalance))}
-              >
-                Max
-              </MetalButton>
-            </div>
+                  Max
+                </button>
+              }
+            />
 
             {largestBuyUsd !== undefined && (
               <p className="mt-3 text-xs leading-relaxed text-muted">
