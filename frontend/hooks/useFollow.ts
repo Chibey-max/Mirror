@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useReadContract, useReadContracts } from "wagmi";
-import { copyVaultAbi } from "@/lib/contracts";
+import { copyVaultAbi, policyModuleAbi } from "@/lib/contracts";
 import { fixtureWallet } from "@/lib/fixtures";
 import { fromUsdg, toUsdg } from "@/lib/usdg";
 import { StaleStateError } from "@/lib/writeErrors";
@@ -40,7 +40,7 @@ export type FollowInput = {
  * Until deployments/46630.json lands the fixture path runs instead.
  */
 export function useFollow(initialFreeBalance: number, agentIds: number[] = []) {
-  const { live, demo, address, addresses, writeContractAsync, confirm } =
+  const { live, demo, address, addresses, writeContractAsync, publicClient, confirm } =
     useVaultConnection();
 
   const [mockAllocated, setMockAllocated] = useState<Record<number, number>>(
@@ -193,6 +193,81 @@ export function useFollow(initialFreeBalance: number, agentIds: number[] = []) {
     return { txHash };
   }
 
+  /**
+   * Changes the cap on a follow that exists. CopyVault sets a cap only when
+   * a follow is made, so this is the kill switch and a new follow, in that
+   * order, as one action: two wallet confirmations.
+   *
+   * What carries over is the chain's doing, not this function's: the
+   * principal comes back in full and goes straight into the new follow, and
+   * today's spend survives the kill, so a new cap can't reclaim what was
+   * already used today. What doesn't: positions already copied are left
+   * behind with the old follow, so their sells won't be copied.
+   *
+   * The new follow keeps the old one's slippage, read back from the policy.
+   */
+  async function changeCap(
+    agentId: number,
+    newCap: number,
+    onProgress?: WriteProgress,
+  ): Promise<{ txHash: string }> {
+    if (!live && !demo) throw new Error(WALLET_REQUIRED);
+    const current = allocatedByAgent[agentId] ?? 0;
+    if (
+      current <= 0 ||
+      !Number.isFinite(newCap) ||
+      newCap <= 0 ||
+      newCap === current ||
+      newCap > freeBalance + current
+    ) {
+      throw new StaleStateError(
+        "Your balance or this follow changed while you were editing. Reload the page and try again.",
+      );
+    }
+
+    if (!live || !addresses || !address || !publicClient) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      onProgress?.({ stage: "submitted", txHash: MOCK_UNFOLLOW_TX });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      onProgress?.({ stage: "submitted", txHash: MOCK_TX });
+      setMockAllocated((all) => ({ ...all, [agentId]: newCap }));
+      setMockFreeBalance((balance) => balance + current - newCap);
+      return { txHash: MOCK_TX };
+    }
+
+    const policy = await publicClient.readContract({
+      address: addresses.policyModule,
+      abi: policyModuleAbi,
+      functionName: "getPolicy",
+      args: [address, BigInt(agentId)],
+    });
+    const slippage = policy.maxSlippageBps;
+
+    const killHash = await writeContractAsync({
+      address: addresses.copyVault,
+      abi: copyVaultAbi,
+      functionName: "unfollow",
+      args: [BigInt(agentId)],
+    });
+    onProgress?.({ stage: "submitted", txHash: killHash });
+    await confirm(killHash);
+
+    const txHash = await writeContractAsync({
+      address: addresses.copyVault,
+      abi: copyVaultAbi,
+      functionName: "follow",
+      args: [BigInt(agentId), toUsdg(newCap), slippage],
+    });
+    onProgress?.({ stage: "submitted", txHash });
+    await confirm(txHash);
+    await Promise.all([
+      freeRead.refetch(),
+      allocationReads.refetch(),
+      followerReads.refetch(),
+    ]);
+    return { txHash };
+  }
+
   function addFreeBalance(amount: number) {
     if (live) {
       void freeRead.refetch();
@@ -215,6 +290,7 @@ export function useFollow(initialFreeBalance: number, agentIds: number[] = []) {
     freeBalance,
     follow,
     unfollow,
+    changeCap,
     addFreeBalance,
     subtractFreeBalance,
   };

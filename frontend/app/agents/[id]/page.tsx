@@ -18,6 +18,8 @@ import { WithdrawModal } from "@/components/WithdrawModal";
 import { TrustBadge } from "@/components/TrustBadge";
 import { FillFeed } from "@/components/FillFeed";
 import { KillButton } from "@/components/KillButton";
+import { AgentCapPanel } from "@/components/AgentCapPanel";
+import { capFor, setAgentCap, useCapPrefs } from "@/lib/capPrefs";
 import {
   useRejectionNotice,
 } from "@/components/PolicyRejectBanner";
@@ -74,9 +76,11 @@ export default function AgentDetailPage({
     freeBalance,
     follow,
     unfollow,
+    changeCap,
     addFreeBalance,
     subtractFreeBalance,
   } = useFollow(vaultBalance, [agentId]);
+  const capPrefs = useCapPrefs();
   const { withdraw } = useWithdraw(freeBalance, subtractFreeBalance, creditWallet);
   // Reports every write to the header's pending count and a toast that
   // outlives whichever modal started it (closing mid-transaction used to
@@ -352,6 +356,24 @@ export default function AgentDetailPage({
                   );
                 })()}
 
+                <AgentCapPanel
+                  agentId={agent.id}
+                  agentName={agent.name}
+                  largestBuyUsd={agent.largestBuyUsd}
+                  followedCap={allocated}
+                  freeBalance={freeBalance}
+                  spentToday={spentToday[agentId] ?? 0}
+                  onChangeCap={(newCap) => {
+                    if (!isConnected) {
+                      requireConnection(() => {});
+                      return Promise.reject(new Error("Connect your wallet to change this cap."));
+                    }
+                    return track(`Change cap to $${newCap.toFixed(2)}`, (progress) =>
+                      changeCap(agent.id, newCap, progress),
+                    );
+                  }}
+                />
+
                 <div className="mt-5 flex flex-col gap-2">
                   <MetalButton
                     tone="primary"
@@ -436,14 +458,19 @@ export default function AgentDetailPage({
             agentId={agent.id}
             agentName={agent.name}
             largestBuyUsd={agent.largestBuyUsd}
+            initialCap={capFor(capPrefs, agent.id)}
             freeBalance={freeBalance}
             alreadyFollowing={allocated > 0}
             onFollow={(input, onProgress) =>
-              track(`Follow with $${input.capAmount.toFixed(2)} cap`, (progress) => {
-                return follow(input, (event) => {
+              track(`Follow with $${input.capAmount.toFixed(2)} cap`, async (progress) => {
+                const result = await follow(input, (event) => {
                   progress(event);
                   onProgress?.(event);
                 });
+                // The follow's cap becomes this agent's own, so a later
+                // re-follow starts from it rather than the general cap.
+                setAgentCap(agent.id, input.capAmount);
+                return result;
               })
             }
           />

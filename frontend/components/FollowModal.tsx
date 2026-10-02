@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useState } from "react";
 import { utcMidnightLocal } from "@/lib/format";
+import { capPresets } from "@/lib/capPrefs";
 import { txUrl } from "@/lib/chains";
 import { MetalButton } from "@/components/MetalButton";
 import { FieldHint } from "@/components/FieldHint";
@@ -17,6 +18,7 @@ export function FollowModal({
   agentId,
   agentName,
   largestBuyUsd,
+  initialCap,
   freeBalance,
   alreadyFollowing,
   onFollow,
@@ -27,6 +29,8 @@ export function FollowModal({
   agentName: string;
   /** The agent's largest single buy so far, in USDG (see FixtureAgent). */
   largestBuyUsd?: number;
+  /** The cap saved for this agent, or the general one: where the field starts. */
+  initialCap?: number;
   freeBalance: number;
   alreadyFollowing: boolean;
   onFollow: (
@@ -34,7 +38,9 @@ export function FollowModal({
     onProgress?: WriteProgress,
   ) => Promise<{ txHash: string }>;
 }) {
-  const [capAmount, setCapAmount] = useState("");
+  // null until the visitor types or picks: the field shows the saved cap.
+  const [capInput, setCapAmount] = useState<string | null>(null);
+  const capAmount = capInput ?? (initialCap !== undefined ? String(initialCap) : "");
   const [maxSlippageBps, setMaxSlippageBps] = useState("50");
   const [stage, setStage] = useState<Stage>("idle");
   const [txHash, setTxHash] = useState<string>();
@@ -43,7 +49,7 @@ export function FollowModal({
   const slippageId = useId();
 
   const handleClose = useCallback(() => {
-    setCapAmount("");
+    setCapAmount(null);
     setMaxSlippageBps("50");
     setStage("idle");
     setTxHash(undefined);
@@ -70,23 +76,8 @@ export function FollowModal({
 
   const parsedCap = Number(capAmount);
   const parsedSlippage = Number(maxSlippageBps);
-  /*
-   * Presets from the agent's own trades, not round numbers. The old 25/50/100
-   * sat below every trade most agents make ($46 to $300 notional on the
-   * live tape), so a follower who took a preset watched every copy get
-   * rejected and never saw one land. "One trade" is the largest buy rounded
-   * up to $10; the cap is a daily total, so "two a day" doubles it.
-   */
-  const oneTrade = largestBuyUsd ? Math.ceil(largestBuyUsd / 10) * 10 : undefined;
-  const presets = oneTrade
-    ? [
-        { amount: oneTrade, label: `${oneTrade} USDG · one trade` },
-        { amount: oneTrade * 2, label: `${oneTrade * 2} USDG · two a day` },
-      ]
-    : [
-        { amount: 100, label: "100 USDG" },
-        { amount: 200, label: "200 USDG" },
-      ];
+  const presets = capPresets(largestBuyUsd);
+  const oneTrade = presets.length && largestBuyUsd ? presets[0].amount : undefined;
   const capBelowLargestBuy =
     largestBuyUsd !== undefined && capAmount !== "" && parsedCap > 0 && parsedCap < largestBuyUsd;
   const capOverBalance = capAmount !== "" && parsedCap > freeBalance;
