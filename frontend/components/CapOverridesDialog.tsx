@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { MetalButton } from "@/components/MetalButton";
@@ -16,6 +16,9 @@ export function CapOverridesDialog({
   open,
   current,
   next,
+  min,
+  max,
+  step,
   overrides,
   agentNames,
   onConfirm,
@@ -23,13 +26,21 @@ export function CapOverridesDialog({
 }: {
   open: boolean;
   current: number;
+  /** Where the visitor let go of the home slider: the dialog's starting value. */
   next: number;
+  min: number;
+  max: number;
+  step: number;
   overrides: CustomCap[];
   agentNames: Record<number, string>;
-  onConfirm: () => void;
+  onConfirm: (cap: number) => void;
   onCancel: () => void;
 }) {
   const dialogRef = useFocusTrap<HTMLDivElement>(open);
+  // The home slider is behind this dialog, so the cap is adjusted here.
+  // Mounted fresh for each change (keyed by the caller), so it starts at `next`.
+  const [value, setValue] = useState(next);
+  const sliderId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -63,11 +74,32 @@ export function CapOverridesDialog({
           {many ? `${overrides.length} agents have their own cap` : "One agent has its own cap"}
         </h2>
         <p id="cap-overrides-body" className="mt-2 text-sm leading-relaxed text-muted">
-          You set {many ? "these" : "this"} on the agent&rsquo;s page. Changing your general cap
-          from <span className="tabular text-text">${current}</span> to{" "}
-          <span className="tabular text-text">${next}</span> won&rsquo;t change{" "}
-          {many ? "them" : "it"}: the general cap applies to every other agent and to new follows.
+          You set {many ? "these" : "this"} on the agent&rsquo;s page. A new general cap
+          won&rsquo;t change {many ? "them" : "it"}: it applies to every other agent and to new
+          follows.
         </p>
+
+        <div className="mt-4 rounded-2xl border border-border p-4">
+          <div className="flex items-baseline justify-between gap-3">
+            <label htmlFor={sliderId} className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">
+              New general cap
+            </label>
+            <p className="tabular text-2xl font-semibold">
+              ${value}
+              <span className="ml-2 text-sm font-normal text-muted">was ${current}</span>
+            </p>
+          </div>
+          <input
+            id={sliderId}
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            onChange={(event) => setValue(Number(event.target.value))}
+            className="mt-3 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-surface-2 [accent-color:var(--color-accent)]"
+          />
+        </div>
 
         <ul className="mt-4 divide-y divide-border rounded-2xl border border-border">
           {overrides.map((item) => (
@@ -91,8 +123,13 @@ export function CapOverridesDialog({
         </ul>
 
         <div className="mt-5 flex flex-col gap-2">
-          <MetalButton tone="primary" fullWidth onClick={onConfirm}>
-            Change general cap to ${next}
+          <MetalButton
+            tone="primary"
+            fullWidth
+            disabled={value === current}
+            onClick={() => onConfirm(value)}
+          >
+            {value === current ? `General cap stays $${current}` : `Change general cap to $${value}`}
           </MetalButton>
           <MetalButton tone="quiet" fullWidth onClick={onCancel}>
             Keep ${current}

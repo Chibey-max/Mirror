@@ -252,13 +252,17 @@ export function ProductPreview() {
       </div>
 
       <CapOverridesDialog
+        key={pendingCap ?? "closed"}
         open={pendingCap !== null}
         current={cap}
         next={pendingCap ?? cap}
+        min={10}
+        max={capMax}
+        step={5}
         overrides={overrides}
         agentNames={agentNames}
-        onConfirm={() => {
-          if (pendingCap !== null) setGeneralCap(pendingCap);
+        onConfirm={(value) => {
+          setGeneralCap(value);
           setConfirmed(true);
           setPendingCap(null);
         }}
