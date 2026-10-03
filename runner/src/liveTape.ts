@@ -1,5 +1,5 @@
 import { readFile, rename, writeFile } from "node:fs/promises";
-import type { LivePrices } from "./livePrices";
+import { StaleFeedError, type LivePrices } from "./livePrices";
 import { extendTape } from "./tape";
 import { symbols, type PriceTick, type Symbol } from "./types";
 
@@ -100,7 +100,9 @@ export function decisionTape(fixture: PriceTick[], log: LiveLog, throughTick: nu
 export type LiveStep =
   | { kind: "recorded"; log: LiveLog }
   | { kind: "reused"; log: LiveLog }
-  | { kind: "idle"; log: LiveLog; since: number };
+  | { kind: "idle"; log: LiveLog; since: number }
+  /** A feed is past its heartbeat — usually the market is closed. No tick. */
+  | { kind: "paused"; log: LiveLog | undefined; detail: string };
 
 /**
  * Prices for tick `goal`.
@@ -124,7 +126,13 @@ export async function liveStep(goal: number, log: LiveLog | undefined, read: () 
     }
   }
 
-  const live = await read();
+  let live: LivePrices;
+  try {
+    live = await read();
+  } catch (error) {
+    if (error instanceof StaleFeedError) return { kind: "paused", log, detail: error.message };
+    throw error;
+  }
   if (log) {
     const last = log.ticks[log.ticks.length - 1];
     if (symbols.every((symbol) => live[symbol].price === BigInt(last.prices[symbol]))) {

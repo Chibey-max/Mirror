@@ -4,7 +4,14 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { loadFixture, loadStrategy } from "../src/config";
-import { LIVE_FEED_CHAIN_ID, readLivePrices, type FeedClient, type LivePrices } from "../src/livePrices";
+import {
+  LIVE_FEED_CHAIN_ID,
+  readLivePrices,
+  StaleFeedError,
+  usMarketLikelyOpen,
+  type FeedClient,
+  type LivePrices,
+} from "../src/livePrices";
 import { decisionTape, liveStep, loadLiveLog, marketTick, saveLiveLog } from "../src/liveTape";
 import { decisionsAtTick } from "../src/strategy";
 import { extendTape } from "../src/tape";
@@ -23,11 +30,18 @@ function reading(nvda: bigint, aapl: bigint, tsla: bigint): LivePrices {
 }
 const REAL = reading(BigInt(23_042_000_000), BigInt(33_241_000_000), BigInt(35_581_000_000));
 
+/** A step that must have produced a log (recorded, reused or idle). */
+async function withLog(...args: Parameters<typeof liveStep>) {
+  const step = await liveStep(...args);
+  if (!step.log) throw new Error(`expected a live log, got a ${step.kind} step`);
+  return { ...step, log: step.log };
+}
+
 describe("liveStep", () => {
   it("records the first live tick, then reuses it without reading the feeds again", async () => {
     const first = await liveStep(17, undefined, async () => REAL);
     expect(first.kind).toBe("recorded");
-    expect(first.log.startTick).toBe(17);
+    expect(first.log?.startTick).toBe(17);
 
     const read = vi.fn();
     const retry = await liveStep(17, first.log, read);
@@ -36,28 +50,28 @@ describe("liveStep", () => {
   });
 
   it("creates no tick when no feed has moved", async () => {
-    const { log } = await liveStep(17, undefined, async () => REAL);
+    const { log } = await withLog(17, undefined, async () => REAL);
     const step = await liveStep(18, log, async () => REAL);
     expect(step).toMatchObject({ kind: "idle", since: 17 });
-    expect(step.log.ticks).toHaveLength(1);
+    expect(step.log?.ticks).toHaveLength(1);
   });
 
   it("records a tick once any feed moves", async () => {
-    const { log } = await liveStep(17, undefined, async () => REAL);
+    const { log } = await withLog(17, undefined, async () => REAL);
     const moved = reading(BigInt(23_200_000_000), REAL.mAAPL.price, REAL.mTSLA.price);
-    const step = await liveStep(18, log, async () => moved);
+    const step = await withLog(18, log, async () => moved);
     expect(step.kind).toBe("recorded");
     expect(marketTick(step.log, 18).prices.mNVDA).toBe(BigInt(23_200_000_000));
   });
 
   it("refuses to leave a gap in the live history", async () => {
-    const { log } = await liveStep(17, undefined, async () => REAL);
+    const { log } = await withLog(17, undefined, async () => REAL);
     await expect(liveStep(19, log, async () => REAL)).rejects.toThrow("would leave a gap");
   });
 
   it("round-trips through disk", async () => {
     const path = join(await mkdtemp(join(tmpdir(), "mirror-live-")), "live.json");
-    const { log } = await liveStep(17, undefined, async () => REAL);
+    const { log } = await withLog(17, undefined, async () => REAL);
     await saveLiveLog(path, log);
     expect(await loadLiveLog(path)).toEqual(log);
     expect(await loadLiveLog(join(tmpdir(), "does-not-exist.json"))).toBeUndefined();
@@ -67,17 +81,17 @@ describe("liveStep", () => {
 describe("decisionTape", () => {
   it("leaves every seeded tick exactly as it ran", async () => {
     const fixture = await loadFixture(fixturePath);
-    const { log } = await liveStep(17, undefined, async () => REAL);
+    const { log } = await withLog(17, undefined, async () => REAL);
     const tape = decisionTape(fixture, log, 17);
     expect(tape.slice(0, 17)).toEqual(extendTape(fixture, 16));
   });
 
   it("makes the hand-over a flat step, and keeps every real move's percentage", async () => {
     const fixture = await loadFixture(fixturePath);
-    const recorded = await liveStep(17, undefined, async () => REAL);
+    const recorded = await withLog(17, undefined, async () => REAL);
     // NVDA up 1%, AAPL down 2%, TSLA unchanged.
     const next = reading(BigInt(23_272_420_000), BigInt(32_576_180_000), REAL.mTSLA.price);
-    const { log } = await liveStep(18, recorded.log, async () => next);
+    const { log } = await withLog(18, recorded.log, async () => next);
     const tape = decisionTape(fixture, log, 18);
     const [last, first, second] = [tape[16].prices, tape[17].prices, tape[18].prices];
 
@@ -106,7 +120,7 @@ describe("decisionTape", () => {
     expect(decisionsAtTick("pulse", pulse, naive, 17)).toEqual([expect.objectContaining({ symbol: "mTSLA", isBuy: false })]);
     expect(decisionsAtTick("red", red, naive, 17)).toEqual([expect.objectContaining({ symbol: "mTSLA", isBuy: true })]);
 
-    const { log } = await liveStep(17, undefined, async () => REAL);
+    const { log } = await withLog(17, undefined, async () => REAL);
     const converted = decisionTape(fixture, log, 17);
     expect(decisionsAtTick("pulse", pulse, converted, 17)).toEqual([]);
     expect(decisionsAtTick("red", red, converted, 17)).toEqual([]);
@@ -134,5 +148,47 @@ describe("readLivePrices", () => {
     await expect(readLivePrices(client({ decimals: 18 }), NOW)).rejects.toThrow("18 decimals");
     await expect(readLivePrices(client({ answer: BigInt(0) }), NOW)).rejects.toThrow("answered 0");
     await expect(readLivePrices(client({ updatedAt: NOW - BigInt(27 * 3600) }), NOW)).rejects.toThrow("heartbeat");
+  });
+});
+
+describe("market closed", () => {
+  it("pauses rather than fails when feeds are past their heartbeat", async () => {
+    // Saturday 3 Oct, 20:57 UTC: every equity feed last updated on Friday
+    // afternoon, 25 to 28 hours earlier. Before this, every run failed.
+    const stale = async (): Promise<LivePrices> => {
+      throw new StaleFeedError("AAPL / USD feed last updated 93938s ago, past its 24h heartbeat");
+    };
+    const { log } = await withLog(17, undefined, async () => REAL);
+    expect(await liveStep(18, log, stale)).toMatchObject({ kind: "paused", log });
+    expect(log.ticks).toHaveLength(1);
+
+    // Switched on while the market is closed: nothing recorded, no log yet.
+    expect(await liveStep(17, undefined, stale)).toMatchObject({ kind: "paused", log: undefined });
+  });
+
+  it("still fails on anything that means misconfiguration rather than a closed market", async () => {
+    const wrongChain = async (): Promise<LivePrices> => {
+      throw new Error("Price feed RPC is chain 46630; live prices come from Robinhood Chain mainnet (4663)");
+    };
+    await expect(liveStep(17, undefined, wrongChain)).rejects.toThrow("Robinhood Chain mainnet");
+  });
+
+  it("reports a stale feed as StaleFeedError", async () => {
+    const client: FeedClient = {
+      getChainId: async () => LIVE_FEED_CHAIN_ID,
+      readContract: (async ({ functionName }: { functionName: string }) =>
+        functionName === "decimals"
+          ? 8
+          : [BigInt(7), BigInt(23_042_000_000), NOW, NOW - BigInt(28 * 3600), BigInt(7)]) as FeedClient["readContract"],
+    };
+    await expect(readLivePrices(client, NOW)).rejects.toBeInstanceOf(StaleFeedError);
+  });
+
+  it("knows when the US session is probably open", () => {
+    expect(usMarketLikelyOpen(new Date("2026-10-03T20:57:00Z"))).toBe(false); // Saturday
+    expect(usMarketLikelyOpen(new Date("2026-10-04T15:00:00Z"))).toBe(false); // Sunday
+    expect(usMarketLikelyOpen(new Date("2026-10-02T15:00:00Z"))).toBe(true); // Friday mid-session
+    expect(usMarketLikelyOpen(new Date("2026-10-05T03:00:00Z"))).toBe(false); // Monday night
+    expect(usMarketLikelyOpen(new Date("2026-10-05T20:30:00Z"))).toBe(false); // after the close
   });
 });
