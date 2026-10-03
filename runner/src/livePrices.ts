@@ -29,6 +29,29 @@ const FEED_DECIMALS = 8;
 /** Heartbeat is 24h. Past this, a feed is not live and nothing should trade on it. */
 export const MAX_FEED_AGE_SECONDS = 26 * 60 * 60;
 
+/**
+ * A feed older than its heartbeat. On equity feeds this is usually not a
+ * fault: they stop updating when the US market closes, so from Saturday
+ * afternoon to Monday's open (and on market holidays) every feed is past
+ * 24h. The first weekend after live prices went on, treating that as an
+ * error failed every run for two days. The caller makes it a pause — no
+ * new tick, nothing sent — rather than a failure.
+ */
+export class StaleFeedError extends Error {}
+
+/**
+ * Whether the US regular session is probably open: weekdays, 14:30-20:00
+ * UTC, the part of the 09:30-16:00 New York session that is the same under
+ * both daylight and standard time. Market holidays are not modelled, so on
+ * those a stale feed only costs a warning, never a failure.
+ */
+export function usMarketLikelyOpen(at: Date): boolean {
+  const day = at.getUTCDay();
+  if (day === 0 || day === 6) return false;
+  const minutes = at.getUTCHours() * 60 + at.getUTCMinutes();
+  return minutes >= 14 * 60 + 30 && minutes < 20 * 60;
+}
+
 export type LivePrice = { price: bigint; roundId: bigint; updatedAt: bigint };
 export type LivePrices = Record<Symbol, LivePrice>;
 
@@ -68,7 +91,7 @@ export async function readLivePrices(client: FeedClient, nowSeconds = BigInt(Mat
     });
     if (answer <= BigInt(0)) throw new Error(`${description} feed answered ${answer}`);
     if (nowSeconds - updatedAt > BigInt(MAX_FEED_AGE_SECONDS)) {
-      throw new Error(`${description} feed last updated ${nowSeconds - updatedAt}s ago, past its 24h heartbeat`);
+      throw new StaleFeedError(`${description} feed last updated ${nowSeconds - updatedAt}s ago, past its 24h heartbeat`);
     }
     prices[symbol] = { price: answer, roundId, updatedAt };
   }

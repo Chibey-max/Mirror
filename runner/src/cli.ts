@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { loadConfig, loadFixture, loadManifest, loadStrategy, strategyFileHash } from "./config";
 import { RunnerLock } from "./lock";
 import { ledgerDisagreement } from "./ledger";
-import { liveFeedClient, readLivePrices } from "./livePrices";
+import { liveFeedClient, readLivePrices, usMarketLikelyOpen } from "./livePrices";
 import { decisionTape, liveStep, loadLiveLog, marketTick, saveLiveLog, type LiveLog } from "./liveTape";
 import { MirrorRunner } from "./runtime";
 import { extendTape } from "./tape";
@@ -182,16 +182,28 @@ async function runNext(steps: number, seedPath: string | undefined): Promise<voi
         if (result.kind === "recorded") {
           // Durability boundary: the prices are on disk before anything is
           // sent, so a run that dies mid-tick resumes at the same prices.
-          await saveLiveLog(livePath, liveLog);
-          if (liveLog.startTick === goal) process.stdout.write(`Live Chainlink prices start at tick ${goal}\n`);
+          await saveLiveLog(livePath, result.log);
+          if (result.log.startTick === goal) process.stdout.write(`Live Chainlink prices start at tick ${goal}\n`);
         }
         if (result.kind === "idle") {
           runGoal = false;
           process.stdout.write(`No feed has moved since tick ${result.since}; no new tick this step\n`);
         }
+        if (result.kind === "paused") {
+          runGoal = false;
+          process.stdout.write(`Feeds paused, likely market closed: ${result.detail}; no new tick this step\n`);
+          // Equity feeds freezing overnight, at weekends and on holidays is
+          // normal. Frozen in the middle of a trading day is not, so that is
+          // the one case that gets a visible warning on the run.
+          if (process.env.GITHUB_ACTIONS === "true" && usMarketLikelyOpen(new Date())) {
+            process.stdout.write(`::warning title=Price feed stale during market hours::${result.detail}\n`);
+          }
+        }
         const log = liveLog;
-        tape = decisionTape(fixture, log, runGoal ? goal : goal - 1);
-        market = (tick) => (tick >= log.startTick ? marketTick(log, tick) : undefined);
+        // No live log yet only happens if live prices were switched on while
+        // the market was closed: everything so far is still seeded ticks.
+        tape = log ? decisionTape(fixture, log, runGoal ? goal : goal - 1) : extendTape(fixture, goal - 1);
+        market = (tick) => (log && tick >= log.startTick ? marketTick(log, tick) : undefined);
       } else {
         tape = extendTape(fixture, goal);
       }

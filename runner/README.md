@@ -96,6 +96,11 @@ on chain is the real one.
   prices converted into the tape's scale, anchored so the first live tick equals the last seeded one; real
   moves after that keep their true percentages. The chain only ever sees real prices.
 - **Market closed.** If no feed has moved since the last tick, no tick is created and nothing is sent.
+  Equity feeds also stop updating when the US market closes, so from Saturday afternoon to Monday's open
+  (and on holidays) they are past their 24h heartbeat. That is a *pause*, not a failure: the run is
+  green and sends nothing. Only a feed frozen on a weekday between 14:30 and 20:00 UTC raises a GitHub
+  warning, since that looks like a real outage. A wrong chain, unexpected decimals or a non-positive
+  price still fail the run.
 - **One-way.** Once live prices start, `tape` mode and `--tick` refuse: they would replay live ticks on
   simulated prices.
 - **Outcomes.** Nothing guarantees which agent wins on real prices.
